@@ -1,7 +1,7 @@
 {
   "name": "dsh-qa",
   "version": "0.1.0",
-  "description": "质量工作台 dsh-qa：DSH 软件测试工作台。测试项目/迭代双形态、需求/用例/缺陷/里程碑/报告全流程，原生测试模式，QA 主题皮肤，看板与日历排期",
+  "description": "dsh-qa QA Workbench: a local software testing workbench plugin for DeepSeek Harness. Project/iteration dual-mode, full-flow requirements / test cases / defects / milestones / reports, native QA preset, themes, kanban and calendar.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
