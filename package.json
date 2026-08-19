@@ -1,0 +1,60 @@
+{
+  "name": "dsh-qa",
+  "version": "0.1.0",
+  "description": "质量工作台 dsh-qa：DSH 软件测试工作台。测试项目/迭代双形态、需求/用例/缺陷/里程碑/报告全流程，原生测试模式，QA 主题皮肤，看板与日历排期",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "qabench": "server/cli.js"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "start": "node server/cli.js",
+    "dev": "node --watch server/cli.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek",
+    "qa",
+    "quality-assurance",
+    "test",
+    "workbench",
+    "kanban",
+    "测试",
+    "质量",
+    "工作台",
+    "看板"
+  ],
+  "files": [
+    "lib",
+    "server",
+    "public",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wesky820/dsh-qa.git"
+  },
+  "homepage": "https://github.com/wesky820/dsh-qa#readme",
+  "bugs": {
+    "url": "https://github.com/wesky820/dsh-qa/issues"
+  }
+}

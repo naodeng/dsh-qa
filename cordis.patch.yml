@@ -1,0 +1,8 @@
+# dsh-qa bundle patch：向 web profile 清单插入本插件行。
+# 宿主半（exports "."）在 dsh 进程内运行（工作台服务 + /api/dsh-qa 路由），
+# 浏览器半（exports "./client"，由宿主 /plugins/dsh-qa/client.js 提供）
+# 注入侧边栏「质量工作台」入口。独立工作台页面经同源镜像
+# /api/dsh-qa/workbench/ 提供。
+- insert:
+    - id: dsh-qa
+      name: 'dsh-qa'
