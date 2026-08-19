@@ -1,6 +1,6 @@
 # dsh-qa · 质量工作台
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue)](./LICENSE)
 [![Version](https://img.shields.io/badge/version-0.1.0-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
@@ -98,7 +98,7 @@ scripts/install-qa-skills.sh --dry-run           # 预览不写入
 
 安装后重启 `dsh web`，在质量工作台对话中输入 `/` 即可看到技能（如 `/test-case-writing`、`/bug-reporting`、`/requirements-analysis`、`/test-strategy`、`/test-reporting`）。工作台内置的 QA 系统提示已吸收这些库的质量原则：用例按需求追踪 `trace` 与风险标签组织、覆盖正向/异常/边界场景；缺陷区分「观察到的事实」与「原因猜测」、严重级别基于业务影响并记录复现频率与影响范围；报告区分已执行事实、未执行范围与证据缺口。
 
-> 说明：awesome-qa-skills / awesome-qa-prompt 采用 PolyForm Noncommercial 1.0.0 许可证；本插件仅提供安装指引与质量原则参考，不复制其内容。
+> 说明：本插件与 awesome-qa-skills / awesome-qa-prompt 均采用 PolyForm Noncommercial 1.0.0 许可证，仅限非商业用途；本插件仅提供安装指引与质量原则参考，不复制其内容。
 
 ## 分享发布
 
