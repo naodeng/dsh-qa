@@ -47,6 +47,7 @@ Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
 
 ### UI & Connectivity
 
+- **Language switching (zh / en)**: the "中 / EN" toggle in the top bar switches the UI language on the fly — Chinese by default, persisted in your local browser; navigation, dashboard, kanban, lists, calendar, radar and drawer/modal titles are all bilingual
 - **Adjustable workspace**: Main nav, project rail, and project radar widths are draggable and collapsible; double-click edges to reset; compact / standard / focus-chat presets persist in your local browser
 - **Four QA themes**: QA Dashboard, Terminal, Minimal, and Cyber — full skins; the Cyber theme can trigger a "BUILD PASSED" scene at any time
 - **DSH Remote**: Reuses the DSH-installed Remote plugin — shows entry & device status, generates one-time pairing links, and opens the `/m` mobile page directly
