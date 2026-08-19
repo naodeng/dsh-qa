@@ -1,3 +1,5 @@
+<div align="right"><strong>🇨🇳 中文</strong> | <strong><a href="./README_EN.md">🇬🇧 English</a></strong></div>
+
 # dsh-qa · 质量工作台
 
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue)](./LICENSE)
