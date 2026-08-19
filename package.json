@@ -52,10 +52,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/wesky820/dsh-qa.git"
+    "url": "git+https://github.com/naodeng/dsh-qa.git"
   },
-  "homepage": "https://github.com/wesky820/dsh-qa#readme",
+  "homepage": "https://github.com/naodeng/dsh-qa#readme",
   "bugs": {
-    "url": "https://github.com/wesky820/dsh-qa/issues"
+    "url": "https://github.com/naodeng/dsh-qa/issues"
   }
 }
