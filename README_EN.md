@@ -114,7 +114,20 @@ The workbench ships 18 QA-domain tools that DSH sessions call via function calli
 | Notes & reports | `knowledge_save` `minutes_save` `report_draft` `report_draft_save` |
 | Gates & imports | `gate_request` `testrun_import` |
 
+## Test Mode Preset (required)
+
+The workbench chat automatically uses DSH's **Test Mode** (preset id: `qa`). Before first use, install the preset (just as dsh-law requires its Legal Mode):
+
+```bash
+# One-click install of the qa preset into ~/.dsh/.agent-presets/qa
+scripts/install-qa-preset.sh
+# or preview: scripts/install-qa-preset.sh --dry-run
+```
+
+The preset is based on DSH's official `standard` (full coding capabilities) with a QA-testing persona and built-in QA quality principles (executable, judgeable test cases covering positive/exception/boundary; defects separating facts from guesses; no fabricated data). No restart needed — `agentPreset.list` picks up id=`qa` immediately.
+
 ## Companion QA Skills
+
 
 The workbench chat reuses DSH-native skills and commands (type `/` to search). You can install [awesome-qa-skills](https://github.com/naodeng/awesome-qa-skills) as companion testing skills and reference the multi-role workflows of [awesome-qa-prompt](https://github.com/naodeng/awesome-qa-prompt).
 

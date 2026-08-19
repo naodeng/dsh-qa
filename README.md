@@ -114,7 +114,20 @@ public/           四视图前端（原生 JS，无构建步骤；相对路径�
 | 沉淀与报告 | `knowledge_save` `minutes_save` `report_draft` `report_draft_save` |
 | 门禁与导入 | `gate_request` `testrun_import` |
 
+## 测试模式 preset（必需）
+
+质量工作台的对话自动使用 DSH 的「测试模式」（preset id: `qa`）。首次使用前需要安装该 preset（与 dsh-law 需要「法律模式」同理）：
+
+```bash
+# 一键安装 qa preset 到 ~/.dsh/.agent-presets/qa
+scripts/install-qa-preset.sh
+# 或预览：scripts/install-qa-preset.sh --dry-run
+```
+
+preset 基于 DSH 官方 `standard`（完整编码能力），persona 定制为 QA 测试助手，并内置 QA 质量原则（用例可执行可判定、覆盖正向/异常/边界、缺陷区分事实与猜测、不编造数据）。安装后无需重启，DSH 的 `agentPreset.list` 即可发现 id=`qa`。
+
 ## 配套 QA 技能库
+
 
 工作台对话复用 DSH 原生技能与命令（输入 `/` 检索），可直接安装 [awesome-qa-skills](https://github.com/naodeng/awesome-qa-skills) 的测试技能作为配套能力，并参考 [awesome-qa-prompt](https://github.com/naodeng/awesome-qa-prompt) 的多角色工作流。
 

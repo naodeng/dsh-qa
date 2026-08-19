@@ -558,7 +558,7 @@
     const presets = catalog.presets || [];
     const preset = presets.find((item) => item.id === 'qa')
       || presets.find((item) => /测试|质量|qa|quality|test/i.test(`${item.id} ${item.name} ${item.description || ''}`));
-    if (!preset) throw new Error('DSH 中未找到测试模式 preset，请先安装或启用 dsh-qa');
+    if (!preset) throw new Error('DSH 中未找到测试模式 preset（id: qa）。请在 dsh-qa 项目内执行 scripts/install-qa-preset.sh 安装，然后重试');
     state.dsh.qaPreset = preset;
     updateDshChrome();
     return preset;
