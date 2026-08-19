@@ -44,7 +44,7 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 #topbar {
   height: 60px;
   display: grid;
-  grid-template-columns: minmax(0, var(--rail-w)) minmax(280px, 560px) 1fr;
+  grid-template-columns: minmax(0, max-content) minmax(280px, 560px) 1fr;
   align-items: center;
   gap: 28px;
   padding: 0 20px 0 18px;
@@ -661,7 +661,8 @@ body[data-theme="terminal"] {
   font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, "PingFang SC", monospace;
 }
 body[data-theme="terminal"] #topbar { color: #3ddc84; border-bottom: 1px solid #1c4a2d; background: #06100a; }
-body[data-theme="terminal"] #topbar::after { content: "$ dsh qa --watch"; position: absolute; left: calc(var(--rail-w) + 24px); bottom: 2px; color: #3f8a5c; font: 9px "SF Mono", Menlo, monospace; letter-spacing: .04em; }
+body[data-theme="terminal"] .brand { position: relative; overflow: visible; }
+body[data-theme="terminal"] .brand::after { content: "$ dsh qa --watch"; position: absolute; left: 100%; top: 50%; transform: translateY(-50%); margin-left: 10px; color: #3f8a5c; font: 9px "SF Mono", Menlo, monospace; letter-spacing: .04em; white-space: nowrap; }
 body[data-theme="terminal"] .brand-mark { color: #3ddc84; border: 1px solid #2c6b41; border-radius: 3px; background: #0a1f14; }
 body[data-theme="terminal"] .brand-copy b { color: #3ddc84; font-family: "SF Mono", Menlo, monospace; letter-spacing: .02em; }
 body[data-theme="terminal"] .brand-copy small { color: #5d9270; }
@@ -805,14 +806,14 @@ body[data-theme="suits"] .legal-mode-badge { color: #f3e7d3; border-color: #936f
 body[data-theme="suits"] .modal, body[data-theme="suits"] .drawer { border: 1px solid #917249; border-radius: 0; background: #f7f5f0; box-shadow: 12px 12px 0 rgba(17,18,19,.3); }
 
 @media (max-width: 1180px) {
-  #topbar { grid-template-columns: var(--rail-w) minmax(240px, 430px) 1fr; }
+  #topbar { grid-template-columns: minmax(0, max-content) minmax(240px, 430px) 1fr; }
   .dashboard-grid { grid-template-columns: minmax(450px, 1.45fr) minmax(280px, .8fr); }
   .context-panel { display: none; }
   .splitter-context { display: none; }
   .drawer { top: 20px; right: 20px; bottom: 20px; width: calc(100vw - 40px); }
 }
 @media (max-width: 940px) {
-  #topbar { grid-template-columns: minmax(0, 74px) 1fr auto; gap: 12px; }
+  #topbar { grid-template-columns: minmax(0, max-content) 1fr auto; gap: 12px; }
   .brand-copy small, .service-status span, .theme-toggle span { display: none; }
   .brand { gap: 6px; }
   .brand-copy b { font-size: 16px; letter-spacing: .04em; }
