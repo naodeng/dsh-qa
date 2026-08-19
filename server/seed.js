@@ -32,17 +32,17 @@ export function seedIfEmpty() {
     { id: store.uid('req'), title: '库存并发扣减', kind: 'nonfunctional', statement: '高并发下库存扣减不超卖，接口 P99 < 300ms。', acceptance: '并发 500 压测无超卖', links: [], at: store.now() },
   ];
   p1.testcases = [
-    { id: store.uid('tc'), title: '正常提交订单生成订单号', kind: 'functional', priority: 'P0', preconditions: '已登录，商品有库存', steps: '1. 加入购物车\n2. 提交订单\n3. 查看订单列表', expected: '生成唯一订单号，状态为待支付', status: 'draft', at: store.now() },
-    { id: store.uid('tc'), title: '重复提交幂等校验', kind: 'boundary', priority: 'P1', preconditions: '网络可重复触发', steps: '1. 提交订单\n2. 立即重放同一请求', expected: '第二次请求返回同一订单号，不重复下单', status: 'draft', at: store.now() },
-    { id: store.uid('tc'), title: '支付回调验签失败', kind: 'security', priority: 'P1', preconditions: '可伪造回调请求', steps: '1. 构造非法签名回调\n2. 发送到回调接口', expected: '拒绝处理并记录告警', status: 'draft', at: store.now() },
-    { id: store.uid('tc'), title: '库存并发压测不超卖', kind: 'performance', priority: 'P1', preconditions: '库存 100，压测工具就绪', steps: '1. 启动 500 并发\n2. 全部提交订单', expected: '成功下单数 ≤ 100，P99 < 300ms', status: 'draft', at: store.now() },
+    { id: store.uid('tc'), title: '正常提交订单生成订单号', kind: 'functional', priority: 'P0', preconditions: '已登录，商品有库存', steps: '1. 加入购物车\n2. 提交订单\n3. 查看订单列表', expected: '生成唯一订单号，状态为待支付', trace: 'R-001', risks: ['核心主流程'], status: 'draft', at: store.now() },
+    { id: store.uid('tc'), title: '重复提交幂等校验', kind: 'boundary', priority: 'P1', preconditions: '网络可重复触发', steps: '1. 提交订单\n2. 立即重放同一请求', expected: '第二次请求返回同一订单号，不重复下单', trace: 'R-001', risks: ['幂等', '并发'], status: 'draft', at: store.now() },
+    { id: store.uid('tc'), title: '支付回调验签失败', kind: 'security', priority: 'P1', preconditions: '可伪造回调请求', steps: '1. 构造非法签名回调\n2. 发送到回调接口', expected: '拒绝处理并记录告警', trace: 'R-002', risks: ['安全'], status: 'draft', at: store.now() },
+    { id: store.uid('tc'), title: '库存并发压测不超卖', kind: 'performance', priority: 'P1', preconditions: '库存 100，压测工具就绪', steps: '1. 启动 500 并发\n2. 全部提交订单', expected: '成功下单数 ≤ 100，P99 < 300ms', trace: 'R-003', risks: ['高并发', '超卖'], status: 'draft', at: store.now() },
   ];
   p1.testcases[0].links = [];
   p1.requirements[0].links.push({ testcaseId: p1.testcases[0].id, purpose: '验证正常下单主流程', at: store.now() });
   p1.requirements[0].links.push({ testcaseId: p1.testcases[1].id, purpose: '验证幂等覆盖', at: store.now() });
   p1.requirements[1].links.push({ testcaseId: p1.testcases[2].id, purpose: '验证回调安全校验', at: store.now() });
   p1.defects = [
-    { id: store.uid('bug'), title: '退款接口在并发场景偶发返回 500', severity: 'major', environment: 'staging v1.2.0', steps: '1. 并发发起 10 笔退款\n2. 观察响应', expected: '全部成功', actual: '偶发 500（约 5%）', module: '订单域-退款', status: 'open', at: store.now() },
+    { id: store.uid('bug'), title: '退款接口在并发场景偶发返回 500', severity: 'major', environment: 'staging v1.2.0', steps: '1. 并发发起 10 笔退款\n2. 观察响应', expected: '全部成功', actual: '偶发 500（约 5%）', module: '订单域-退款', frequency: '偶发（约 5%）', impact: '影响并发退款用户，需人工重试', status: 'open', at: store.now() },
   ];
   p1.milestones = [
     { id: store.uid('ms'), title: '用例评审会', kind: 'review', startDate: null, days: null, dueDate: dayOffset(3), basis: '测试计划排期', done: false, at: store.now() },
@@ -67,6 +67,9 @@ export function seedIfEmpty() {
       }],
       at: store.now(),
     },
+  ];
+  p1.gates = [
+    { id: store.uid('gate'), type: 'testcase-review', title: '用例评审（订单主流程）', summary: '4 条 P0/P1 用例待评审，覆盖幂等与并发风险。', status: 'pending', requestedAt: store.now(), decidedAt: null, decision: null },
   ];
   store.transitionProject(p1, 'design', 'seed');
   p1.materials = [

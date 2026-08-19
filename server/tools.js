@@ -46,24 +46,28 @@ export const TOOL_DEFS = [
   { type: 'function', function: { name: 'requirement_add', description: '登记需求/测试范围（功能需求、非功能需求、风险点）。对话中出现的需求必须登记', parameters: { type: 'object', required: ['title', 'statement'], properties: {
       title: { type: 'string' }, kind: { type: 'string', enum: ['functional', 'nonfunctional', 'risk', 'issue'], description: '功能需求/非功能需求/风险点/问题' },
       statement: { type: 'string', description: '需求描述' }, acceptance: { type: 'string', description: '验收标准' } }, additionalProperties: false } } },
-  { type: 'function', function: { name: 'testcase_add', description: '登记测试用例（需求/对话中出现的可测场景必须生成用例）', parameters: { type: 'object', required: ['title'], properties: {
+  { type: 'function', function: { name: 'testcase_add', description: '登记测试用例（需求/对话中出现的可测场景必须生成用例）。用例需可执行、预期可判定，按需求追踪', parameters: { type: 'object', required: ['title'], properties: {
       title: { type: 'string', description: '用例标题' },
       kind: { type: 'string', enum: ['functional', 'boundary', 'interface', 'ui', 'performance', 'security', 'compat', 'other'], description: '功能/边界/接口/界面/性能/安全/兼容/其他' },
-      priority: { type: 'string', enum: ['P0', 'P1', 'P2', 'P3'], description: '优先级，默认 P2' },
+      priority: { type: 'string', enum: ['P0', 'P1', 'P2', 'P3'], description: '优先级：按风险/业务影响排序，P0 核心流程，默认 P2' },
       preconditions: { type: 'string', description: '前置条件' },
       steps: { type: 'string', description: '测试步骤，用换行分隔' },
-      expected: { type: 'string', description: '预期结果' },
+      expected: { type: 'string', description: '预期结果（必须可判定）' },
+      trace: { type: 'string', description: '需求追踪：引用的需求/验收标准/风险 ID，如 R-001，或简短标签+来源' },
+      risks: { type: 'array', items: { type: 'string' }, description: '风险/边界标签，如 高并发、金额溢出' },
       status: { type: 'string', enum: ['draft', 'reviewed', 'executed'], description: '草稿/已评审/已执行，默认 draft' } }, additionalProperties: false } } },
   { type: 'function', function: { name: 'testcase_status', description: '更新用例状态：draft 草稿 / reviewed 已评审 / executed 已执行', parameters: { type: 'object', required: ['testcaseId', 'status'], properties: {
       testcaseId: { type: 'string' }, status: { type: 'string', enum: ['draft', 'reviewed', 'executed'] } }, additionalProperties: false } } },
   { type: 'function', function: { name: 'testcase_link', description: '把测试用例关联到需求并写明覆盖的验证点', parameters: { type: 'object', required: ['requirementId', 'testcaseId', 'purpose'], properties: {
       requirementId: { type: 'string' }, testcaseId: { type: 'string' }, purpose: { type: 'string', description: '覆盖/验证目的' } }, additionalProperties: false } } },
-  { type: 'function', function: { name: 'defect_add', description: '登记缺陷（发现的不符合预期的行为必须登记）', parameters: { type: 'object', required: ['title'], properties: {
-      title: { type: 'string' }, severity: { type: 'string', enum: ['critical', 'major', 'minor', 'trivial'], description: '致命/严重/一般/轻微，默认 major' },
+  { type: 'function', function: { name: 'defect_add', description: '登记缺陷（发现的不符合预期的行为必须登记）。把观察到的事实与原因猜测分开，不编造根因', parameters: { type: 'object', required: ['title'], properties: {
+      title: { type: 'string' }, severity: { type: 'string', enum: ['critical', 'major', 'minor', 'trivial'], description: '严重级别：基于业务与用户影响判定（数据丢失/核心流程阻断=critical；功能不可用= major；轻微=trivial），默认 major' },
       environment: { type: 'string', description: '环境/版本' },
-      steps: { type: 'string', description: '复现步骤' },
+      steps: { type: 'string', description: '复现步骤（需简洁可复现）' },
       expected: { type: 'string', description: '预期结果' }, actual: { type: 'string', description: '实际结果' },
-      module: { type: 'string', description: '所属模块' } }, additionalProperties: false } } },
+      module: { type: 'string', description: '所属模块' },
+      frequency: { type: 'string', description: '复现频率，如 必现/偶发(约10%)' },
+      impact: { type: 'string', description: '影响范围：影响哪些用户/业务，如 全部支付用户' } }, additionalProperties: false } } },
   { type: 'function', function: { name: 'defect_status', description: '更新缺陷状态：open 待处理 / fixing 修复中 / verify 待验证 / closed 已关闭', parameters: { type: 'object', required: ['defectId', 'status'], properties: {
       defectId: { type: 'string' }, status: { type: 'string', enum: ['open', 'fixing', 'verify', 'closed'] } }, additionalProperties: false } } },
   { type: 'function', function: { name: 'milestone_add', description: '登记里程碑/截止日（发布日/评审日/冻结日等）。给 days 从 startDate 次日算起，或直接给 dueDate', parameters: { type: 'object', required: ['title'], properties: {
@@ -83,8 +87,8 @@ export const TOOL_DEFS = [
       docId: { type: 'string' }, content: { type: 'string', description: '报告全文' } }, additionalProperties: false } } },
   { type: 'function', function: { name: 'project_transition', description: '推进项目在看板上的阶段（只能推进到非终局列，发布必须由负责人人工操作）', parameters: { type: 'object', required: ['to'], properties: {
       to: { type: 'string', enum: ['intake', 'design', 'review', 'execute', 'regression'], description: '目标列：需求分析/用例设计/用例评审/执行中/缺陷回归' } }, additionalProperties: false } } },
-  { type: 'function', function: { name: 'gate_request', description: '提交门禁申请（用例评审/发布/结项），由测试负责人在界面人工审批，AI 不能自行通过', parameters: { type: 'object', required: ['type', 'title'], properties: {
-      type: { type: 'string', enum: ['testcase-review', 'release', 'closure'] }, title: { type: 'string' }, summary: { type: 'string' } }, additionalProperties: false } } },
+  { type: 'function', function: { name: 'gate_request', description: '提交门禁申请（需求评审/策略评审/用例评审/报告评审/发布/结项），由测试负责人在界面人工审批，AI 不能自行通过', parameters: { type: 'object', required: ['type', 'title'], properties: {
+      type: { type: 'string', enum: ['requirements-review', 'strategy-review', 'testcase-review', 'report-review', 'release', 'closure'], description: '需求评审/策略评审/用例评审/报告评审/发布/结项' }, title: { type: 'string' }, summary: { type: 'string' } }, additionalProperties: false } } },
   { type: 'function', function: { name: 'testrun_import', description: '导入自动化测试结果（Playwright / Pytest 等），把执行汇总登记到项目', parameters: { type: 'object', required: ['framework', 'summary'], properties: {
       framework: { type: 'string', description: '框架名，如 Playwright / Pytest' },
       summary: { type: 'string', description: '执行汇总，如 通过 42 / 失败 3 / 跳过 2，总耗时 4m12s' },
@@ -138,10 +142,10 @@ export async function executeTool(projectId, name, args = {}) {
     case 'testcase_add': {
       const title_ = str(args.title).trim();
       if (!title_) return { ok: false, error: '缺少用例标题' };
-      const t = { id: store.uid('tc'), title: title_, kind: args.kind || 'functional', priority: args.priority || 'P2', preconditions: str(args.preconditions), steps: str(args.steps), expected: str(args.expected), status: args.status || 'draft', at: store.now() };
+      const t = { id: store.uid('tc'), title: title_, kind: args.kind || 'functional', priority: args.priority || 'P2', preconditions: str(args.preconditions), steps: str(args.steps), expected: str(args.expected), trace: str(args.trace), risks: Array.isArray(args.risks) ? args.risks.map(str) : [], status: args.status || 'draft', at: store.now() };
       p.testcases.push(t);
       store.touch(p); store.persist();
-      afterChange(projectId, { type: 'evidence', label: `AI 登记用例：${t.title}（${t.priority}）` });
+      afterChange(projectId, { type: 'evidence', label: `AI 登记用例：${t.title}（${t.priority}${t.trace ? ` · ${t.trace}` : ''}）` });
       return { ok: true, testcase: t };
     }
 
@@ -167,10 +171,10 @@ export async function executeTool(projectId, name, args = {}) {
     case 'defect_add': {
       const title_ = str(args.title).trim();
       if (!title_) return { ok: false, error: '缺少缺陷标题' };
-      const d = { id: store.uid('bug'), title: title_, severity: args.severity || 'major', environment: str(args.environment), steps: str(args.steps), expected: str(args.expected), actual: str(args.actual), module: str(args.module), status: 'open', at: store.now() };
+      const d = { id: store.uid('bug'), title: title_, severity: args.severity || 'major', environment: str(args.environment), steps: str(args.steps), expected: str(args.expected), actual: str(args.actual), module: str(args.module), frequency: str(args.frequency), impact: str(args.impact), status: 'open', at: store.now() };
       p.defects.push(d);
       store.touch(p); store.persist();
-      afterChange(projectId, { type: 'defect', label: `AI 登记缺陷：${d.title}（${SEVERITY_CN[d.severity]}）` });
+      afterChange(projectId, { type: 'defect', label: `AI 登记缺陷：${d.title}（${SEVERITY_CN[d.severity]}${d.frequency ? ` · ${d.frequency}` : ''}）` });
       return { ok: true, defect: d };
     }
 

@@ -45,9 +45,9 @@ npm start          # 或双击 start.command
 - **本地项目目录**：创建项目时可自动生成 `01_需求与范围 / 02_测试计划 / 03_测试用例 / 04_测试数据与脚本 / 05_测试执行 / 06_缺陷 / 07_测试报告 / 08_发布与归档` 八级工作目录；删除项目记录不会删除文件夹
 - **对话主界面**：每项目独立 DSH 原生对话，左侧项目/迭代列表与右侧项目雷达实时更新
 - **实时看板**：六列流水线（需求分析 → 用例设计 → 用例评审 → 执行中 → 缺陷回归 → 已发布），拖拽换列，SSE 实时推送，多窗口同步
-- **AI 材料上板**：AI 从对话自动登记需求（可关联用例与验证目的）、测试用例（含优先级与三态）、缺陷（严重级别与复现信息）、里程碑（自动算截止日，逾期/临期徽章）、日程、测试知识、会话纪要、测试报告（版本链），并支持登记 Playwright/Pytest 等自动化结果；每次登记实时出现在看板卡片与材料流
+- **AI 材料上板**：AI 从对话自动登记需求（可关联用例与验证目的）、测试用例（含优先级、需求追踪 trace、风险标签与三态）、缺陷（严重级别基于业务影响，含复现频率与影响范围）、里程碑（自动算截止日，逾期/临期徽章）、日程、测试知识、会话纪要、测试报告（版本链），并支持登记 Playwright/Pytest 等自动化结果；每次登记实时出现在看板卡片与材料流
 - **项目档案工作区**：宽屏项目详情，集中编辑名称、编号、产品、负责人、摘要和阶段；概览/需求/用例/缺陷/里程碑/报告/知识/纪要/门禁九个分区，并展示进度、AI 策略、成员、文件目录与阶段时间线
-- **门禁治理**：用例评审/发布/结项由 AI 提交申请，测试负责人人工审批
+- **门禁治理**：需求评审/策略评审/用例评审/报告评审/发布/结项由 AI 提交申请，测试负责人人工审批（对齐 AI 研发质量分析 8 阶段工作流）
 - 逾期里程碑红标、7 日内临期黄标、待批门禁紫标，顶栏实时统计
 
 ## 架构
@@ -67,6 +67,23 @@ public/           四视图前端（原生 JS，无构建步骤；相对路径�
 ### AI 工具集（18 个）
 
 `project_get / project_update / member_add / requirement_add / testcase_add / testcase_status / testcase_link / defect_add / defect_status / milestone_add / event_add / knowledge_save / minutes_save / report_draft / report_draft_save / project_transition / gate_request / testrun_import`
+
+## 配套 QA 技能库
+
+工作台对话复用 DSH 原生技能与命令（输入 `/` 检索），可直接安装 [awesome-qa-skills](https://github.com/naodeng/awesome-qa-skills) 的测试技能作为配套能力，并参考 [awesome-qa-prompt](https://github.com/naodeng/awesome-qa-prompt) 的多角色工作流。
+
+```bash
+# 一键安装 awesome-qa-skills（92 个中英技能）到 DSH 技能目录
+scripts/install-qa-skills.sh                     # 默认中文全部技能
+scripts/install-qa-skills.sh --lang en           # 英文技能
+scripts/install-qa-skills.sh --skill test-case-writing   # 只装单个技能
+scripts/install-qa-skills.sh --src /path/to/awesome-qa-skills   # 自定义仓库路径
+scripts/install-qa-skills.sh --dry-run           # 预览不写入
+```
+
+安装后重启 `dsh web`，在质量工作台对话中输入 `/` 即可看到技能（如 `/test-case-writing`、`/bug-reporting`、`/requirements-analysis`、`/test-strategy`、`/test-reporting`）。工作台内置的 QA 系统提示已吸收这些库的质量原则：用例按需求追踪 `trace` 与风险标签组织、覆盖正向/异常/边界场景；缺陷区分「观察到的事实」与「原因猜测」、严重级别基于业务影响并记录复现频率与影响范围；报告区分已执行事实、未执行范围与证据缺口。
+
+> 说明：awesome-qa-skills / awesome-qa-prompt 采用 PolyForm Noncommercial 1.0.0 许可证；本插件仅提供安装指引与质量原则参考，不复制其内容。
 
 ## 分享发布
 

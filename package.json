@@ -44,6 +44,7 @@
     "lib",
     "server",
     "public",
+    "scripts",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"
