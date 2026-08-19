@@ -1,5 +1,10 @@
 # dsh-qa · 质量工作台
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Version](https://img.shields.io/badge/version-0.1.0-informational)]()
+[![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
+[![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
+
 **DeepSeek Harness 的本地软件测试工作台插件**。参考 dsh-law 的法院工作台形态，把测试项目的待办提醒、日历排期、项目概览和最近动态放在同一屏；测试项目/迭代的对话统一交给 DSH 原生会话，并自动使用用户预设的「测试模式」（preset id: `qa`）。零 npm 依赖，数据完全本机。
 
 ```
@@ -10,7 +15,7 @@
 
 ```bash
 # GitHub（推荐）
-dsh plugin --profile web add github:wesky820/dsh-qa
+dsh plugin --profile web add github:naodeng/dsh-qa
 # 或 npm 发布后
 dsh plugin --profile web add dsh-qa
 # 本地开发
@@ -22,6 +27,16 @@ dsh plugin --profile web add link:/path/to/dsh-qa
 **模型和 API**：工作台不维护第二套 API Key 或模型配置。每个测试项目会绑定一个以项目文件夹为工作目录的 DSH 原生会话，并自动使用 DSH 的「测试模式」（preset id: `qa`）。模型列表、模型切换、技能、命令、工具和权限策略全部来自 DSH；要新增服务商或模型，请在 DSH 设置中配置。
 
 旧项目如果绑定的是空白标准模式会话，工作台会直接切换为测试模式；如果旧会话已经有对话，则保留原会话历史，自动新建并改绑一个测试模式会话。
+
+## 快速开始（不装插件也能先体验）
+
+```bash
+git clone https://github.com/naodeng/dsh-qa.git
+cd dsh-qa
+npm start        # → http://127.0.0.1:8899
+```
+
+首次启动会自动创建两个示例（一个测试项目 + 一个迭代），含需求、用例、缺陷、里程碑、报告和待审批门禁，可以直接在首页/看板/日历里查看操作。项目管理功能完整可用；DSH 对话、模型、技能与命令需从 DSH 侧边栏打开插件后使用。
 
 ## 独立运行（仅项目管理，可选）
 
@@ -87,8 +102,8 @@ scripts/install-qa-skills.sh --dry-run           # 预览不写入
 
 ## 分享发布
 
-1. GitHub 仓库为 `wesky820/dsh-qa`，其他用户可以直接安装：
-   `dsh plugin --profile web add github:wesky820/dsh-qa`
+1. GitHub 仓库为 [`naodeng/dsh-qa`](https://github.com/naodeng/dsh-qa)，其他用户可以直接安装：
+   `dsh plugin --profile web add github:naodeng/dsh-qa`
 2. 或发布 npm：`npm publish` → `dsh plugin add dsh-qa`
 3. 模型与密钥均由使用者自己的 DSH 配置管理
 
