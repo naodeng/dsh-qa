@@ -540,6 +540,7 @@
   function updateDshChrome() {
     const presetName = state.dsh.qaPreset?.name || '测试模式';
     $('#btn-dsh-capabilities').classList.toggle('hidden', !state.dshEmbedded);
+    $('#btn-back-dsh').classList.toggle('hidden', !state.dshEmbedded);
     $('#capability-count').textContent = state.dsh.sessionId ? `${state.dsh.skills.length} / ${state.dsh.commands.length}` : '';
     $('#service-status').classList.toggle('offline', !state.dshEmbedded);
     $('#service-status span').textContent = state.dshEmbedded ? `DSH · ${presetName}` : '请从 DSH 打开';
@@ -1225,6 +1226,11 @@
     $('#btn-settings').addEventListener('click', openSettings);
     $('#btn-remote').addEventListener('click', openRemotePanel);
     $('#btn-pass-scene').addEventListener('click', showPassScene);
+    $('#btn-back-dsh').addEventListener('click', () => {
+      // 通知 DSH 宿主关闭工作台面板，回到 DSH 主页面
+      try { window.parent?.postMessage({ source: 'dsh-qa', type: 'close-panel' }, '*'); } catch (e) { /* ignore */ }
+      if (!state.dshEmbedded) toast('请从 DSH 侧边栏的工作台面板中返回', 'err');
+    });
     $('#btn-collapse-rail').addEventListener('click', () => toggleLayoutPane('rail'));
     $('#btn-collapse-cases').addEventListener('click', () => toggleLayoutPane('cases'));
     $('#btn-collapse-context').addEventListener('click', () => toggleLayoutPane('context'));
