@@ -2,6 +2,7 @@
 (() => {
   'use strict';
 
+  const { t, currentLang, setLang } = window.DSH_QA_I18N;
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
   const FEED_ICON = { req: '需', tc: '例', defect: '缺', milestone: '里', report: '报', knowledge: '知', minute: '纪', gate: '审', event: '程', member: '人', transition: '转', tool: 'AI', case: '项', run: '跑', chat: '问' };
@@ -19,10 +20,17 @@
   const TYPE_CN = { web: 'Web 应用', app: '移动 App', api: '接口服务', desktop: '桌面端', embedded: '嵌入式', data: '数据平台', other: '其他' };
   const KIND_CN = { project: '测试项目', iteration: '迭代' };
   const MODE_CN = { full: '全流程辅助', manual: '按需协作' };
+  const MODE_CN_EN = { full: 'Full assistance', manual: 'On demand' };
   const MODE_DESC = {
     full: '主动提取需求、生成用例、登记缺陷并提示下一步',
     manual: '只有明确要求时才登记或改变项目数据',
   };
+  const MODE_DESC_EN = {
+    full: 'Proactively extract requirements, design test cases, log defects and suggest next steps',
+    manual: 'Only register or change project data when explicitly asked',
+  };
+  const langModeCN = (mode) => (currentLang() === 'en' ? MODE_CN_EN[mode] || mode : MODE_CN[mode] || mode);
+  const langModeDesc = (mode) => (currentLang() === 'en' ? MODE_DESC_EN[mode] || MODE_DESC_EN.full : MODE_DESC[mode] || MODE_DESC.full);
   const THEMES = {
     dashboard: { label: '质量仪表', motto: 'QA Workbench · 质量第一' },
     terminal: { label: '终端', motto: 'ALL TESTS PASS' },
@@ -224,21 +232,21 @@
   function renderMetrics() {
     const s = state.stats || {};
     const metrics = [
-      ['在办项目', s.activeProjects ?? 0, `共 ${s.totalProjects ?? 0} 个`, 'blue', '<svg viewBox="0 0 24 24"><path d="M4 7h6l2 2h8v10H4z"/><path d="M4 7V5h6l2 2"/></svg>'],
-      ['七日内里程碑', s.dueSoonMilestones ?? 0, '需要提前准备', 'amber', '<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 3h6"/></svg>'],
-      ['已逾期', s.overdueMilestones ?? 0, s.overdueMilestones ? '请立即核查' : '目前无逾期', 'red', '<svg viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5M12 17h.01"/></svg>'],
-      ['未关闭缺陷', s.openDefects ?? 0, '按严重级别优先处理', 'teal', '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7"/></svg>'],
+      [t('metric.activeProjects'), s.activeProjects ?? 0, t('metric.total', { n: s.totalProjects ?? 0 }), 'blue', '<svg viewBox="0 0 24 24"><path d="M4 7h6l2 2h8v10H4z"/><path d="M4 7V5h6l2 2"/></svg>'],
+      [t('metric.dueSoon'), s.dueSoonMilestones ?? 0, t('metric.dueSoonTip'), 'amber', '<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 3h6"/></svg>'],
+      [t('metric.overdue'), s.overdueMilestones ?? 0, s.overdueMilestones ? t('metric.overdueTip') : t('metric.overdueClean'), 'red', '<svg viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5M12 17h.01"/></svg>'],
+      [t('metric.openDefects'), s.openDefects ?? 0, t('metric.openDefectsTip'), 'teal', '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7"/></svg>'],
     ];
     $('#metric-cards').innerHTML = metrics.map(([label, value, note, color, icon]) => `
       <div class="metric-card"><div class="metric-copy"><small>${label}</small><strong>${value}</strong><em>${note}</em></div><span class="metric-icon ${color}">${icon}</span></div>`).join('');
   }
   function reminderTime(item) {
-    if (item.type === 'gate') return '待审批';
-    if (item.type === 'workflow') return '建议处理';
-    if (item.days < 0) return `逾期 ${-item.days} 天`;
-    if (item.days === 0) return '今天到期';
-    if (item.days === 1) return '明天到期';
-    return `${item.days} 天后`;
+    if (item.type === 'gate') return t('todo.gate');
+    if (item.type === 'workflow') return t('todo.workflow');
+    if (item.days < 0) return t('todo.overdue', { n: -item.days });
+    if (item.days === 0) return t('todo.today');
+    if (item.days === 1) return t('todo.tomorrow');
+    return t('todo.days', { n: item.days });
   }
   function renderReminders() {
     const list = $('#dashboard-reminders');
@@ -248,7 +256,7 @@
         <span class="attention-mark">${tinyIcon(item.type)}</span>
         <div><div class="attention-title">${esc(item.title)}</div><div class="attention-meta">${esc(item.projectTitle)}${item.date ? ` · ${esc(item.date)}` : ''}</div></div>
         <span class="attention-time">${reminderTime(item)}</span>
-      </div>`).join('') : emptyHtml('今天没有临期事项，可以专注推进在办项目。');
+      </div>`).join('') : emptyHtml(t('todo.empty'));
     $$('.attention-item', list).forEach((el) => el.addEventListener('click', () => openProject(el.dataset.projectId)));
     const alertCount = state.reminders.filter((x) => x.severity !== 'normal').length;
     $('#nav-alert-count').textContent = alertCount;
@@ -259,17 +267,17 @@
     $('#dashboard-cases').innerHTML = cards.length ? cards.map((card) => {
       const column = columnOf(card);
       const risk = card.counts.milestoneOverdue
-        ? `<span class="risk-badge alert">逾期 ${card.counts.milestoneOverdue}</span>`
+        ? `<span class="risk-badge alert">${t('risk.overdue', { n: card.counts.milestoneOverdue })}</span>`
         : card.counts.milestoneSoon
-          ? `<span class="risk-badge">临期 ${card.counts.milestoneSoon}</span>`
-          : '<span class="risk-badge">无里程碑风险</span>';
+          ? `<span class="risk-badge">${t('risk.soon', { n: card.counts.milestoneSoon })}</span>`
+          : `<span class="risk-badge">${t('risk.none')}</span>`;
       return `<div class="case-overview-row" data-project-id="${card.id}">
-        <div class="case-main"><b>${esc(card.title)}</b><span>${esc(card.projectKey || card.typeLabel || '未编号')}</span></div>
+        <div class="case-main"><b>${esc(card.title)}</b><span>${esc(card.projectKey || card.typeLabel || t('case.table.project'))}</span></div>
         <span class="stage-pill" style="--cc:${column?.color || '#64748b'}">${esc(column?.title || card.status)}</span>
-        <span class="risk-badges">${risk}<span class="risk-badge">用例 ${card.counts.testcases}</span></span>
+        <span class="risk-badges">${risk}<span class="risk-badge">${t('case.table.risk').split(' / ')[1] || 'Cases'} ${card.counts.testcases}</span></span>
         <span class="last-active">${fmtTime(card.lastActivityAt)}</span>
       </div>`;
-    }).join('') : emptyHtml('还没有测试项目，先创建一个开始。');
+    }).join('') : emptyHtml(t('caseList.empty'));
     $$('.case-overview-row', $('#dashboard-cases')).forEach((el) => el.addEventListener('click', () => openProject(el.dataset.projectId)));
   }
   function renderAiSummary() {
@@ -278,17 +286,17 @@
     const full = cards.filter((card) => card.assistant?.enabled !== false && card.assistant?.mode === 'full').length;
     const off = cards.length - enabled;
     $('#ai-control-summary').innerHTML = `
-      <div class="control-row"><i></i><span>已启用 DSH 辅助</span><b>${enabled} 个项目</b></div>
-      <div class="control-row"><i></i><span>全流程主动协作</span><b>${full} 个项目</b></div>
-      <div class="control-row"><i class="off"></i><span>关闭自动辅助</span><b>${off} 个项目</b></div>`;
+      <div class="control-row"><i></i><span>${t('ai.enabled')}</span><b>${t('ai.enabledCount', { n: enabled })}</b></div>
+      <div class="control-row"><i></i><span>${t('ai.full')}</span><b>${t('ai.enabledCount', { n: full })}</b></div>
+      <div class="control-row"><i class="off"></i><span>${t('ai.off')}</span><b>${t('ai.enabledCount', { n: off })}</b></div>`;
     const model = state.dsh.models?.current?.model;
     $('#dashboard-model-note').textContent = state.dshEmbedded
-      ? `对话统一使用 DSH 测试模式${model ? ` · 当前模型 ${model}` : ''}，模型与权限均跟随 DSH。`
-      : '项目管理可独立使用；对话、模型、技能与命令请从 DSH 侧边栏进入。';
+      ? t('ai.noteEmbedded', { model: model ? ` · 当前模型 ${model}` : '' })
+      : t('ai.noteStandalone');
   }
   function renderDashboardFeed() {
     $('#dashboard-feed').innerHTML = state.feed.slice(0, 6).map((entry) => `
-      <div class="activity-item"><span class="activity-icon">${FEED_ICON[entry.type] || '记'}</span><div class="activity-copy"><b>${esc(entry.label)}</b><span>${esc(entry.projectTitle || '工作台')}</span></div><span class="activity-time">${fmtTime(entry.ts)}</span></div>`).join('') || emptyHtml('暂无工作台动态');
+      <div class="activity-item"><span class="activity-icon">${FEED_ICON[entry.type] || '记'}</span><div class="activity-copy"><b>${esc(entry.label)}</b><span>${esc(entry.projectTitle || t('panel.activity'))}</span></div><span class="activity-time">${fmtTime(entry.ts)}</span></div>`).join('') || emptyHtml(t('activity.empty'));
   }
   function renderDashboard() {
     const now = new Date();
@@ -333,7 +341,7 @@
     $$('.mini-day', $('#mini-calendar')).forEach((button) => button.addEventListener('click', () => { state.selectedDate = button.dataset.date; renderMiniCalendar(); }));
     const selected = itemsOn(state.selectedDate);
     $('#mini-agenda').innerHTML = (selected.length ? selected.slice(0, 2).map((item) => `
-      <div class="mini-agenda-item" data-project-id="${item.projectId}"><i style="background:${item.type === 'milestone' ? 'var(--amber)' : 'var(--blue)'}"></i><div><b>${esc(item.title)}</b><span>${esc(item.projectTitle)}</span></div></div>`).join('') : `<div class="mini-agenda-item"><i style="background:#cbd3d9"></i><div><b>${fmtDate(state.selectedDate)}暂无安排</b><span>可以直接在这一天新建日程</span></div></div>`) + `<button class="mini-agenda-add" type="button">＋ 添加日程</button>`;
+      <div class="mini-agenda-item" data-project-id="${item.projectId}"><i style="background:${item.type === 'milestone' ? 'var(--amber)' : 'var(--blue)'}"></i><div><b>${esc(item.title)}</b><span>${esc(item.projectTitle)}</span></div></div>`).join('') : `<div class="mini-agenda-item"><i style="background:#cbd3d9"></i><div><b>${fmtDate(state.selectedDate)}${t('calendar.none')}</b><span>${t('calendar.noneTip')}</span></div></div>`) + `<button class="mini-agenda-add" type="button">${t('calendar.add')}</button>`;
     $$('.mini-agenda-item[data-project-id]', $('#mini-agenda')).forEach((el) => el.addEventListener('click', () => openProject(el.dataset.projectId)));
     $('.mini-agenda-add', $('#mini-agenda')).addEventListener('click', () => openScheduleModal(state.selectedDate));
   }
@@ -366,7 +374,7 @@
     const until = new Date(); until.setDate(until.getDate() + 30);
     const upcoming = state.schedule.filter((item) => item.date >= today && item.date <= localDate(until) && !item.done).slice(0, 10);
     $('#calendar-agenda').innerHTML = upcoming.map((item) => `
-      <div class="agenda-card" data-project-id="${item.projectId}"><span class="agenda-date">${fmtDate(item.date)} · ${item.type === 'milestone' ? '里程碑' : '日程'}</span><b>${esc(item.title)}</b><span>${esc(item.projectTitle)}</span></div>`).join('') || emptyHtml('暂无近期安排');
+      <div class="agenda-card" data-project-id="${item.projectId}"><span class="agenda-date">${fmtDate(item.date)} · ${item.type === 'milestone' ? t('calendar.milestone') : t('calendar.event')}</span><b>${esc(item.title)}</b><span>${esc(item.projectTitle)}</span></div>`).join('') || emptyHtml(t('calendar.agendaEmpty'));
     $$('.agenda-card', $('#calendar-agenda')).forEach((el) => el.addEventListener('click', () => openProject(el.dataset.projectId)));
   }
   function selectCalendarDate(iso) {
@@ -413,7 +421,7 @@
     $('#rail-case-list').innerHTML = sortedCards().slice(0, 7).map((card) => {
       const column = columnOf(card);
       return `<button class="rail-case ${card.id === state.activeProjectId ? 'active' : ''}" data-project-id="${card.id}" type="button"><b>${esc(card.title)}</b><span><i style="background:${column?.color || '#64748b'}"></i>${esc(KIND_CN[card.kind] || column?.title || card.typeLabel)}</span></button>`;
-    }).join('') || emptyHtml('暂无项目');
+    }).join('') || emptyHtml(t('board.empty'));
     $$('.rail-case', $('#rail-case-list')).forEach((button) => button.addEventListener('click', () => openProject(button.dataset.projectId)));
   }
   function renderCaseList() {
@@ -423,13 +431,13 @@
       const haystack = `${card.title} ${card.projectKey || ''} ${(card.members || []).map((member) => member.name).join(' ')}`.toLowerCase();
       return matchesMode && (!q || haystack.includes(q));
     });
-    $('#case-total-label').textContent = `${state.cards.size} 个工作空间`;
+    $('#case-total-label').textContent = t('caseList.total', { n: state.cards.size });
     $('#case-list').innerHTML = cards.map((card) => {
       const column = columnOf(card);
       return `<button class="case-item ${card.id === state.activeProjectId ? 'active' : ''}" data-project-id="${card.id}" type="button">
-        <i class="ci-dot" style="background:${column?.color || '#64748b'}"></i><span class="ci-body"><span class="ci-title">${esc(card.title)}</span><span class="ci-meta"><span>${esc(KIND_CN[card.kind] || card.typeLabel)}</span><span>${esc(column?.title || card.status)}</span><span>${fmtTime(card.lastActivityAt)}</span>${card.aiActive ? '<span class="ci-ai">AI 处理中</span>' : ''}</span></span>
+        <i class="ci-dot" style="background:${column?.color || '#64748b'}"></i><span class="ci-body"><span class="ci-title">${esc(card.title)}</span><span class="ci-meta"><span>${esc(KIND_CN[card.kind] || card.typeLabel)}</span><span>${esc(column?.title || card.status)}</span><span>${fmtTime(card.lastActivityAt)}</span>${card.aiActive ? `<span class="ci-ai">${t('caseList.aiBusy')}</span>` : ''}</span></span>
       </button>`;
-    }).join('') || emptyHtml(q ? '没有匹配的项目' : '还没有测试项目');
+    }).join('') || emptyHtml(q ? t('caseList.noMatch') : t('caseList.empty'));
     $$('.case-item', $('#case-list')).forEach((button) => button.addEventListener('click', () => loadChat(button.dataset.projectId, false)));
   }
 
@@ -437,7 +445,7 @@
   function renderBoard() {
     const board = $('#board');
     board.innerHTML = state.columns.map((column) => `
-      <section class="col" data-col="${column.id}" style="--cc:${column.color}"><div class="col-head"><i class="col-dot"></i><div class="col-head-copy">${esc(column.title)}<small>${esc(column.titleEn || column.hint || '')}</small></div><span class="col-count">0</span></div><div class="col-cards"></div></section>`).join('');
+      <section class="col" data-col="${column.id}" style="--cc:${column.color}"><div class="col-head"><i class="col-dot"></i><div class="col-head-copy">${esc(currentLang() === 'en' ? column.titleEn || column.title : column.title)}<small>${esc(currentLang() === 'en' ? column.hint || '' : column.hint || '')}</small></div><span class="col-count">0</span></div><div class="col-cards"></div></section>`).join('');
     state.cards.forEach((card) => appendCardEl(card));
     updateColCounts();
     bindDnD();
@@ -446,8 +454,8 @@
     const counts = card.counts;
     const mats = (card.latestMaterials || []).slice(0, 2).map((m) => `<div class="card-mat">${FEED_ICON[m.type] || '记'} · ${esc(m.label)}</div>`).join('');
     return `<div class="card-top"><div class="card-title">${esc(card.title)}</div>${card.aiActive ? '<span class="ai-chip">AI</span>' : ''}</div>
-      <div class="card-meta">${esc(card.projectKey || '未编号')} · ${esc(KIND_CN[card.kind] || card.typeLabel)}</div>
-      <div class="card-badges"><span class="badge">需 ${counts.requirements}</span><span class="badge ${counts.milestoneOverdue ? 'danger' : counts.milestoneSoon ? 'warn' : ''}">里 ${counts.milestones}</span><span class="badge">例 ${counts.testcases}</span><span class="badge ${counts.defectsOpen ? 'danger' : ''}">缺 ${counts.defects}</span><span class="badge doc">报 ${counts.reports}</span>${counts.pendingGates ? `<span class="badge gate">审 ${counts.pendingGates}</span>` : ''}</div>${mats ? `<div class="card-mats">${mats}</div>` : ''}<div class="card-foot">${fmtTime(card.lastActivityAt)}</div>`;
+      <div class="card-meta">${esc(card.projectKey || t('case.table.project'))} · ${esc(KIND_CN[card.kind] || card.typeLabel)}</div>
+      <div class="card-badges"><span class="badge">${currentLang() === 'en' ? 'Req' : '需'} ${counts.requirements}</span><span class="badge ${counts.milestoneOverdue ? 'danger' : counts.milestoneSoon ? 'warn' : ''}">${currentLang() === 'en' ? 'MS' : '里'} ${counts.milestones}</span><span class="badge">${currentLang() === 'en' ? 'TC' : '例'} ${counts.testcases}</span><span class="badge ${counts.defectsOpen ? 'danger' : ''}">${currentLang() === 'en' ? 'Bug' : '缺'} ${counts.defects}</span><span class="badge doc">${currentLang() === 'en' ? 'Rpt' : '报'} ${counts.reports}</span>${counts.pendingGates ? `<span class="badge gate">${currentLang() === 'en' ? 'G' : '审'} ${counts.pendingGates}</span>` : ''}</div>${mats ? `<div class="card-mats">${mats}</div>` : ''}<div class="card-foot">${fmtTime(card.lastActivityAt)}</div>`;
   }
   function makeCardEl(card) {
     const el = document.createElement('article');
@@ -476,7 +484,7 @@
       const count = [...state.cards.values()].filter((card) => card.status === column.id).length;
       const label = $(`.col[data-col="${column.id}"] .col-count`);
       if (label) label.textContent = count;
-      if (container && !count) container.innerHTML = '<div class="empty-col">暂无项目</div>';
+      if (container && !count) container.innerHTML = `<div class="empty-col">${t('board.empty')}</div>`;
     });
   }
   function bindDnD() {
@@ -513,10 +521,10 @@
   }
   function updateChatHead(p) {
     const column = columnOf(p);
-    $('#chat-head-title').textContent = p?.title || '选择一个项目开始';
+    $('#chat-head-title').textContent = p?.title || t('chat.title');
     $('#chat-head-meta').innerHTML = p ? `<span>${esc(p.projectKey || '未编号')}</span><span class="status-pill" style="background:${column?.color || '#64748b'}">${esc(column?.title || p.status)}</span>${p.product ? `<span>${esc(p.product)}</span>` : ''}` : '';
     const policy = p?.assistant || { enabled: true, mode: 'full' };
-    $('#assistant-mode-label').textContent = policy.enabled === false ? '自动辅助已关闭' : MODE_CN[policy.mode] || '全流程辅助';
+    $('#assistant-mode-label').textContent = policy.enabled === false ? t('chat.mode.off') : langModeCN(policy.mode);
   }
   function dshModelValue(provider, model) { return `${encodeURIComponent(provider)}::${encodeURIComponent(model)}`; }
   function parseDshModelValue(value) {
@@ -629,7 +637,7 @@
   function renderMessages(messages) {
     const container = $('#chat-msgs');
     if (!messages.length) {
-      container.innerHTML = `<div class="chat-empty"><span class="ai-orb">AI</span><h3>从需求开始，我会按你的策略协作</h3><p>可用于需求梳理、用例设计、缺陷登记、里程碑跟踪和测试报告起草。所有关键动作都保留负责人确认。</p><div class="prompt-grid"><button class="prompt-chip" type="button">帮我梳理这份需求并设计测试用例</button><button class="prompt-chip" type="button">根据当前用例检查覆盖缺口</button><button class="prompt-chip" type="button">分析本项目缺陷并给出根因建议</button><button class="prompt-chip" type="button">整理下一步测试任务</button></div></div>`;
+      container.innerHTML = `<div class="chat-empty"><span class="ai-orb">AI</span><h3>${t('chat.empty.title')}</h3><p>${t('chat.empty.sub')}</p><div class="prompt-grid"><button class="prompt-chip" type="button">${t('chat.empty.p1')}</button><button class="prompt-chip" type="button">${t('chat.empty.p2')}</button><button class="prompt-chip" type="button">${t('chat.empty.p3')}</button><button class="prompt-chip" type="button">${t('chat.empty.p4')}</button></div></div>`;
       $$('.prompt-chip', container).forEach((button) => button.addEventListener('click', () => { $('#chat-input').value = button.textContent; $('#chat-input').focus(); autoGrow($('#chat-input')); }));
       return;
     }
@@ -728,7 +736,7 @@
       } else {
         const before = await dshRpc('session.history', { sessionId, maxMessages: 1 });
         const afterSeq = Math.max(-1, ...(before.events || []).map((entry) => entry.event.seq));
-        const pending = appendAiMsg('DSH 测试模式正在读取技能与项目文件…', true, 'dsh');
+        const pending = appendAiMsg(t('chat.reading'), true, 'dsh');
         await dshRpc('session.prompt', { sessionId, mode: 'queue', content: [{ type: 'text', text }], clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
         const answer = await waitForDshTurn(sessionId, afterSeq, pending, token);
         if (token === state.dsh.turnToken && projectId === state.activeProjectId) pending.textContent = answer || '本轮已完成（无文本回复）';
@@ -752,7 +760,7 @@
       if (tools.length) {
         const last = tools.at(-1);
         const toolName = last.view?.view?.title || last.event.data?.name || last.event.data?.call?.name || '工具';
-        pending.textContent = `DSH 测试模式正在执行：${toolName}（如需授权，请留意 DSH 主界面）`;
+        pending.textContent = `${t('chat.executing')} ${toolName}（${t('chat.executingTip')}）`;
       }
       const assistant = [...fresh].reverse().find((entry) => entry.event.type === 'assistant/message');
       const ended = fresh.some((entry) => entry.event.type === 'turn/end');
@@ -772,7 +780,7 @@
   function updateChatUI() {
     const busy = state.dsh.busy;
     $('#chat-input').disabled = !state.activeProjectId || busy;
-    $('#chat-input').placeholder = busy ? 'DSH 正在处理该项目…' : '输入任务；键入 / 可选择 DSH 技能或命令…';
+    $('#chat-input').placeholder = busy ? t('chat.input.busy') : t('chat.input.placeholder');
     $('#btn-send').disabled = !state.activeProjectId || busy;
     $('#btn-stop').classList.toggle('hidden', !busy);
   }
@@ -803,9 +811,9 @@
     const counts = card.counts || { requirements: p.requirements?.length || 0, testcases: p.testcases?.length || 0, milestones: p.milestones?.length || 0, reports: p.reports?.length || 0, defects: p.defects?.length || 0 };
     const columnIndex = Math.max(0, state.columns.findIndex((column) => column.id === p.status));
     const policy = p.assistant || { enabled: true, mode: 'full', reminders: 'all' };
-    $('#case-radar').innerHTML = `<div class="radar-stage"><small>当前阶段</small><b>${esc(columnOf(p)?.title || p.status)}</b><div class="stage-track">${state.columns.map((column, index) => `<i class="${index <= columnIndex ? 'done' : ''}" style="--cc:${column.color}"></i>`).join('')}</div></div>
-      <div class="radar-grid"><div class="radar-stat"><b>${counts.requirements}</b><span>需求</span></div><div class="radar-stat"><b>${counts.testcases}</b><span>用例</span></div><div class="radar-stat"><b>${counts.defects}</b><span>缺陷</span></div><div class="radar-stat"><b>${counts.milestones}</b><span>里程碑</span></div></div>
-      <div class="assistant-policy-card"><b>${policy.enabled === false ? '自动辅助已关闭' : MODE_CN[policy.mode] || '全流程辅助'}</b>${policy.enabled === false ? 'DSH 只回答问题，不自动登记或推进。' : MODE_DESC[policy.mode] || MODE_DESC.full}<br/>提醒：${policy.reminders === 'off' ? '关闭' : policy.reminders === 'milestones' ? '仅里程碑' : '里程碑与流程'}</div>`;
+    $('#case-radar').innerHTML = `<div class="radar-stage"><small>${t('radar.stage')}</small><b>${esc(columnOf(p)?.title || p.status)}</b><div class="stage-track">${state.columns.map((column, index) => `<i class="${index <= columnIndex ? 'done' : ''}" style="--cc:${column.color}"></i>`).join('')}</div></div>
+      <div class="radar-grid"><div class="radar-stat"><b>${counts.requirements}</b><span>${t('radar.req')}</span></div><div class="radar-stat"><b>${counts.testcases}</b><span>${t('radar.tc')}</span></div><div class="radar-stat"><b>${counts.defects}</b><span>${t('radar.defect')}</span></div><div class="radar-stat"><b>${counts.milestones}</b><span>${t('radar.ms')}</span></div></div>
+      <div class="assistant-policy-card"><b>${policy.enabled === false ? t('chat.mode.off') : langModeCN(policy.mode)}</b>${policy.enabled === false ? t('chat.mode.offTip') : langModeDesc(policy.mode)}<br/>${t('radar.reminder')}：${policy.reminders === 'off' ? t('radar.reminderOff') : policy.reminders === 'milestones' ? t('radar.reminderMs') : t('radar.reminderAll')}</div>`;
   }
   function renderFeed() {
     const entries = state.activeProjectId ? state.feed.filter((entry) => entry.projectId === state.activeProjectId).slice(0, 20) : state.feed.slice(0, 20);
@@ -813,17 +821,17 @@
   }
 
   // ---------- drawer ----------
-  const TABS = [['overview', '项目概览', '项'], ['requirements', '需求范围', '需'], ['testcases', '测试用例', '例'], ['defects', '缺陷管理', '缺'], ['milestones', '里程碑日程', '里'], ['reports', '测试报告', '报'], ['knowledge', '知识沉淀', '知'], ['minutes', '沟通纪要', '纪'], ['gates', '审批门禁', '审']];
+  const TABS = [['overview', 'drawer.tab.overview', '项'], ['requirements', 'drawer.tab.requirements', '需'], ['testcases', 'drawer.tab.testcases', '例'], ['defects', 'drawer.tab.defects', '缺'], ['milestones', 'drawer.tab.milestones', '里'], ['reports', 'drawer.tab.reports', '报'], ['knowledge', 'drawer.tab.knowledge', '知'], ['minutes', 'drawer.tab.minutes', '纪'], ['gates', 'drawer.tab.gates', '审']];
   const TAB_META = {
-    overview: ['项目档案', '项目概览', '基本信息、测试阶段与协作设置'],
-    requirements: ['范围中心', '需求范围', '功能与非功能需求、风险点及验收标准'],
-    testcases: ['用例中心', '测试用例', '草稿、评审与执行状态跟踪'],
-    defects: ['缺陷中心', '缺陷管理', '严重级别、复现信息与修复状态'],
-    milestones: ['时间管理', '里程碑与日程', '发布、评审、冻结及重要工作节点'],
-    reports: ['报告中心', '测试报告', '查看 DSH 草稿、版本和提交状态'],
-    knowledge: ['知识中心', '测试知识', '沉淀经验、规范与历史缺陷模式'],
-    minutes: ['沟通记录', '沟通纪要', '需求讨论、评审会和测试复盘'],
-    gates: ['人工控制', '负责人审批门禁', '关键评审与发布动作由负责人最终确认'],
+    overview: ['drawer.overview.kicker', 'drawer.tab.overview', 'drawer.overview.sub'],
+    requirements: ['drawer.requirements.kicker', 'drawer.tab.requirements', 'drawer.requirements.sub'],
+    testcases: ['drawer.testcases.kicker', 'drawer.tab.testcases', 'drawer.testcases.sub'],
+    defects: ['drawer.defects.kicker', 'drawer.tab.defects', 'drawer.defects.sub'],
+    milestones: ['drawer.milestones.kicker', 'drawer.tab.milestones', 'drawer.milestones.sub'],
+    reports: ['drawer.reports.kicker', 'drawer.tab.reports', 'drawer.reports.sub'],
+    knowledge: ['drawer.knowledge.kicker', 'drawer.tab.knowledge', 'drawer.knowledge.sub'],
+    minutes: ['drawer.minutes.kicker', 'drawer.tab.minutes', 'drawer.minutes.sub'],
+    gates: ['drawer.gates.kicker', 'drawer.tab.gates', 'drawer.gates.sub'],
   };
   async function openDrawer(id) {
     state.drawerTab = 'overview';
@@ -849,13 +857,13 @@
     const p = state.drawerProject;
     $('#tabs').innerHTML = TABS.map(([key, label, icon]) => {
       const count = p ? { requirements: p.requirements.length, testcases: p.testcases.length, defects: p.defects.length, milestones: p.milestones.length, reports: p.reports.length, knowledge: p.knowledge.length, minutes: p.minutes.length, gates: p.gates.filter((g) => g.status === 'pending').length }[key] : null;
-      return `<button class="tab ${state.drawerTab === key ? 'active' : ''}" data-tab="${key}" type="button"><span class="tab-icon">${icon}</span><span>${label}</span>${count != null ? `<span class="tab-count">${count}</span>` : ''}</button>`;
+      return `<button class="tab ${state.drawerTab === key ? 'active' : ''}" data-tab="${key}" type="button"><span class="tab-icon">${icon}</span><span>${t(label)}</span>${count != null ? `<span class="tab-count">${count}</span>` : ''}</button>`;
     }).join('');
     $$('.tab', $('#tabs')).forEach((tab) => tab.addEventListener('click', () => { state.drawerTab = tab.dataset.tab; renderTabs(); renderTab(state.drawerTab); }));
   }
   function renderTab(tab) {
     const p = state.drawerProject; if (!p) return;
-    const [kicker, title, subtitle] = TAB_META[tab] || TAB_META.overview;
+    const [kicker, title, subtitle] = (TAB_META[tab] || TAB_META.overview).map(t);
     $('#drawer-section-kicker').textContent = kicker;
     $('#drawer-section-title').textContent = title;
     $('#drawer-section-subtitle').textContent = subtitle;
@@ -1217,7 +1225,24 @@
   }
 
   // ---------- bindings and init ----------
+  function applyLang() {
+    // 更新静态 data-i18n 文本
+    $$('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
+    // 语言按钮标签
+    const label = $('#lang-label');
+    if (label) label.textContent = currentLang() === 'zh' ? '中 / EN' : 'EN / 中';
+    // 重渲染动态区块
+    renderBoard(); renderRailCases(); renderCaseList(); renderDashboard(); renderCalendars();
+    if (state.activeProject) { updateChatHead(state.activeProject); renderProjectRadar(state.activeProject); }
+    if (state.drawerProject) renderTab(state.drawerTab);
+  }
+
   function bind() {
+    $('#btn-lang').addEventListener('click', () => {
+      setLang(currentLang() === 'zh' ? 'en' : 'zh');
+      applyLang();
+      toast(currentLang() === 'en' ? 'Language switched to English' : '已切换为中文', 'ok');
+    });
     $$('.nav-item').forEach((button) => button.addEventListener('click', () => { switchView(button.dataset.view); if (button.dataset.view === 'assistant' && state.activeProject) initializeDshChat({ initialize: true }).catch((error) => toast(error.message, 'err')); }));
     $$('[data-view-jump]').forEach((button) => button.addEventListener('click', () => switchView(button.dataset.viewJump)));
     ['#btn-new-case', '#btn-new-case-mini', '#btn-new-case-side', '#btn-new-case-board'].forEach((selector) => $(selector).addEventListener('click', () => openNewProject(false)));
@@ -1271,6 +1296,9 @@
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshBoard(false); });
   }
   async function init() {
+    setLang(currentLang());
+    $$('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
+    $('#lang-label').textContent = currentLang() === 'zh' ? '中 / EN' : 'EN / 中';
     applyTheme(localStorage.getItem('dsh-qa-theme') || 'dashboard', false);
     loadLayout();
     bind();

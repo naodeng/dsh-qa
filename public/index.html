@@ -14,22 +14,23 @@
       <span class="brand-mark" aria-hidden="true">
         <svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="11"/><path d="M11 16l3.5 3.5L21 12.5"/></svg>
       </span>
-      <span class="brand-copy"><b>质量</b><small>DSH QA 工作台 · QA Workbench</small></span>
+      <span class="brand-copy"><b data-i18n="brand.title">质量</b><small data-i18n="brand.subtitle">DSH QA 工作台 · QA Workbench</small></span>
     </div>
     <button id="global-search" class="global-search" type="button">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
-      <span>搜索项目、需求、缺陷</span><kbd>⌘ K</kbd>
+      <span data-i18n="search.placeholder">搜索项目、需求、缺陷</span><kbd>⌘ K</kbd>
     </button>
     <div class="top-actions">
       <button id="btn-back-dsh" class="back-dsh-btn" type="button" title="返回 DSH 主页面" aria-label="返回 DSH 主页面">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M5 12l6-6M5 12l6 6"/></svg>
-        <span>返回 DSH</span>
+        <span data-i18n="top.back">返回 DSH</span>
       </button>
       <span id="service-status" class="service-status"><i></i><span>DSH · 测试模式</span></span>
       <button id="btn-remote" class="remote-toggle" type="button" title="DSH Remote 手机遥控" aria-label="打开 DSH Remote">
         <svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M10 5h4M11 18.5h2"/><path d="M4 8a4 4 0 0 0 0 8M20 8a4 4 0 0 1 0 8"/></svg>
-        <span>Remote</span><i id="remote-dot"></i>
+        <span data-i18n="top.remote">Remote</span><i id="remote-dot"></i>
       </button>
+      <button id="btn-lang" class="lang-toggle" type="button" title="Language / 语言" aria-label="Language / 语言"><span id="lang-label">中 / EN</span></button>
       <button id="btn-settings" class="theme-toggle" type="button" title="切换界面风格" aria-label="切换界面风格">
         <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1.5a2 2 0 0 0 0-4H12a1.5 1.5 0 0 1 0-3h3a6 6 0 0 0 0-12h-3Z"/><circle cx="7.5" cy="10" r=".7"/><circle cx="9.5" cy="6.8" r=".7"/><circle cx="14" cy="6.5" r=".7"/></svg>
         <span id="theme-label">质量仪表</span>
@@ -42,19 +43,19 @@
     <aside id="rail">
       <button id="btn-collapse-rail" class="pane-collapse rail-collapse" type="button" title="收起主导航" aria-label="收起主导航">‹</button>
       <nav class="main-nav" aria-label="主导航">
-        <button class="nav-item active" data-view="dashboard" type="button"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>测试首页</span></button>
-        <button class="nav-item" data-view="assistant" type="button"><svg viewBox="0 0 24 24"><path d="M12 3a7 7 0 0 0-7 7v2a4 4 0 0 0 4 4h1l3 3v-3h2a4 4 0 0 0 4-4v-2a7 7 0 0 0-7-7Z"/><path d="M9 9h.01M15 9h.01M9 12.5h6"/></svg><span>DSH 测试对话</span><em>QA</em></button>
-        <button class="nav-item" data-view="board" type="button"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/></svg><span>项目看板</span></button>
-        <button class="nav-item" data-view="calendar" type="button"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg><span>日历排期</span><b id="nav-alert-count" class="nav-count hidden">0</b></button>
+        <button class="nav-item active" data-view="dashboard" type="button"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span data-i18n="nav.dashboard">测试首页</span></button>
+        <button class="nav-item" data-view="assistant" type="button"><svg viewBox="0 0 24 24"><path d="M12 3a7 7 0 0 0-7 7v2a4 4 0 0 0 4 4h1l3 3v-3h2a4 4 0 0 0 4-4v-2a7 7 0 0 0-7-7Z"/><path d="M9 9h.01M15 9h.01M9 12.5h6"/></svg><span data-i18n="nav.chat">DSH 测试对话</span><em>QA</em></button>
+        <button class="nav-item" data-view="board" type="button"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/></svg><span data-i18n="nav.board">项目看板</span></button>
+        <button class="nav-item" data-view="calendar" type="button"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg><span data-i18n="nav.calendar">日历排期</span><b id="nav-alert-count" class="nav-count hidden">0</b></button>
       </nav>
 
       <div class="rail-section">
-        <div class="rail-section-head"><span>最近项目</span><button id="btn-new-case-mini" type="button" title="新建测试项目">＋</button></div>
+        <div class="rail-section-head"><span data-i18n="rail.recent">最近项目</span><button id="btn-new-case-mini" type="button" title="新建测试项目">＋</button></div>
         <div id="rail-case-list" class="rail-cases"></div>
       </div>
 
       <div class="rail-footer">
-        <div class="privacy-note"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span><b>本地工作台</b><small>测试数据保存在本机</small></span></div>
+        <div class="privacy-note"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span><b data-i18n="rail.local">本地工作台</b><small data-i18n="rail.localTip">测试数据保存在本机</small></span></div>
       </div>
     </aside>
     <button id="rail-resizer" class="splitter splitter-rail" type="button" role="separator" aria-label="调整主导航宽度" aria-orientation="vertical" aria-valuemin="64" aria-valuemax="280"><span></span></button>
@@ -185,6 +186,7 @@
   <div id="theme-scene" class="theme-scene" aria-live="assertive"><div><strong>BUILD PASSED</strong><span>全部用例通过，可以放心发布。</span></div></div>
   <div id="modal-root"></div>
   <div id="toast-root"></div>
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

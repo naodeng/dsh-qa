@@ -78,6 +78,8 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .back-dsh-btn { height: 34px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: #fff; font-size: 11px; font-weight: 600; }
 .back-dsh-btn:hover { color: var(--ink); border-color: var(--line-strong); background: #f5f7f9; }
 .back-dsh-btn svg { width: 15px; height: 15px; }
+.lang-toggle { height: 34px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: #fff; font-size: 11px; font-weight: 650; }
+.lang-toggle:hover { color: var(--ink); border-color: var(--line-strong); background: #f5f7f9; }
 .remote-toggle { position: relative; height: 34px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: #fff; font-size: 11px; font-weight: 650; }
 .remote-toggle:hover { color: var(--ink); border-color: var(--line-strong); background: #f5f7f9; }
 .remote-toggle svg { width: 15px; height: 15px; }
