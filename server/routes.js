@@ -14,7 +14,11 @@ const MIME = {
   '.json': 'application/json', '.ico': 'image/x-icon', '.woff2': 'font/woff2',
 };
 
-function json(res, code, obj) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); }
+function json(res, code, obj) {
+  if (res.headersSent || res.writableEnded) return;
+  res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify(obj));
+}
 function ok(res, obj) { json(res, 200, { ok: true, ...obj }); }
 function fail(res, code, error) { json(res, code, { ok: false, error }); }
 
