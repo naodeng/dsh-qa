@@ -148,6 +148,7 @@ After installing, restart `dsh web` and type `/` in the workbench chat to see th
 ## Development & Contributing
 
 - Run: `npm start` for standalone; `npm run dev` for watch mode
+- Test: `npm test` runs unit tests (node:test) plus Playwright end-to-end tests; `npm run test:unit` / `npm run test:e2e` run each separately
 - Publish: `npm publish` → `dsh plugin add dsh-qa`; models and keys are managed by each user's own DSH configuration
 - Issues and PRs welcome (Conventional Commits)
 

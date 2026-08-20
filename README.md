@@ -148,6 +148,7 @@ scripts/install-qa-skills.sh --dry-run           # 预览不写入
 ## 开发与贡献
 
 - 运行：`npm start` 独立启动；`npm run dev` 监听重启
+- 测试：`npm test` 运行单元测试（node:test）与端到端测试（Playwright）；`npm run test:unit` / `npm run test:e2e` 可单独执行
 - 发布：`npm publish` → `dsh plugin add dsh-qa`；模型与密钥均由使用者自己的 DSH 配置管理
 - 欢迎提交 Issue 与 PR（Conventional Commits）
 
