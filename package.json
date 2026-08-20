@@ -22,7 +22,10 @@
   },
   "scripts": {
     "start": "node server/cli.js",
-    "dev": "node --watch server/cli.js"
+    "dev": "node --watch server/cli.js",
+    "test:unit": "node --test --test-concurrency=1 test/unit/board.test.js test/unit/http-api.test.js test/unit/store.test.js",
+    "test:e2e": "playwright test",
+    "test": "npm run test:unit && npm run test:e2e"
   },
   "engines": {
     "node": ">=18"
@@ -52,6 +55,9 @@
     "LICENSE"
   ],
   "license": "PolyForm-Noncommercial-1.0.0",
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/naodeng/dsh-qa.git"
