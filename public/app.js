@@ -19,6 +19,16 @@
   const DEFECT_STATUS_CN = { open: '待处理', fixing: '修复中', verify: '待验证', closed: '已关闭' };
   const TYPE_CN = { web: 'Web 应用', app: '移动 App', api: '接口服务', desktop: '桌面端', embedded: '嵌入式', data: '数据平台', other: '其他' };
   const KIND_CN = { project: '测试项目', iteration: '迭代' };
+  const REQ_KIND_EN = { functional: 'Functional requirement', nonfunctional: 'Non-functional requirement', risk: 'Risk', issue: 'Issue' };
+  const TC_KIND_EN = { functional: 'Functional', boundary: 'Boundary', interface: 'Interface', ui: 'UI', performance: 'Performance', security: 'Security', compat: 'Compatibility', other: 'Other' };
+  const MS_KIND_EN = { release: 'Release', review: 'Review', freeze: 'Freeze', other: 'Other' };
+  const EVENT_KIND_EN = { meeting: 'Meeting', release: 'Release', review: 'Review', other: 'Other event' };
+  const ROLE_EN_LABEL = { owner: 'Owner', qa: 'QA', dev: 'Developer', pm: 'Product', other: 'Other' };
+  const TC_STATUS_EN = { draft: 'Draft', reviewed: 'Reviewed', executed: 'Executed' };
+  const SEVERITY_EN = { critical: 'Critical', major: 'Major', minor: 'Minor', trivial: 'Trivial' };
+  const DEFECT_STATUS_EN = { open: 'Open', fixing: 'Fixing', verify: 'Ready to verify', closed: 'Closed' };
+  const TYPE_EN = { web: 'Web app', app: 'Mobile app', api: 'API service', desktop: 'Desktop', embedded: 'Embedded', data: 'Data platform', other: 'Other' };
+  const KIND_EN = { project: 'Test project', iteration: 'Iteration' };
   const MODE_CN = { full: '全流程辅助', manual: '按需协作' };
   const MODE_CN_EN = { full: 'Full assistance', manual: 'On demand' };
   const MODE_DESC = {
@@ -62,12 +72,20 @@
   function fmtDate(iso) {
     if (!iso) return '';
     const d = new Date(iso.length === 10 ? iso + 'T00:00:00' : iso);
-    return `${d.getMonth() + 1}月${d.getDate()}日`;
+    return currentLang() === 'en' ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : `${d.getMonth() + 1}月${d.getDate()}日`;
   }
-  function fmtDateFull(iso) { return iso ? new Date(iso).toLocaleString('zh-CN', { hour12: false }) : ''; }
+  function fmtDateFull(iso) { return iso ? new Date(iso).toLocaleString(currentLang() === 'en' ? 'en-US' : 'zh-CN', { hour12: false }) : ''; }
   function fmtTime(iso) {
     if (!iso) return '';
     const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+    if (currentLang() === 'en') {
+      if (seconds < 10) return 'just now';
+      if (seconds < 60) return `${Math.floor(seconds)}s ago`;
+      if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+      if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+      if (seconds < 86400 * 7) return `${Math.floor(seconds / 86400)}d ago`;
+      return new Date(iso).toLocaleDateString('en-US');
+    }
     if (seconds < 10) return '刚刚';
     if (seconds < 60) return Math.floor(seconds) + '秒前';
     if (seconds < 3600) return Math.floor(seconds / 60) + '分钟前';
@@ -75,6 +93,8 @@
     if (seconds < 86400 * 7) return Math.floor(seconds / 86400) + '天前';
     return new Date(iso).toLocaleDateString('zh-CN');
   }
+  const label = (zh, en) => currentLang() === 'en' ? en : zh;
+  const enumLabel = (mapZh, mapEn, value, fallback = value) => currentLang() === 'en' ? (mapEn[value] || fallback) : (mapZh[value] || fallback);
   async function api(path, opts = {}) {
     const response = await fetch(path, {
       method: opts.method || 'GET',
@@ -301,8 +321,8 @@
   function renderDashboard() {
     const now = new Date();
     const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
-    $('#today-label').textContent = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 · 星期${weekdays[now.getDay()]}`;
-    $('.welcome-row h1').textContent = `${now.getHours() < 12 ? '上午' : now.getHours() < 18 ? '下午' : '晚上'}好，今天从哪里开始？`;
+    $('#today-label').textContent = currentLang() === 'en' ? now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' }) : `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 · 星期${weekdays[now.getDay()]}`;
+    $('.welcome-row h1').textContent = currentLang() === 'en' ? 'Good day — where shall we start?' : `${now.getHours() < 12 ? '上午' : now.getHours() < 18 ? '下午' : '晚上'}好，今天从哪里开始？`;
     renderMetrics();
     renderReminders();
     renderDashboardCases();
@@ -327,7 +347,7 @@
   function renderMiniCalendar() {
     const cursor = state.calendarCursor;
     $('#calendar-caption').textContent = `${cursor.getFullYear()}年${cursor.getMonth() + 1}月`;
-    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+    const weekdays = currentLang() === 'en' ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] : ['一', '二', '三', '四', '五', '六', '日'];
     const cells = monthCells(cursor);
     $('#mini-calendar').innerHTML = weekdays.map((day) => `<span class="weekday">${day}</span>`).join('') + cells.map((date) => {
       const iso = localDate(date);
@@ -348,7 +368,7 @@
   function renderFullCalendar() {
     const cursor = state.calendarCursor;
     const cells = monthCells(cursor);
-    const weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+    const weekdays = currentLang() === 'en' ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] : ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
     const currentYear = cursor.getFullYear();
     $('#cal-year').innerHTML = Array.from({ length: 21 }, (_, i) => currentYear - 10 + i).map((year) => `<option value="${year}" ${year === currentYear ? 'selected' : ''}>${year}</option>`).join('');
     $('#cal-month').innerHTML = Array.from({ length: 12 }, (_, i) => `<option value="${i}" ${i === cursor.getMonth() ? 'selected' : ''}>${i + 1}</option>`).join('');
@@ -363,7 +383,7 @@
         const danger = item.type === 'milestone' && item.state?.overdue && !item.done;
         return `<button class="day-event ${item.type === 'milestone' ? 'deadline' : ''} ${danger ? 'danger' : ''}" data-project-id="${item.projectId}" type="button" title="${esc(item.projectTitle)} · ${esc(item.title)}">${esc(item.title)}</button>`;
       }).join('');
-      const more = itemsOn(iso).length > 3 ? `<span class="day-more">另有 ${itemsOn(iso).length - 3} 项</span>` : '';
+      const more = itemsOn(iso).length > 3 ? `<span class="day-more">${currentLang() === 'en' ? `${itemsOn(iso).length - 3} more` : `另有 ${itemsOn(iso).length - 3} 项`}</span>` : '';
       return `<div class="${classes.join(' ')}" data-date="${iso}"><div class="day-top"><span class="day-number">${date.getDate()}</span><button class="day-add" type="button" title="在 ${iso} 新增日程">＋</button></div><div class="day-events">${events}${more}</div></div>`;
     }).join('');
     $$('.full-day', $('#full-calendar')).forEach((el) => el.addEventListener('click', () => selectCalendarDate(el.dataset.date)));
@@ -385,13 +405,13 @@
   }
   function renderSelectedAgenda() {
     const selectedDate = new Date(state.selectedDate + 'T00:00:00');
-    const weekday = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][selectedDate.getDay()];
+    const weekday = currentLang() === 'en' ? selectedDate.toLocaleDateString('en-US', { weekday: 'long' }) : ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][selectedDate.getDay()];
     $('#selected-date-weekday').textContent = weekday;
-    $('#selected-date-label').textContent = `${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日`;
+    $('#selected-date-label').textContent = currentLang() === 'en' ? selectedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : `${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日`;
     const selected = itemsOn(state.selectedDate);
     $('#calendar-selected').innerHTML = selected.length ? selected.map((item) => `
       <div class="agenda-card selected-card" data-project-id="${item.projectId}">
-        <span class="agenda-type ${item.type}">${item.type === 'milestone' ? '里程碑' : EVENT_KIND_CN[item.kind] || '日程'}</span>
+        <span class="agenda-type ${item.type}">${item.type === 'milestone' ? t('calendar.milestone') : enumLabel(EVENT_KIND_CN, EVENT_KIND_EN, item.kind, t('calendar.event'))}</span>
         <b>${esc(item.title)}</b><span>${esc(item.projectTitle)}</span>
         ${item.note || item.basis ? `<p>${esc(item.note || item.basis)}</p>` : ''}
         <button class="agenda-remove" data-entry-id="${item.id}" data-project-id="${item.projectId}" type="button">删除</button>
@@ -420,7 +440,7 @@
   function renderRailCases() {
     $('#rail-case-list').innerHTML = sortedCards().slice(0, 7).map((card) => {
       const column = columnOf(card);
-      return `<button class="rail-case ${card.id === state.activeProjectId ? 'active' : ''}" data-project-id="${card.id}" type="button"><b>${esc(card.title)}</b><span><i style="background:${column?.color || '#64748b'}"></i>${esc(KIND_CN[card.kind] || column?.title || card.typeLabel)}</span></button>`;
+      return `<button class="rail-case ${card.id === state.activeProjectId ? 'active' : ''}" data-project-id="${card.id}" type="button"><b>${esc(card.title)}</b><span><i style="background:${column?.color || '#64748b'}"></i>${esc(enumLabel(KIND_CN, KIND_EN, card.kind, column?.title || card.typeLabel))}</span></button>`;
     }).join('') || emptyHtml(t('board.empty'));
     $$('.rail-case', $('#rail-case-list')).forEach((button) => button.addEventListener('click', () => openProject(button.dataset.projectId)));
   }
@@ -868,6 +888,7 @@
     $('#drawer-section-title').textContent = title;
     $('#drawer-section-subtitle').textContent = subtitle;
     ({ overview: renderOverview, requirements: renderRequirements, testcases: renderTestcases, defects: renderDefects, milestones: renderMilestones, reports: renderReports, knowledge: renderKnowledge, minutes: renderMinutes, gates: renderGates }[tab])($('#tab-body'), p);
+    applyStaticCopy();
   }
   function renderOverview(body, p) {
     const options = state.columns.map((column) => `<option value="${column.id}" ${p.status === column.id ? 'selected' : ''}>${esc(column.title)}</option>`).join('');
@@ -976,7 +997,7 @@
       <div class="modal-foot"><button class="btn" id="sc-cancel" type="button">取消</button><button class="btn primary" id="sc-ok" type="button">保存日程</button></div>`);
     let type = 'event';
     const renderKinds = () => {
-      const source = type === 'milestone' ? MS_KIND_CN : EVENT_KIND_CN;
+      const source = type === 'milestone' ? (currentLang() === 'en' ? MS_KIND_EN : MS_KIND_CN) : (currentLang() === 'en' ? EVENT_KIND_EN : EVENT_KIND_CN);
       $('#sc-kind', modal).innerHTML = Object.entries(source).map(([value, label]) => `<option value="${value}">${label}</option>`).join('');
       $('#sc-note-label', modal).textContent = type === 'milestone' ? '依据 / 计算说明' : '备注';
       $('#sc-note', modal).placeholder = type === 'milestone' ? '如：发布排期、评审范围' : '地点、参加人、准备事项等';
@@ -1160,7 +1181,7 @@
   function applyTheme(theme, persist = true) {
     state.theme = THEMES[theme] ? theme : 'dashboard';
     document.body.dataset.theme = state.theme;
-    $('#theme-label').textContent = THEMES[state.theme].label;
+    $('#theme-label').textContent = t(`theme.${state.theme}`);
     if (persist) localStorage.setItem('dsh-qa-theme', state.theme);
     if (persist && state.theme === 'cyber') setTimeout(showPassScene, 120);
   }
@@ -1219,12 +1240,59 @@
       const board = await api('api/board');
       state.columns = board.columns; state.cards = new Map(board.projects.map((card) => [card.id, card])); state.feed = board.feed; state.stats = board.stats; state.schedule = board.schedule || []; state.reminders = board.reminders || [];
       renderBoard(); renderRailCases(); renderCaseList(); renderDashboard(); renderFeed();
+      applyStaticCopy();
       if (state.activeProjectId && !state.cards.has(state.activeProjectId)) { state.activeProjectId = null; state.activeProject = null; }
       if (loadInitialProject && !state.activeProjectId && state.cards.size) await loadChat(sortedCards()[0].id, false);
     } catch (error) { toast(error.message, 'err'); }
   }
 
   // ---------- bindings and init ----------
+  function applyStaticCopy() {
+    const copy = {
+      'service-status': ['DSH · 测试模式', 'DSH · Test Mode'],
+      'today-label': ['', ''], 'theme-label': ['', ''],
+    };
+    const text = {
+      '.welcome-row > div:first-child > p:last-child': ['需要你关注的里程碑、排期和测试进展已经整理好了。', 'Milestones, schedules and test progress are ready for you.'],
+      '#view-dashboard .attention-panel h2': ['今日待办', "Today's to-dos"],
+      '#view-dashboard .attention-panel p': ['DSH 汇总的里程碑、门禁与关键动作', 'Milestones, gates and key actions from DSH'],
+      '#view-dashboard .case-overview-panel h2': ['在办项目', 'Active projects'],
+      '#view-dashboard .case-overview-panel p': ['按最近活动排序，点击进入 DSH 测试空间', 'Sorted by recent activity — click to open the DSH test space'],
+      '#view-dashboard .ai-control-panel h2': ['DSH 全流程辅助', 'DSH Full Assistance'],
+      '#view-dashboard .ai-control-panel p': ['需求、用例、缺陷、里程碑与报告提醒都由你决定是否启用。', 'You decide which requirements, cases, defects, milestones and report reminders are enabled.'],
+      '#view-dashboard .activity-panel h2': ['最近动态', 'Recent activity'],
+      '#view-dashboard .activity-panel p': ['测试材料与 DSH 操作留痕', 'Test materials and DSH actions'],
+      '#chat-head .chat-kicker': ['DSH 测试模式 · 项目协作空间', 'DSH Test Mode · Project collaboration space'],
+      '#chat-head-title': ['选择一个项目开始', 'Select a project to start'],
+      '#context-panel .context-head b': ['项目雷达', 'Project radar'],
+      '#context-panel .context-head span:not(.live-dot)': ['随对话实时更新', 'Updates live with the chat'],
+      '.context-section-title': ['材料动态', 'Materials'],
+      '#view-board .page-head h1': ['项目看板', 'Project kanban'],
+      '#view-board .page-head p:last-of-type': ['拖动项目卡片调整阶段；门禁与最终发布仍由负责人确认。', 'Drag cards to change stages; gates and final release stay with the test owner.'],
+      '#full-calendar-title': ['工作日历', 'Work calendar'],
+      '#view-calendar .page-head p:last-of-type': ['选中日期即可新增会议、发布、评审或里程碑截止日。', 'Select a date to add meetings, releases, reviews or milestone due dates.'],
+    };
+    for (const [selector, values] of Object.entries(text)) { const el = $(selector); if (el) el.textContent = currentLang() === 'en' ? values[1] : values[0]; }
+    if (currentLang() === 'en') {
+      const replacements = new Map([
+        ['删除', 'Delete'], ['取消', 'Cancel'], ['保存', 'Save'], ['关闭', 'Close'], ['今天', 'Today'], ['立即添加', 'Add now'], ['新建日程', 'New schedule'], ['新建项目', 'New project'], ['新建迭代', 'New iteration'],
+        ['项目详情', 'Project details'], ['项目文件夹', 'Project folder'], ['项目文件', 'Project files'], ['打开项目文件', 'Open project files'], ['创建项目文件', 'Create project files'], ['创建标准项目目录', 'Create standard project folder'], ['在 Finder 中打开', 'Open in Finder'],
+        ['项目与迭代', 'Projects & iterations'], ['搜索项目', 'Search projects'], ['全部', 'All'], ['项目', 'Project'], ['迭代', 'Iteration'], ['项目概览', 'Project overview'], ['项目档案', 'Project profile'], ['项目基本信息', 'Project information'], ['对象类型', 'Object type'], ['项目编号', 'Project key'], ['被测产品', 'Product under test'], ['测试负责人', 'Test owner'], ['测试阶段', 'Test stage'], ['测试进度', 'Test progress'], ['测试用例', 'Test cases'], ['测试报告', 'Test reports'], ['缺陷', 'Defects'], ['需求范围', 'Requirements'], ['里程碑与日程', 'Milestones & schedule'], ['沟通纪要', 'Minutes'], ['知识沉淀', 'Knowledge'],
+        ['DSH 协作策略', 'DSH assistance policy'], ['调整协作策略', 'Adjust assistance policy'], ['自动辅助已关闭', 'Auto assistance off'], ['已关闭', 'Closed'], ['已开启', 'On'], ['关闭', 'Off'], ['开启', 'On'], ['全流程辅助', 'Full assistance'], ['按需协作', 'On demand'], ['自动提取测试要素', 'Auto-extract test elements'], ['流程提醒', 'Flow reminders'], ['对话模式', 'Chat mode'], ['DSH 测试模式', 'DSH Test Mode'],
+        ['暂无成员信息', 'No members'], ['暂无材料动态', 'No materials yet'], ['暂无阶段记录', 'No stage history'], ['暂无需求或测试范围。', 'No requirements or scope yet.'], ['暂无测试用例，告诉 AI 需求即可生成。', 'No test cases yet. Ask AI to generate them.'], ['暂无缺陷记录。', 'No defects yet.'], ['暂无里程碑', 'No milestones'], ['暂无日程', 'No schedule items'], ['暂无报告记录。', 'No reports yet.'], ['暂无内容', 'No content'], ['暂无测试知识沉淀。', 'No test knowledge yet.'], ['暂无会议或讨论纪要。', 'No meeting minutes yet.'], ['暂无待审批门禁。', 'No pending gates'],
+        ['通过', 'Approve'], ['驳回', 'Reject'], ['已通过', 'Approved'], ['已驳回', 'Rejected'], ['待负责人审批', 'Pending owner approval'], ['已完成', 'Completed'], ['逾期', 'Overdue'], ['截止日', 'Due date'], ['依据', 'Basis'], ['验收', 'Acceptance'], ['覆盖用例', 'Covered cases'], ['风险', 'Risk'], ['步骤', 'Steps'], ['预期', 'Expected'], ['实际', 'Actual'], ['状态', 'Status'],
+        ['新建 DSH 对话', 'New DSH chat'], ['删除项目记录', 'Delete project record'], ['保存项目信息', 'Save project info'], ['项目记录已删除，文件夹仍保留', 'Project record deleted; folder kept'], ['项目信息已保存', 'Project information saved'],
+      ]);
+      const replace = (value) => { let result = value; for (const [zh, en] of replacements) result = result.split(zh).join(en); return result; };
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
+      nodes.forEach((node) => { if (node.nodeValue.trim()) node.nodeValue = replace(node.nodeValue); });
+      $$('input, textarea, button, [aria-label], [title]').forEach((el) => ['placeholder', 'title', 'aria-label'].forEach((attr) => { if (el.hasAttribute(attr)) el.setAttribute(attr, replace(el.getAttribute(attr))); }));
+    }
+    if ($('#service-status span') && !$('#service-status').classList.contains('offline')) $('#service-status span').textContent = currentLang() === 'en' ? copy['service-status'][1] : copy['service-status'][0];
+    document.title = currentLang() === 'en' ? 'QA · DSH QA Workbench' : '质量 · DSH QA 工作台';
+    document.documentElement.lang = currentLang() === 'en' ? 'en' : 'zh-CN';
+  }
   function applyLang() {
     // 更新静态 data-i18n 文本
     $$('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
@@ -1235,6 +1303,7 @@
     renderBoard(); renderRailCases(); renderCaseList(); renderDashboard(); renderCalendars();
     if (state.activeProject) { updateChatHead(state.activeProject); renderProjectRadar(state.activeProject); }
     if (state.drawerProject) renderTab(state.drawerTab);
+    applyStaticCopy();
   }
 
   function bind() {
@@ -1299,6 +1368,7 @@
     setLang(currentLang());
     $$('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
     $('#lang-label').textContent = currentLang() === 'zh' ? '中 / EN' : 'EN / 中';
+    applyStaticCopy();
     applyTheme(localStorage.getItem('dsh-qa-theme') || 'dashboard', false);
     loadLayout();
     bind();
