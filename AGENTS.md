@@ -26,6 +26,8 @@ npm test                  # 单元测试 + E2E 测试
 
 首次运行 E2E 测试前执行 `npx playwright install chromium`。测试不需要 DSH 登录、真实模型或 API Key。
 
+GitHub Actions 在 `master` push 和 Pull Request 上运行同一个 `npm test`，使用 Node.js 20 和 Chromium；失败时会上传 Playwright 报告与 trace。
+
 ## 测试规则
 
 - 单元测试使用 Node 内置 `node:test`，优先验证 `server/store.js` 和 `server/board.js` 的行为。
