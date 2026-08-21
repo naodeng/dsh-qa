@@ -163,7 +163,11 @@
     if (persist) localStorage.setItem('dsh-qa-layout', JSON.stringify(state.layout));
   }
   function loadLayout() {
-    try { applyLayout({ ...DEFAULT_LAYOUT, ...JSON.parse(localStorage.getItem('dsh-qa-layout') || '{}') }, false); }
+    try {
+      const saved = JSON.parse(localStorage.getItem('dsh-qa-layout') || '{}');
+      const responsiveDefault = window.innerWidth <= 1180 ? { contextCollapsed: true } : {};
+      applyLayout({ ...DEFAULT_LAYOUT, ...responsiveDefault, ...saved }, false);
+    }
     catch { applyLayout(DEFAULT_LAYOUT, false); }
   }
   function toggleLayoutPane(key) {
@@ -272,11 +276,12 @@
     const list = $('#dashboard-reminders');
     const items = state.reminders.filter((item) => item.type !== 'milestone' || item.days <= 14).slice(0, 5);
     list.innerHTML = items.length ? items.map((item) => `
-      <div class="attention-item ${item.severity}" data-project-id="${item.projectId}">
+      <button class="attention-item ${item.severity}" data-project-id="${item.projectId}" type="button">
         <span class="attention-mark">${tinyIcon(item.type)}</span>
         <div><div class="attention-title">${esc(item.title)}</div><div class="attention-meta">${esc(item.projectTitle)}${item.date ? ` · ${esc(item.date)}` : ''}</div></div>
+        <span class="attention-action">${item.type === 'gate' ? t('todo.actionReview') : item.days < 0 ? t('todo.actionResolve') : t('todo.actionOpen')}</span>
         <span class="attention-time">${reminderTime(item)}</span>
-      </div>`).join('') : emptyHtml(t('todo.empty'));
+      </button>`).join('') : emptyHtml(t('todo.empty'));
     $$('.attention-item', list).forEach((el) => el.addEventListener('click', () => openProject(el.dataset.projectId)));
     const alertCount = state.reminders.filter((x) => x.severity !== 'normal').length;
     $('#nav-alert-count').textContent = alertCount;
@@ -1254,8 +1259,8 @@
     };
     const text = {
       '.welcome-row > div:first-child > p:last-child': ['需要你关注的里程碑、排期和测试进展已经整理好了。', 'Milestones, schedules and test progress are ready for you.'],
-      '#view-dashboard .attention-panel h2': ['今日待办', "Today's to-dos"],
-      '#view-dashboard .attention-panel p': ['DSH 汇总的里程碑、门禁与关键动作', 'Milestones, gates and key actions from DSH'],
+      '#view-dashboard .attention-panel h2': ['需要你处理', 'Needs your attention'],
+      '#view-dashboard .attention-panel p': ['按风险和截止时间排序的 QA 分诊队列', 'A QA triage queue sorted by risk and due date'],
       '#view-dashboard .case-overview-panel h2': ['在办项目', 'Active projects'],
       '#view-dashboard .case-overview-panel p': ['按最近活动排序，点击进入 DSH 测试空间', 'Sorted by recent activity — click to open the DSH test space'],
       '#view-dashboard .ai-control-panel h2': ['DSH 全流程辅助', 'DSH Full Assistance'],
