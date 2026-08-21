@@ -24,6 +24,14 @@
   --rail-w: 184px;
   --case-sidebar-w: 220px;
   --context-w: 260px;
+  --color-surface-page: var(--bg);
+  --color-surface-panel: var(--panel);
+  --color-text-primary: var(--ink);
+  --color-text-secondary: var(--muted);
+  --color-action-primary: var(--blue);
+  --color-state-success: var(--teal);
+  --color-state-warning: var(--amber);
+  --color-state-danger: var(--red);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -35,6 +43,15 @@ body {
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
+
+/* Quality Control Room semantic layer: components consume these roles so
+   theme changes remain visual variants of one interaction system. */
+body { background: var(--color-surface-page); color: var(--color-text-primary); }
+.panel, .metric-card, .drawer, .modal { background: var(--color-surface-panel); }
+.btn.primary, .btn.dark { background: var(--color-action-primary); }
+.risk-badge.alert, .attention-item.danger .attention-time { color: var(--color-state-danger); }
+.stage-pill { color: var(--color-state-success); }
+:where(button, input, textarea, select):focus-visible { outline: 2px solid var(--color-action-primary); outline-offset: 2px; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [role="button"]:focus-visible {
   outline: 3px solid rgba(40, 104, 169, .34);
   outline-offset: 2px;
@@ -288,6 +305,10 @@ body.context-collapsed .splitter-context::after { content: "‹"; left: 0; borde
 .model-switch { height: 30px; padding: 0 7px; display: flex; align-items: center; gap: 5px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-soft); color: var(--faint); font-size: 9px; }
 .model-switch select { max-width: 125px; border: 0; outline: 0; background: transparent; color: #42515c; font-size: 10px; }
 .model-reminder { min-height: 38px; padding: 5px 16px; display: flex; align-items: center; gap: 7px; color: #5d6d78; background: #f7f9fb; border-bottom: 1px solid var(--line); font-size: 9.5px; }
+.model-reminder { position: relative; }
+body.dsh-standalone .model-reminder { color: var(--amber); background: var(--amber-soft); }
+body.dsh-connected .model-reminder { color: var(--teal); background: var(--teal-soft); }
+body.dsh-busy .model-reminder { color: var(--blue); background: var(--blue-soft); }
 .model-reminder svg { width: 13px; height: 13px; }
 .model-reminder > span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .legal-mode-badge { min-width: auto !important; flex: none !important; display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; overflow: visible !important; border: 1px solid #c9dfd9; border-radius: 7px; color: #17685e; background: #ecf7f4; font-weight: 700; }
@@ -303,6 +324,7 @@ body.context-collapsed .splitter-context::after { content: "‹"; left: 0; borde
 .capability-btn em { margin-left: 4px; color: var(--faint); font-style: normal; font-weight: 400; }
 .chat-msgs { flex: 1; min-height: 0; overflow-y: auto; padding: 22px max(22px, 6vw); background: #fbfcfd; }
 .chat-empty { max-width: 540px; margin: 7vh auto 0; text-align: center; }
+.chat-empty { padding: 24px 18px; border: 1px dashed var(--line-strong); border-radius: var(--radius); background: color-mix(in srgb, var(--panel) 65%, transparent); }
 .chat-empty .ai-orb { margin: 0 auto 13px; }
 .chat-empty h3 { font-size: 16px; }
 .chat-empty p { max-width: 420px; margin: 6px auto 16px; color: var(--muted); font-size: 11px; }
@@ -331,6 +353,7 @@ body.context-collapsed .splitter-context::after { content: "‹"; left: 0; borde
 .composer-icon, .send-btn { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border: 0; border-radius: 8px; }
 .composer-icon { color: var(--faint); background: transparent; }
 .send-btn { color: #fff; background: var(--navy); }
+.send-btn:disabled { cursor: not-allowed; opacity: .45; }
 .send-btn.danger { background: var(--red); }
 .send-btn svg { width: 16px; height: 16px; }
 .composer-note { margin: 5px auto 0; max-width: 800px; color: #a2abb2; text-align: center; font-size: 8.5px; }
@@ -599,6 +622,7 @@ code { padding: 1px 4px; border-radius: 4px; background: #f2f4f6; font-size: 9px
 .theme-option { position: relative; min-width: 0; padding: 10px; display: grid; grid-template-columns: 1fr auto; gap: 3px 8px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); background: #fff; text-align: left; }
 .theme-option:hover { border-color: #9eb0bd; box-shadow: 0 7px 20px rgba(18,37,52,.08); transform: translateY(-1px); }
 .theme-option.active { border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); }
+.theme-option[aria-pressed="true"] { border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue), 0 7px 20px rgba(18,37,52,.06); }
 .theme-option b { margin-top: 5px; font-size: 12px; }
 .theme-option small { grid-column: 1 / -1; color: var(--muted); font-size: 9px; line-height: 1.5; }
 .theme-option em { align-self: center; display: none; padding: 2px 6px; border-radius: 99px; color: #fff; background: var(--blue); font-size: 8px; font-style: normal; }
@@ -790,6 +814,21 @@ body[data-theme="cyber"] .send-btn { color: #0a0618; background: #00d4ff; }
 body[data-theme="cyber"] .tab.active { color: #0a0618; background: #00d4ff; }
 body[data-theme="cyber"] .tab { color: #a99bc8; }
 body[data-theme="cyber"] .detail-sidebar { border-right-color: #31255c; }
+
+/* Approved dashboard hierarchy and interaction affordances. */
+.attention-item { cursor: pointer; transition: background .16s ease, transform .16s ease; }
+.attention-item:hover { background: color-mix(in srgb, var(--color-action-primary) 5%, transparent); transform: translateX(2px); }
+.case-overview-row { cursor: pointer; transition: background .16s ease; }
+.case-overview-row:hover { background: color-mix(in srgb, var(--color-action-primary) 5%, transparent); }
+.metric-card { min-height: 112px; }
+.metric-card strong { font-variant-numeric: tabular-nums; }
+.panel-head .text-btn { white-space: nowrap; }
+.empty-tip { min-height: 72px; display: grid; place-items: center; padding: 16px; text-align: center; }
+.composer-note { max-width: 760px; }
+body, #topbar, #rail, .panel, .metric-card, .chat-head, .case-sidebar, .context-panel, .composer, .drawer, .modal { transition: background-color .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+}
 
 .pass-trigger { display: none; position: fixed; z-index: 75; right: 22px; bottom: 20px; min-width: 86px; height: 42px; padding: 0 16px; border: 2px solid #3ddc84; color: #d8ffe6; background: linear-gradient(#0f3a21, #06241c); box-shadow: 0 0 14px rgba(61,220,132,.35); font: 800 14px/1 "SF Mono", Menlo, monospace; letter-spacing: .1em; }
 /* 全绿场景：赛博主题可触发的 BUILD PASSED */
