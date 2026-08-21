@@ -163,7 +163,11 @@
     if (persist) localStorage.setItem('dsh-qa-layout', JSON.stringify(state.layout));
   }
   function loadLayout() {
-    try { applyLayout({ ...DEFAULT_LAYOUT, ...JSON.parse(localStorage.getItem('dsh-qa-layout') || '{}') }, false); }
+    try {
+      const saved = JSON.parse(localStorage.getItem('dsh-qa-layout') || '{}');
+      const responsiveDefault = window.innerWidth <= 1180 ? { contextCollapsed: true } : {};
+      applyLayout({ ...DEFAULT_LAYOUT, ...responsiveDefault, ...saved }, false);
+    }
     catch { applyLayout(DEFAULT_LAYOUT, false); }
   }
   function toggleLayoutPane(key) {
@@ -272,11 +276,12 @@
     const list = $('#dashboard-reminders');
     const items = state.reminders.filter((item) => item.type !== 'milestone' || item.days <= 14).slice(0, 5);
     list.innerHTML = items.length ? items.map((item) => `
-      <div class="attention-item ${item.severity}" data-project-id="${item.projectId}">
+      <button class="attention-item ${item.severity}" data-project-id="${item.projectId}" type="button">
         <span class="attention-mark">${tinyIcon(item.type)}</span>
         <div><div class="attention-title">${esc(item.title)}</div><div class="attention-meta">${esc(item.projectTitle)}${item.date ? ` · ${esc(item.date)}` : ''}</div></div>
+        <span class="attention-action">${item.type === 'gate' ? t('todo.actionReview') : item.days < 0 ? t('todo.actionResolve') : t('todo.actionOpen')}</span>
         <span class="attention-time">${reminderTime(item)}</span>
-      </div>`).join('') : emptyHtml(t('todo.empty'));
+      </button>`).join('') : emptyHtml(t('todo.empty'));
     $$('.attention-item', list).forEach((el) => el.addEventListener('click', () => openProject(el.dataset.projectId)));
     const alertCount = state.reminders.filter((x) => x.severity !== 'normal').length;
     $('#nav-alert-count').textContent = alertCount;
@@ -571,6 +576,8 @@
     $('#btn-back-dsh').classList.toggle('hidden', !state.dshEmbedded);
     $('#capability-count').textContent = state.dsh.sessionId ? `${state.dsh.skills.length} / ${state.dsh.commands.length}` : '';
     $('#service-status').classList.toggle('offline', !state.dshEmbedded);
+    document.body.classList.toggle('dsh-standalone', !state.dshEmbedded);
+    document.body.classList.toggle('dsh-connected', Boolean(state.dsh.sessionId));
     $('#service-status span').textContent = state.dshEmbedded ? `DSH · ${presetName}` : '请从 DSH 打开';
     if (!state.dshEmbedded) $('#channel-note').textContent = '当前是独立项目管理模式；对话、模型、技能与命令请从 DSH 侧边栏进入';
     else if (!state.dsh.sessionId) $('#channel-note').textContent = `DSH ${presetName} · 首次进入项目时自动绑定文件夹与会话`;
@@ -799,6 +806,7 @@
   function autoGrow(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 130) + 'px'; }
   function updateChatUI() {
     const busy = state.dsh.busy;
+    document.body.classList.toggle('dsh-busy', busy);
     $('#chat-input').disabled = !state.activeProjectId || busy;
     $('#chat-input').placeholder = busy ? t('chat.input.busy') : t('chat.input.placeholder');
     $('#btn-send').disabled = !state.activeProjectId || busy;
@@ -1188,17 +1196,17 @@
   function openSettings() {
     const modal = modalShell('界面风格与布局', '四套皮肤只改变工作台外观；模型、技能和测试模式仍完全来自 DSH。', `
       <div class="theme-picker">
-        <button class="theme-option ${state.theme === 'dashboard' ? 'active' : ''}" data-theme-option="dashboard" type="button"><span class="theme-preview dashboard"><i></i><i></i><i></i></span><b>质量仪表</b><small>清爽 QA 面板蓝、通过率绿与测试徽章，默认外观。</small><em>当前</em></button>
-        <button class="theme-option ${state.theme === 'terminal' ? 'active' : ''}" data-theme-option="terminal" type="button"><span class="theme-preview terminal"><i></i><i></i><i></i></span><b>终端</b><small>深色终端绿与等宽字体，命令行质感。</small><em>当前</em></button>
-        <button class="theme-option ${state.theme === 'minimal' ? 'active' : ''}" data-theme-option="minimal" type="button"><span class="theme-preview minimal"><i></i><i></i><i></i></span><b>极简</b><small>纯白留白、细线与安静的黑灰层次。</small><em>当前</em></button>
-        <button class="theme-option ${state.theme === 'cyber' ? 'active' : ''}" data-theme-option="cyber" type="button"><span class="theme-preview cyber"><i></i><i></i><i></i></span><b>赛博</b><small>霓虹紫、深空黑与发光描边，附带可触发的 BUILD PASSED 场景。</small><em>当前</em></button>
+        <button class="theme-option ${state.theme === 'dashboard' ? 'active' : ''}" data-theme-option="dashboard" aria-pressed="${state.theme === 'dashboard'}" type="button"><span class="theme-preview dashboard"><i></i><i></i><i></i></span><b>质量仪表</b><small>清爽 QA 面板蓝、通过率绿与测试徽章，默认外观。</small><em>当前</em></button>
+        <button class="theme-option ${state.theme === 'terminal' ? 'active' : ''}" data-theme-option="terminal" aria-pressed="${state.theme === 'terminal'}" type="button"><span class="theme-preview terminal"><i></i><i></i><i></i></span><b>终端</b><small>深色终端绿与等宽字体，命令行质感。</small><em>当前</em></button>
+        <button class="theme-option ${state.theme === 'minimal' ? 'active' : ''}" data-theme-option="minimal" aria-pressed="${state.theme === 'minimal'}" type="button"><span class="theme-preview minimal"><i></i><i></i><i></i></span><b>极简</b><small>纯白留白、细线与安静的黑灰层次。</small><em>当前</em></button>
+        <button class="theme-option ${state.theme === 'cyber' ? 'active' : ''}" data-theme-option="cyber" aria-pressed="${state.theme === 'cyber'}" type="button"><span class="theme-preview cyber"><i></i><i></i><i></i></span><b>赛博</b><small>霓虹紫、深空黑与发光描边，附带可触发的 BUILD PASSED 场景。</small><em>当前</em></button>
       </div>
       <div class="layout-settings"><h4>工作区宽度</h4><p>主导航、项目栏与项目雷达的边缘均可拖动；双击边缘恢复默认，箭头键可微调。</p><div class="layout-presets"><button class="layout-preset" data-layout-preset="compact" type="button"><b>紧凑</b><span>170 / 190 / 230</span></button><button class="layout-preset" data-layout-preset="standard" type="button"><b>标准</b><span>184 / 220 / 260</span></button><button class="layout-preset" data-layout-preset="focus" type="button"><b>专注对话</b><span>收起项目栏与雷达</span></button></div></div>
       <p class="theme-hint">模型只从 DSH 当前会话的模型目录读取；如需新增服务商或模型，请在 DSH 设置中配置。</p>
       <div class="modal-foot"><button class="btn" id="st-pass" type="button" ${state.theme === 'cyber' ? '' : 'disabled'}>BUILD PASSED</button><button class="btn primary" id="st-close" type="button">完成</button></div>`, true);
     $$('[data-theme-option]', modal).forEach((button) => button.addEventListener('click', () => {
       applyTheme(button.dataset.themeOption);
-      $$('[data-theme-option]', modal).forEach((item) => item.classList.toggle('active', item === button));
+      $$('[data-theme-option]', modal).forEach((item) => { item.classList.toggle('active', item === button); item.setAttribute('aria-pressed', String(item === button)); });
       $('#st-pass', modal).disabled = state.theme !== 'cyber';
     }));
     $$('[data-layout-preset]', modal).forEach((button) => button.addEventListener('click', () => {
@@ -1254,8 +1262,8 @@
     };
     const text = {
       '.welcome-row > div:first-child > p:last-child': ['需要你关注的里程碑、排期和测试进展已经整理好了。', 'Milestones, schedules and test progress are ready for you.'],
-      '#view-dashboard .attention-panel h2': ['今日待办', "Today's to-dos"],
-      '#view-dashboard .attention-panel p': ['DSH 汇总的里程碑、门禁与关键动作', 'Milestones, gates and key actions from DSH'],
+      '#view-dashboard .attention-panel h2': ['需要你处理', 'Needs your attention'],
+      '#view-dashboard .attention-panel p': ['按风险和截止时间排序的 QA 分诊队列', 'A QA triage queue sorted by risk and due date'],
       '#view-dashboard .case-overview-panel h2': ['在办项目', 'Active projects'],
       '#view-dashboard .case-overview-panel p': ['按最近活动排序，点击进入 DSH 测试空间', 'Sorted by recent activity — click to open the DSH test space'],
       '#view-dashboard .ai-control-panel h2': ['DSH 全流程辅助', 'DSH Full Assistance'],
