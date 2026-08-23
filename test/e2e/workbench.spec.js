@@ -12,3 +12,45 @@ test('user can create a project from the workbench', async ({ page }) => {
   await expect(page.locator('#case-list')).toContainText('浏览器回归项目');
   await expect(page.locator('#dashboard-cases')).toContainText('浏览器回归项目');
 });
+
+test('user can switch the workbench language', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#btn-lang').click();
+
+  await expect(page.locator('#lang-label')).toHaveText('EN / 中');
+  await expect(page.locator('.nav-item').first()).toContainText('Dashboard');
+  await expect(page.getByRole('heading', { name: /Good day/ })).toBeVisible();
+
+  await page.locator('#btn-lang').click();
+  await expect(page.locator('#lang-label')).toHaveText('中 / EN');
+  await expect(page.locator('.nav-item').first()).toContainText('测试首页');
+});
+
+test('user can inspect a project from the board', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '项目看板' }).click();
+  await expect(page.locator('#view-board')).toBeVisible();
+  await page.locator('.card').first().click();
+
+  await expect(page.locator('#view-assistant')).toBeVisible();
+  await expect(page.locator('#btn-case-detail')).toBeEnabled();
+  await page.locator('#btn-case-detail').click();
+  await expect(page.locator('#drawer')).toBeVisible();
+  await expect(page.locator('#drawer-title')).not.toHaveText('');
+
+  await page.locator('#tabs').getByRole('button', { name: /测试用例/ }).click();
+  await expect(page.locator('#drawer-section-title')).toHaveText('测试用例');
+  await expect(page.locator('#drawer .list-item').first()).toBeVisible();
+  await page.locator('#btn-close-drawer').click();
+  await expect(page.locator('#drawer')).toBeHidden();
+});
+
+test('user can move between board and calendar views', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '项目看板' }).click();
+  await expect(page.locator('#view-board')).toBeVisible();
+  await page.getByRole('button', { name: '日历排期' }).click();
+  await expect(page.locator('#view-calendar')).toBeVisible();
+  await expect(page.locator('#full-calendar')).toBeVisible();
+  await expect(page.locator('#calendar-agenda')).toContainText('用例评审会');
+});
