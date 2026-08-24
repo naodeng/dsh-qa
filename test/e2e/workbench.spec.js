@@ -15,9 +15,12 @@ test('user can create a project from the workbench', async ({ page }) => {
 
 test('user can switch the workbench language', async ({ page }) => {
   await page.goto('/');
+  await expect(page.locator('.brand-copy')).toBeVisible();
+  await expect(page.locator('.brand-copy')).toHaveText('QA 工作台');
   await page.locator('#btn-lang').click();
 
   await expect(page.locator('#lang-label')).toHaveText('EN / 中');
+  await expect(page.locator('.brand-copy')).toHaveText('QA Workbench');
   await expect(page.locator('.nav-item').first()).toContainText('Dashboard');
   await expect(page.getByRole('heading', { name: /Good day/ })).toBeVisible();
 
