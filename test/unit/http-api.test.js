@@ -30,3 +30,53 @@ test('board API exposes created project and rejects invalid transition', async (
   const invalid = await fetch(`${base}/api/projects/${id}/transition`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ to: 'unknown' }) });
   assert.equal(invalid.status, 400);
 });
+
+test('project API transitions stages and manages scheduled items', async () => {
+  const created = await (await fetch(`${base}/api/projects`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '排期 API 项目', createWorkspace: false }),
+  })).json();
+  const id = created.project.id;
+
+  const transitioned = await fetch(`${base}/api/projects/${id}/transition`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ to: 'design' }),
+  });
+  assert.equal(transitioned.status, 200);
+  assert.equal((await transitioned.json()).project.status, 'design');
+
+  const scheduled = await fetch(`${base}/api/projects/${id}/schedule`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '用例评审会', date: '2030-04-15', type: 'event' }),
+  });
+  assert.equal(scheduled.status, 200);
+  const item = (await scheduled.json()).item;
+  assert.equal(item.title, '用例评审会');
+
+  const removed = await fetch(`${base}/api/projects/${id}/schedule/${item.id}`, { method: 'DELETE' });
+  assert.equal(removed.status, 200);
+  assert.equal((await removed.json()).removedId, item.id);
+});
+
+test('project API validates schedule payloads and missing resources', async () => {
+  const created = await (await fetch(`${base}/api/projects`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '排期校验项目', createWorkspace: false }),
+  })).json();
+  const id = created.project.id;
+
+  const invalidDate = await fetch(`${base}/api/projects/${id}/schedule`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '缺少日期', date: '2030/04/15' }),
+  });
+  assert.equal(invalidDate.status, 400);
+  assert.match((await invalidDate.json()).error, /日期格式无效/);
+
+  const missing = await fetch(`${base}/api/projects/${id}/schedule/evt-missing`, { method: 'DELETE' });
+  assert.equal(missing.status, 404);
+});

@@ -6,8 +6,7 @@
 
   const DICT = {
     zh: {
-      'brand.title': '质量',
-      'brand.subtitle': 'DSH QA 工作台 · QA Workbench',
+      'brand.title': 'QA 工作台',
       'search.placeholder': '搜索项目、需求、缺陷',
       'top.back': '返回 DSH',
       'top.remote': 'Remote',
@@ -80,6 +79,7 @@
       'calendar.legendEvent': '日程',
       'calendar.legendMilestone': '里程碑',
       'calendar.legendOverdue': '逾期',
+      'calendar.eyebrow': '里程碑与日程',
       'calendar.next30': '接下来 30 天',
       'calendar.selectedEmpty': '这一天还没有安排',
       'calendar.addNow': '立即添加',
@@ -209,8 +209,7 @@
       'settings.layoutUpdated': '工作区布局已更新',
     },
     en: {
-      'brand.title': 'QA',
-      'brand.subtitle': 'DSH QA Workbench',
+      'brand.title': 'QA Workbench',
       'search.placeholder': 'Search projects, requirements, defects',
       'top.back': 'Back to DSH',
       'top.remote': 'Remote',
@@ -283,6 +282,7 @@
       'calendar.legendEvent': 'Event',
       'calendar.legendMilestone': 'Milestone',
       'calendar.legendOverdue': 'Overdue',
+      'calendar.eyebrow': 'Milestones & schedule',
       'calendar.next30': 'Next 30 days',
       'calendar.selectedEmpty': 'Nothing scheduled this day',
       'calendar.addNow': 'Add now',

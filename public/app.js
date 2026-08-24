@@ -215,6 +215,8 @@
   function toast(message, kind = '') {
     const el = document.createElement('div');
     el.className = `toast ${kind}`;
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', kind === 'err' ? 'assertive' : 'polite');
     el.textContent = message;
     $('#toast-root').appendChild(el);
     setTimeout(() => el.remove(), 3200);
@@ -389,7 +391,7 @@
         return `<button class="day-event ${item.type === 'milestone' ? 'deadline' : ''} ${danger ? 'danger' : ''}" data-project-id="${item.projectId}" type="button" title="${esc(item.projectTitle)} · ${esc(item.title)}">${esc(item.title)}</button>`;
       }).join('');
       const more = itemsOn(iso).length > 3 ? `<span class="day-more">${currentLang() === 'en' ? `${itemsOn(iso).length - 3} more` : `另有 ${itemsOn(iso).length - 3} 项`}</span>` : '';
-      return `<div class="${classes.join(' ')}" data-date="${iso}"><div class="day-top"><span class="day-number">${date.getDate()}</span><button class="day-add" type="button" title="在 ${iso} 新增日程">＋</button></div><div class="day-events">${events}${more}</div></div>`;
+      return `<div class="${classes.join(' ')}" data-date="${iso}"><div class="day-top"><span class="day-number">${date.getDate()}</span><button class="day-add" type="button" title="在 ${iso} 新增日程" aria-label="在 ${iso} 新增日程">＋</button></div><div class="day-events">${events}${more}</div></div>`;
     }).join('');
     $$('.full-day', $('#full-calendar')).forEach((el) => el.addEventListener('click', () => selectCalendarDate(el.dataset.date)));
     $$('.day-add', $('#full-calendar')).forEach((el) => el.addEventListener('click', (event) => { event.stopPropagation(); openScheduleModal(el.closest('.full-day').dataset.date); }));
@@ -693,7 +695,14 @@
   }
   function scrollChat() { const el = $('#chat-msgs'); el.scrollTop = el.scrollHeight; }
   function renderDshEmpty(message) {
-    $('#chat-msgs').innerHTML = `<div class="chat-empty"><span class="ai-orb">DSH</span><h3>DSH 测试模式</h3><p>${esc(message)}</p><div class="prompt-grid"><button class="prompt-chip dsh-prompt" type="button">/qa-testcase-generator 为需求生成测试用例</button><button class="prompt-chip dsh-prompt" type="button">/qa-defect-analysis 分析缺陷并给根因建议</button><button class="prompt-chip dsh-prompt" type="button">梳理本项目测试范围并列出下一步</button><button class="prompt-chip dsh-prompt" type="button">/plan 为本项目制定测试执行计划</button></div></div>`;
+    const en = currentLang() === 'en';
+    const visibleMessage = en
+      ? (message.includes('正在连接') ? 'DSH Test Mode is connecting to this project session…' : 'Enter the chat space to use DSH models, skills, commands and tools.')
+      : message;
+    const prompts = en
+      ? ['/qa-testcase-generator Generate test cases from a requirement', '/qa-defect-analysis Analyze defects and suggest root causes', 'Outline this project’s test scope and list next steps', '/plan Create a test execution plan for this project']
+      : ['/qa-testcase-generator 为需求生成测试用例', '/qa-defect-analysis 分析缺陷并给根因建议', '梳理本项目测试范围并列出下一步', '/plan 为本项目制定测试执行计划'];
+    $('#chat-msgs').innerHTML = `<div class="chat-empty"><span class="ai-orb">DSH</span><h3>${en ? 'DSH Test Mode' : 'DSH 测试模式'}</h3><p>${esc(visibleMessage)}</p><div class="prompt-grid">${prompts.map((prompt) => `<button class="prompt-chip dsh-prompt" type="button">${prompt}</button>`).join('')}</div></div>`;
     $$('.dsh-prompt', $('#chat-msgs')).forEach((button) => button.addEventListener('click', () => { $('#chat-input').value = button.textContent; $('#chat-input').focus(); autoGrow($('#chat-input')); renderSlashSuggestions(); }));
   }
   function contentText(content) { return (Array.isArray(content) ? content : []).filter((block) => block?.type === 'text').map((block) => block.text || '').join('\n').trim(); }
@@ -1283,6 +1292,10 @@
     for (const [selector, values] of Object.entries(text)) { const el = $(selector); if (el) el.textContent = currentLang() === 'en' ? values[1] : values[0]; }
     if (currentLang() === 'en') {
       const replacements = new Map([
+        ['请从 DSH 打开', 'Open from DSH'], ['请从 DSH 侧边栏打开', 'Open from the DSH sidebar'], ['正在连接 DSH 测试模式、模型与原生能力…', 'Connecting to DSH Test Mode, model and native capabilities…'], ['DSH 测试模式正在连接本项目的 DSH 测试模式会话…', 'DSH Test Mode is connecting to this project session…'], ['当前处于独立项目管理模式；对话、模型、技能与命令请从 DSH 侧边栏进入', 'Standalone project mode; open the DSH sidebar for chat, models, skills and commands'], ['当前是独立项目管理模式；对话、模型、技能与命令请从 DSH 侧边栏进入', 'Standalone project mode; open the DSH sidebar for chat, models, skills and commands'],
+        ['描述需求或下一步测试任务，DSH 测试模式会按本项目策略协作…', 'Describe a requirement or next testing task; DSH Test Mode will follow this project policy…'], ['模型可能出错；严重级别、截止日期与发布动作请由测试负责人复核。', 'Models can make mistakes; the test owner should review severity, due dates and release actions.'], ['技能通过 DSH 原生会话运行，可继续调用 DSH 工具并按权限策略请求确认；命令直接作用于本项目会话。输入框中也可以直接键入“/”检索。', 'Skills run through the native DSH session and may request permission; commands act on this project session. Type “/” in the input to search.'],
+        ['帮我梳理这份需求并设计测试用例', 'Help me break down this requirement and design test cases'], ['根据当前用例检查覆盖缺口', 'Check coverage gaps in the current test cases'], ['分析本项目缺陷并给出根因建议', 'Analyze project defects and suggest root causes'], ['整理下一步测试任务', 'Organize the next testing tasks'], ['梳理本Project测试范围并列出下一步', 'Outline this project’s test scope and list next steps'], ['/qa-testcase-generator 为需求生成测试用例', '/qa-testcase-generator Generate test cases from a requirement'], ['/qa-defect-analysis 分析缺陷并给根因建议', '/qa-defect-analysis Analyze defects and suggest root causes'], ['/plan 为本项目制定测试执行计划', '/plan Create a test execution plan for this project'], ['为需求生成测试用例', 'Generate test cases from a requirement'], ['分析缺陷并给根因建议', 'Analyze defects and suggest root causes'], ['为本项目制定测试执行计划', 'Create a test execution plan for this project'],
+        ['全流程辅助', 'Full assistance'], ['调整辅助策略', 'Adjust assistance policy'], ['项目详情', 'Project details'], ['项目文件夹', 'Project folder'], ['技能与命令', 'Skills & commands'], ['材料动态', 'Materials'], ['项目雷达', 'Project radar'], ['随对话实时更新', 'Updates live with the chat'], ['测试模式', 'Test Mode'], ['正在读取…', 'Loading…'], ['正在读取 DSH 模型…', 'Loading DSH models…'],
         ['删除', 'Delete'], ['取消', 'Cancel'], ['保存', 'Save'], ['关闭', 'Close'], ['今天', 'Today'], ['立即添加', 'Add now'], ['新建日程', 'New schedule'], ['新建项目', 'New project'], ['新建迭代', 'New iteration'],
         ['项目详情', 'Project details'], ['项目文件夹', 'Project folder'], ['项目文件', 'Project files'], ['打开项目文件', 'Open project files'], ['创建项目文件', 'Create project files'], ['创建标准项目目录', 'Create standard project folder'], ['在 Finder 中打开', 'Open in Finder'],
         ['项目与迭代', 'Projects & iterations'], ['搜索项目', 'Search projects'], ['全部', 'All'], ['项目', 'Project'], ['迭代', 'Iteration'], ['项目概览', 'Project overview'], ['项目档案', 'Project profile'], ['项目基本信息', 'Project information'], ['对象类型', 'Object type'], ['项目编号', 'Project key'], ['被测产品', 'Product under test'], ['测试负责人', 'Test owner'], ['测试阶段', 'Test stage'], ['测试进度', 'Test progress'], ['测试用例', 'Test cases'], ['测试报告', 'Test reports'], ['缺陷', 'Defects'], ['需求范围', 'Requirements'], ['里程碑与日程', 'Milestones & schedule'], ['沟通纪要', 'Minutes'], ['知识沉淀', 'Knowledge'],
@@ -1298,6 +1311,15 @@
       $$('input, textarea, button, [aria-label], [title]').forEach((el) => ['placeholder', 'title', 'aria-label'].forEach((attr) => { if (el.hasAttribute(attr)) el.setAttribute(attr, replace(el.getAttribute(attr))); }));
     }
     if ($('#service-status span') && !$('#service-status').classList.contains('offline')) $('#service-status span').textContent = currentLang() === 'en' ? copy['service-status'][1] : copy['service-status'][0];
+    const ariaCopy = currentLang() === 'en'
+      ? { prev: 'Previous month', today: 'Go to today', next: 'Next month', add: 'Add to selected date', close: 'Close project details', newProject: 'Create test project' }
+      : { prev: '上个月', today: '回到今天', next: '下个月', add: '在所选日期新增', close: '关闭项目详情', newProject: '新建测试项目' };
+    ['#cal-prev-mini', '#cal-prev'].forEach((selector) => { if ($(selector)) $(selector).setAttribute('aria-label', ariaCopy.prev); });
+    ['#cal-today-mini', '#cal-today'].forEach((selector) => { if ($(selector)) $(selector).setAttribute('aria-label', ariaCopy.today); });
+    ['#cal-next-mini', '#cal-next'].forEach((selector) => { if ($(selector)) $(selector).setAttribute('aria-label', ariaCopy.next); });
+    if ($('#btn-add-selected')) $('#btn-add-selected').setAttribute('aria-label', ariaCopy.add);
+    if ($('#btn-close-drawer')) $('#btn-close-drawer').setAttribute('aria-label', ariaCopy.close);
+    if ($('#btn-new-case-side')) $('#btn-new-case-side').setAttribute('aria-label', ariaCopy.newProject);
     document.title = currentLang() === 'en' ? 'QA · DSH QA Workbench' : '质量 · DSH QA 工作台';
     document.documentElement.lang = currentLang() === 'en' ? 'en' : 'zh-CN';
   }
@@ -1320,7 +1342,7 @@
       applyLang();
       toast(currentLang() === 'en' ? 'Language switched to English' : '已切换为中文', 'ok');
     });
-    $$('.nav-item').forEach((button) => button.addEventListener('click', () => { switchView(button.dataset.view); if (button.dataset.view === 'assistant' && state.activeProject) initializeDshChat({ initialize: true }).catch((error) => toast(error.message, 'err')); }));
+    $$('.nav-item').forEach((button) => button.addEventListener('click', () => { switchView(button.dataset.view); applyStaticCopy(); if (button.dataset.view === 'assistant' && state.activeProject) initializeDshChat({ initialize: true }).then(() => applyStaticCopy()).catch((error) => toast(error.message, 'err')); }));
     $$('[data-view-jump]').forEach((button) => button.addEventListener('click', () => switchView(button.dataset.viewJump)));
     ['#btn-new-case', '#btn-new-case-mini', '#btn-new-case-side', '#btn-new-case-board'].forEach((selector) => $(selector).addEventListener('click', () => openNewProject(false)));
     $('#btn-new-iteration').addEventListener('click', () => openNewProject(true));
