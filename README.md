@@ -8,6 +8,8 @@
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
 
 **dsh-qa** 是 DeepSeek Harness 的本地软件测试工作台插件：把测试项目的待办提醒、日历排期、项目概览和最近动态放在同一屏；测试项目/迭代的对话统一交给 DSH 原生会话，并自动使用你预设的「测试模式」（preset id: `qa`）。零 npm 依赖，数据完全本机。
+<img width="2135" height="736" alt="image" src="https://github.com/user-attachments/assets/45d9f541-808e-46c0-993a-e1e9824464b5" />
+
 
 ```
 测试首页 → DSH 测试对话 → 项目看板 → 日历排期
