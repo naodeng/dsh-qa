@@ -974,6 +974,145 @@ body[data-theme="dashboard"] .ai-orb {
   background: linear-gradient(145deg, #2b7770, #d8f0e8);
   color: var(--navy);
 }
+body[data-theme="dashboard"] .board-page,
+body[data-theme="dashboard"] .calendar-page,
+body[data-theme="dashboard"] .assistant-view {
+  background: transparent;
+}
+body[data-theme="dashboard"] .page-head h1 {
+  font-size: 27px;
+  letter-spacing: -.04em;
+}
+body[data-theme="dashboard"] .col {
+  background: rgba(226, 238, 233, .72);
+  border-color: var(--line);
+  border-radius: 16px;
+}
+body[data-theme="dashboard"] .col-head {
+  min-height: 55px;
+  padding-inline: 14px;
+}
+body[data-theme="dashboard"] .col-count {
+  background: var(--panel);
+}
+body[data-theme="dashboard"] .card {
+  padding: 13px;
+  border-color: var(--line);
+  border-radius: 13px;
+  background: var(--panel);
+  box-shadow: 0 6px 18px rgba(18, 62, 50, .055);
+}
+body[data-theme="dashboard"] .card:hover {
+  border-color: #b9d3c9;
+  box-shadow: 0 10px 24px rgba(18, 62, 50, .1);
+}
+body[data-theme="dashboard"] .calendar-toolbar,
+body[data-theme="dashboard"] .full-calendar-wrap,
+body[data-theme="dashboard"] .tab-toolbar {
+  border-color: var(--line);
+  background: rgba(255, 254, 250, .92);
+  box-shadow: var(--shadow);
+}
+body[data-theme="dashboard"] .calendar-toolbar {
+  border-radius: 16px 16px 0 0;
+}
+body[data-theme="dashboard"] .full-calendar-wrap {
+  border-radius: 0 0 16px 16px;
+}
+body[data-theme="dashboard"] .full-calendar .weekday {
+  background: #f5f9f7;
+  border-color: #e5efeb;
+}
+body[data-theme="dashboard"] .full-day {
+  background: var(--panel);
+  border-color: #e8f0ec;
+}
+body[data-theme="dashboard"] .full-day.out {
+  background: #f8fbf9;
+}
+body[data-theme="dashboard"] .full-day:hover {
+  background: #f8fcfa;
+  box-shadow: inset 0 0 0 1px #b9d3c9;
+}
+body[data-theme="dashboard"] .full-calendar-wrap > aside {
+  border-left-color: var(--line);
+  background: #f7faf8;
+}
+body[data-theme="dashboard"] .agenda-card,
+body[data-theme="dashboard"] .selected-empty {
+  border-color: var(--line);
+  border-radius: 11px;
+  background: var(--panel);
+}
+body[data-theme="dashboard"] .case-sidebar,
+body[data-theme="dashboard"] .context-panel {
+  background: rgba(247, 250, 248, .88);
+  border-color: var(--line);
+}
+body[data-theme="dashboard"] .chat-head {
+  background: rgba(255, 254, 250, .88);
+  border-bottom-color: var(--line);
+}
+body[data-theme="dashboard"] .composer-wrap {
+  background: rgba(241, 246, 243, .88);
+  border-top-color: var(--line);
+}
+body[data-theme="dashboard"] .composer {
+  border-color: var(--line-strong);
+  border-radius: 15px;
+  background: var(--panel);
+  box-shadow: 0 8px 24px rgba(18, 62, 50, .07);
+}
+body[data-theme="dashboard"] .drawer {
+  border-color: var(--line);
+  border-radius: 20px;
+  background: #f5f8f6;
+  box-shadow: 0 30px 90px rgba(18, 62, 50, .24);
+}
+body[data-theme="dashboard"] .drawer-head,
+body[data-theme="dashboard"] .detail-section-head {
+  background: var(--panel);
+  border-bottom-color: var(--line);
+}
+body[data-theme="dashboard"] .detail-sidebar {
+  background: #eaf3ef;
+  border-right-color: var(--line);
+}
+body[data-theme="dashboard"] .tab.active {
+  background: var(--navy);
+  box-shadow: 0 7px 18px rgba(18, 62, 50, .12);
+}
+body[data-theme="dashboard"] .detail-card,
+body[data-theme="dashboard"] .overview-metrics > div,
+body[data-theme="dashboard"] .list-item,
+body[data-theme="dashboard"] .modal,
+body[data-theme="dashboard"] .mode-option,
+body[data-theme="dashboard"] .capability-list {
+  border-color: var(--line);
+  border-radius: 13px;
+  background: var(--panel);
+  box-shadow: 0 6px 18px rgba(18, 62, 50, .045);
+}
+body[data-theme="dashboard"] .detail-action-bar {
+  border-top-color: var(--line);
+  background: rgba(255, 254, 250, .94);
+}
+body[data-theme="dashboard"] .modal-backdrop {
+  background: rgba(18, 48, 42, .36);
+  backdrop-filter: blur(5px);
+}
+body[data-theme="dashboard"] .modal {
+  box-shadow: 0 24px 70px rgba(18, 62, 50, .22);
+}
+body[data-theme="dashboard"] .schedule-type-switch,
+body[data-theme="dashboard"] .capability-tabs {
+  background: #eaf3ef;
+}
+body[data-theme="dashboard"] .schedule-type-switch button.active,
+body[data-theme="dashboard"] .capability-tabs button.active {
+  background: var(--panel);
+  box-shadow: 0 3px 9px rgba(18, 62, 50, .08);
+}
 
 @media (max-width: 1180px) {
   #topbar { grid-template-columns: minmax(0, max-content) minmax(240px, 430px) 1fr; }
