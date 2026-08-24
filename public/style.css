@@ -3,7 +3,7 @@
   --navy-2: #1b3a52;
   --ink: #17212b;
   --muted: #667380;
-  --faint: #77848f;
+  --faint: #687782;
   --bg: #f3f5f7;
   --panel: #fff;
   --panel-soft: #f8fafb;
@@ -123,7 +123,7 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .splitter span { position: absolute; top: 50%; left: 50%; width: 3px; height: 32px; border-radius: 99px; background: #c6d0d7; opacity: 0; transform: translate(-50%, -50%); transition: opacity .15s ease, transform .15s ease; }
 .splitter:hover::before, .splitter:focus-visible::before, body.is-resizing .splitter.active::before { background: rgba(37,102,153,.09); box-shadow: inset 1px 0 rgba(37,102,153,.2), inset -1px 0 rgba(37,102,153,.2); }
 .splitter:hover span, .splitter:focus-visible span, body.is-resizing .splitter.active span { height: 56px; opacity: 1; background: var(--blue); }
-.splitter:focus-visible { outline: 0; }
+.splitter:focus-visible { outline: 0; box-shadow: inset 0 0 0 2px rgba(40, 104, 169, .34); }
 body.is-resizing, body.is-resizing * { cursor: col-resize !important; user-select: none !important; }
 body.rail-collapsed #rail { width: 64px; padding-inline: 8px; }
 body.rail-collapsed #rail .nav-item { justify-content: center; padding-inline: 0; }
@@ -982,6 +982,82 @@ body[data-theme="dashboard"] .ai-orb {
 /* Desktop readability pass: keep the dense workbench scannable without
    changing the mobile layout rules. */
 @media (min-width: 721px) {
+  body[data-theme="dashboard"] .btn.sm,
+  body[data-theme="dashboard"] .small-square,
+  body[data-theme="dashboard"] .icon-btn,
+  body[data-theme="dashboard"] .case-filter button,
+  body[data-theme="dashboard"] .capability-tabs button,
+  body[data-theme="dashboard"] .composer-icon,
+  body[data-theme="dashboard"] .send-btn {
+    min-height: 36px;
+  }
+  body[data-theme="dashboard"] .small-square,
+  body[data-theme="dashboard"] .icon-btn,
+  body[data-theme="dashboard"] .composer-icon,
+  body[data-theme="dashboard"] .send-btn {
+    min-width: 36px;
+  }
+  body[data-theme="dashboard"] .dashboard-grid {
+    align-items: stretch;
+    grid-template-rows: minmax(282px, auto) minmax(330px, auto) minmax(210px, auto);
+  }
+  body[data-theme="dashboard"] .dashboard-grid > .panel {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  body[data-theme="dashboard"] .dashboard-grid > .panel > .attention-list,
+  body[data-theme="dashboard"] .dashboard-grid > .panel > .case-overview-list,
+  body[data-theme="dashboard"] .dashboard-grid > .panel > .activity-list {
+    flex: 1;
+  }
+  body[data-theme="dashboard"] .dashboard-grid > .mini-calendar-panel .mini-agenda {
+    margin-top: auto;
+  }
+  body[data-theme="dashboard"] .dashboard-grid > .ai-control-panel {
+    justify-content: space-between;
+  }
+  body[data-theme="dashboard"] .dashboard-page .metric-card small,
+  body[data-theme="dashboard"] .dashboard-page .metric-card em,
+  body[data-theme="dashboard"] .dashboard-page .attention-meta,
+  body[data-theme="dashboard"] .dashboard-page .attention-time,
+  body[data-theme="dashboard"] .dashboard-page .attention-action,
+  body[data-theme="dashboard"] .dashboard-page .case-table-head,
+  body[data-theme="dashboard"] .dashboard-page .last-active,
+  body[data-theme="dashboard"] .dashboard-page .activity-copy span,
+  body[data-theme="dashboard"] .dashboard-page .activity-time,
+  body[data-theme="dashboard"] .dashboard-page .model-note {
+    font-size: 11px;
+  }
+  body[data-theme="dashboard"] .board-page .card-meta,
+  body[data-theme="dashboard"] .board-page .badge,
+  body[data-theme="dashboard"] .board-page .empty-col,
+  body[data-theme="dashboard"] .calendar-page .calendar-legend,
+  body[data-theme="dashboard"] .calendar-page .day-event,
+  body[data-theme="dashboard"] .calendar-page .day-more,
+  body[data-theme="dashboard"] .calendar-page .agenda-date,
+  body[data-theme="dashboard"] .calendar-page .agenda-card span,
+  body[data-theme="dashboard"] .calendar-page .agenda-card p {
+    font-size: 11px;
+  }
+  body[data-theme="dashboard"] .case-sidebar .case-filter button,
+  body[data-theme="dashboard"] .case-sidebar .case-search input,
+  body[data-theme="dashboard"] .chat-kicker,
+  body[data-theme="dashboard"] .context-head span:not(.live-dot),
+  body[data-theme="dashboard"] .radar-stage small,
+  body[data-theme="dashboard"] .radar-stat span,
+  body[data-theme="dashboard"] .assistant-policy-card b,
+  body[data-theme="dashboard"] .drawer-meta,
+  body[data-theme="dashboard"] .field-note,
+  body[data-theme="dashboard"] .policy-facts span,
+  body[data-theme="dashboard"] .folder-visual p,
+  body[data-theme="dashboard"] .tab-toolbar span,
+  body[data-theme="dashboard"] .capability-footnote,
+  body[data-theme="dashboard"] .theme-option small,
+  body[data-theme="dashboard"] .remote-note {
+    font-size: 11px;
+  }
   body[data-theme="dashboard"] .month-nav button,
   body[data-theme="dashboard"] .square-add,
   body[data-theme="dashboard"] .day-add,

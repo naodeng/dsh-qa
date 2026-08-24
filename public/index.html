@@ -12,7 +12,7 @@
   <header id="topbar">
     <div class="brand">
       <span class="brand-mark" aria-hidden="true">
-        <img src="assets/qa-workbench-logo-header.png" alt=""/>
+        <img src="assets/qa-workbench-logo-header.png" alt="" width="40" height="40" decoding="async"/>
       </span>
       <span class="brand-copy"><b data-i18n="brand.title">QA 工作台</b></span>
     </div>
@@ -25,7 +25,7 @@
         <svg viewBox="0 0 24 24"><path d="M19 12H5M5 12l6-6M5 12l6 6"/></svg>
         <span data-i18n="top.back">返回 DSH</span>
       </button>
-      <span id="service-status" class="service-status"><i></i><span>DSH · 测试模式</span></span>
+        <span id="service-status" class="service-status" role="status" aria-live="polite"><i></i><span>DSH · 测试模式</span></span>
       <button id="btn-remote" class="remote-toggle" type="button" title="DSH Remote 手机遥控" aria-label="打开 DSH Remote">
         <svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M10 5h4M11 18.5h2"/><path d="M4 8a4 4 0 0 0 0 8M20 8a4 4 0 0 1 0 8"/></svg>
         <span data-i18n="top.remote">Remote</span><i id="remote-dot"></i>
@@ -46,7 +46,7 @@
         <button class="nav-item active" data-view="dashboard" type="button"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span data-i18n="nav.dashboard">测试首页</span></button>
         <button class="nav-item" data-view="assistant" type="button"><svg viewBox="0 0 24 24"><path d="M12 3a7 7 0 0 0-7 7v2a4 4 0 0 0 4 4h1l3 3v-3h2a4 4 0 0 0 4-4v-2a7 7 0 0 0-7-7Z"/><path d="M9 9h.01M15 9h.01M9 12.5h6"/></svg><span data-i18n="nav.chat">DSH 测试对话</span><em>QA</em></button>
         <button class="nav-item" data-view="board" type="button"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/></svg><span data-i18n="nav.board">项目看板</span></button>
-        <button class="nav-item" data-view="calendar" type="button"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg><span data-i18n="nav.calendar">日历排期</span><b id="nav-alert-count" class="nav-count hidden">0</b></button>
+        <button class="nav-item" data-view="calendar" type="button"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg><span data-i18n="nav.calendar">日历排期</span><b id="nav-alert-count" class="nav-count hidden" aria-live="polite">0</b></button>
       </nav>
 
       <div class="rail-section">
@@ -58,7 +58,7 @@
         <div class="privacy-note"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span><b data-i18n="rail.local">本地工作台</b><small data-i18n="rail.localTip">测试数据保存在本机</small></span></div>
       </div>
     </aside>
-    <button id="rail-resizer" class="splitter splitter-rail" type="button" role="separator" aria-label="调整主导航宽度" aria-orientation="vertical" aria-valuemin="64" aria-valuemax="280"><span></span></button>
+    <button id="rail-resizer" class="splitter splitter-rail" type="button" role="separator" tabindex="0" aria-label="调整主导航宽度" aria-orientation="vertical" aria-valuemin="64" aria-valuemax="280"><span></span></button>
 
     <main id="main-content">
       <section id="view-dashboard" class="view active">
@@ -80,13 +80,13 @@
             </section>
 
             <section class="panel mini-calendar-panel">
-              <div class="panel-head"><div><h2>日程</h2><p id="calendar-caption"></p></div><div class="month-nav"><button id="cal-prev-mini" type="button" aria-label="上个月">‹</button><button id="cal-today-mini" type="button" aria-label="回到今天">今</button><button id="cal-next-mini" type="button" aria-label="下个月">›</button></div></div>
+              <div class="panel-head"><div><h2 data-i18n="panel.schedule">日程</h2><p id="calendar-caption" aria-live="polite"></p></div><div class="month-nav"><button id="cal-prev-mini" type="button" aria-label="上个月">‹</button><button id="cal-today-mini" type="button" aria-label="回到今天">今</button><button id="cal-next-mini" type="button" aria-label="下个月">›</button></div></div>
               <div id="mini-calendar" class="mini-calendar"></div>
               <div id="mini-agenda" class="mini-agenda"></div>
             </section>
 
             <section class="panel case-overview-panel">
-              <div class="panel-head"><div><h2>在办项目</h2><p>按最近活动排序，点击进入 DSH 测试空间</p></div><button class="text-btn" data-view-jump="board" type="button">打开看板</button></div>
+              <div class="panel-head"><div><h2 data-i18n="panel.activeProjects">在办项目</h2><p data-i18n="panel.activeProjectsSub">按最近活动排序，点击进入 DSH 测试空间</p></div><button class="text-btn" data-view-jump="board" type="button" data-i18n="panel.openBoard">打开看板</button></div>
               <div class="case-table-head"><span>项目</span><span>阶段</span><span>风险 / 用例</span><span>最近活动</span></div>
               <div id="dashboard-cases" class="case-overview-list"></div>
             </section>
@@ -94,12 +94,12 @@
             <section class="panel ai-control-panel">
               <div class="ai-control-hero"><span class="ai-orb">DSH</span><div><h2>DSH 全流程辅助</h2><p>需求、用例、缺陷、里程碑与报告提醒都由你决定是否启用。</p></div></div>
               <div id="ai-control-summary" class="ai-control-summary"></div>
-              <button id="btn-open-ai" class="btn dark wide" type="button">进入 DSH 测试空间 <span>→</span></button>
+              <button id="btn-open-ai" class="btn dark wide" type="button"><span data-i18n="panel.enterDsh">进入 DSH 测试空间</span> <span>→</span></button>
               <p id="dashboard-model-note" class="model-note"></p>
             </section>
 
             <section class="panel activity-panel">
-              <div class="panel-head"><div><h2>最近动态</h2><p>测试材料与 DSH 操作留痕</p></div></div>
+              <div class="panel-head"><div><h2 data-i18n="panel.activity">最近动态</h2><p data-i18n="panel.activitySub">测试材料与 DSH 操作留痕</p></div></div>
               <div id="dashboard-feed" class="activity-list"></div>
             </section>
           </div>
@@ -108,12 +108,12 @@
 
       <section id="view-assistant" class="view assistant-view">
         <aside class="case-sidebar">
-          <div class="case-sidebar-head"><div><b>项目与迭代</b><span id="case-total-label"></span></div><button id="btn-collapse-cases" class="pane-collapse inline" type="button" title="收起项目栏" aria-label="收起项目栏">‹</button><button id="btn-new-case-side" class="small-square" type="button">＋</button></div>
+          <div class="case-sidebar-head"><div><b>项目与迭代</b><span id="case-total-label"></span></div><button id="btn-collapse-cases" class="pane-collapse inline" type="button" title="收起项目栏" aria-label="收起项目栏">‹</button><button id="btn-new-case-side" class="small-square" type="button" title="新建测试项目" aria-label="新建测试项目">＋</button></div>
           <label class="case-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="search" type="search" placeholder="搜索项目"/></label>
           <div class="case-filter"><button class="active" data-case-filter="all" type="button">全部</button><button data-case-filter="project" type="button">项目</button><button data-case-filter="iteration" type="button">迭代</button></div>
           <div id="case-list" class="case-list"></div>
         </aside>
-        <button id="case-resizer" class="splitter splitter-case" type="button" role="separator" aria-label="调整项目栏宽度" aria-orientation="vertical" aria-valuemin="180" aria-valuemax="360"><span></span></button>
+        <button id="case-resizer" class="splitter splitter-case" type="button" role="separator" tabindex="0" aria-label="调整项目栏宽度" aria-orientation="vertical" aria-valuemin="180" aria-valuemax="360"><span></span></button>
 
         <section id="chat-pane">
           <div id="chat-head" class="chat-head">
@@ -134,7 +134,7 @@
           <div class="composer-wrap">
             <div class="composer-tools"><span id="assistant-mode-label">全流程辅助</span><button id="btn-assistant-policy" type="button">调整辅助策略</button></div>
             <div class="composer">
-              <button class="composer-icon" type="button" title="材料上传将在下一版接入" disabled><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+            <button class="composer-icon" type="button" title="材料上传将在下一版接入" aria-label="上传材料（下一版接入）" disabled><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
               <textarea id="chat-input" rows="1" placeholder="描述需求或下一步测试任务，DSH 测试模式会按本项目策略协作…"></textarea>
               <button id="btn-stop" class="send-btn danger hidden" type="button">■</button>
               <button id="btn-send" class="send-btn" type="button" aria-label="发送"><svg viewBox="0 0 24 24"><path d="m5 12 14-7-4 14-3-6-7-1Z"/><path d="m12 13 7-8"/></svg></button>
@@ -144,7 +144,7 @@
           </div>
         </section>
 
-        <button id="context-resizer" class="splitter splitter-context" type="button" role="separator" aria-label="调整项目雷达宽度" aria-orientation="vertical" aria-valuemin="220" aria-valuemax="420"><span></span></button>
+        <button id="context-resizer" class="splitter splitter-context" type="button" role="separator" tabindex="0" aria-label="调整项目雷达宽度" aria-orientation="vertical" aria-valuemin="220" aria-valuemax="420"><span></span></button>
         <aside id="context-panel" class="context-panel">
           <div class="context-head"><div><b>项目雷达</b><span>随对话实时更新</span></div><button id="btn-collapse-context" class="pane-collapse inline" type="button" title="收起项目雷达" aria-label="收起项目雷达">›</button><span class="live-dot">LIVE</span></div>
           <div id="case-radar" class="case-radar"></div>
@@ -154,20 +154,20 @@
 
       <section id="view-board" class="view">
         <div class="board-page">
-          <div class="page-head"><div><p class="eyebrow">QA 流水线</p><h1>项目看板</h1><p>拖动项目卡片调整阶段；门禁与最终发布仍由负责人确认。</p></div><button id="btn-new-case-board" class="btn primary" type="button">＋ 新建项目</button></div>
+          <div class="page-head"><div><p class="eyebrow" data-i18n="board.eyebrow">QA 流水线</p><h1 data-i18n="board.title">项目看板</h1><p data-i18n="board.sub">拖动项目卡片调整阶段；门禁与最终发布仍由负责人确认。</p></div><button id="btn-new-case-board" class="btn primary" type="button" data-i18n="board.new">＋ 新建项目</button></div>
           <div id="board" class="board"></div>
         </div>
       </section>
 
       <section id="view-calendar" class="view">
         <div class="calendar-page">
-          <div class="page-head"><div><p class="eyebrow">里程碑与日程</p><h1 id="full-calendar-title">工作日历</h1><p>选中日期即可新增会议、发布、评审或里程碑截止日。</p></div><div class="calendar-legend"><span><i class="hearing"></i>日程</span><span><i class="deadline"></i>里程碑</span><span><i class="danger"></i>逾期</span></div></div>
+          <div class="page-head"><div><p class="eyebrow" data-i18n="calendar.eyebrow">里程碑与日程</p><h1 id="full-calendar-title" data-i18n="calendar.title">工作日历</h1><p data-i18n="calendar.sub">选中日期即可新增会议、发布、评审或里程碑截止日。</p></div><div class="calendar-legend"><span><i class="hearing"></i><span data-i18n="calendar.legendEvent">日程</span></span><span><i class="deadline"></i><span data-i18n="calendar.legendMilestone">里程碑</span></span><span><i class="danger"></i><span data-i18n="calendar.legendOverdue">逾期</span></span></div></div>
           <div class="calendar-toolbar">
-            <div class="month-nav large"><button id="cal-prev" type="button" title="上个月" aria-label="上个月">‹</button><button id="cal-today" type="button" aria-label="回到今天">今天</button><button id="cal-next" type="button" title="下个月" aria-label="下个月">›</button></div>
+            <div class="month-nav large"><button id="cal-prev" type="button" title="上个月" aria-label="上个月">‹</button><button id="cal-today" type="button" aria-label="回到今天" data-i18n="calendar.today">今天</button><button id="cal-next" type="button" title="下个月" aria-label="下个月">›</button></div>
             <div class="calendar-date-controls"><select id="cal-year" aria-label="选择年份"></select><span>年</span><select id="cal-month" aria-label="选择月份"></select><span>月</span><span class="control-divider"></span><input id="cal-date-jump" type="date" aria-label="跳转到具体日期"/></div>
-            <button id="btn-add-schedule" class="btn primary sm" type="button">＋ 新建日程</button>
+            <button id="btn-add-schedule" class="btn primary sm" type="button" data-i18n="calendar.newSchedule">＋ 新建日程</button>
           </div>
-          <div class="full-calendar-wrap"><div id="full-calendar" class="full-calendar"></div><aside class="calendar-side"><div class="selected-agenda-head"><div><span id="selected-date-weekday"></span><h3 id="selected-date-label">所选日期</h3></div><button id="btn-add-selected" class="square-add" type="button" title="在所选日期新增">＋</button></div><div id="calendar-selected" class="calendar-agenda selected-agenda"></div><div class="agenda-divider"></div><h3>接下来 30 天</h3><div id="calendar-agenda" class="calendar-agenda"></div></aside></div>
+          <div class="full-calendar-wrap"><div id="full-calendar" class="full-calendar"></div><aside class="calendar-side"><div class="selected-agenda-head"><div><span id="selected-date-weekday"></span><h3 id="selected-date-label" data-i18n="calendar.selected">所选日期</h3></div><button id="btn-add-selected" class="square-add" type="button" title="在所选日期新增" aria-label="在所选日期新增">＋</button></div><div id="calendar-selected" class="calendar-agenda selected-agenda"></div><div class="agenda-divider"></div><h3 data-i18n="calendar.next30">接下来 30 天</h3><div id="calendar-agenda" class="calendar-agenda"></div></aside></div>
         </div>
       </section>
     </main>
@@ -175,7 +175,7 @@
 
   <div id="drawer-backdrop" class="backdrop hidden"></div>
   <aside id="drawer" class="drawer hidden">
-    <div class="drawer-head"><div class="case-file-mark">项</div><div class="drawer-title-wrap"><div id="drawer-title" class="drawer-title"></div><div id="drawer-meta" class="drawer-meta"></div></div><div class="drawer-head-actions"><button id="btn-drawer-chat" class="btn sm" type="button">DSH 对话</button><button id="btn-drawer-folder" class="btn sm" type="button">项目文件</button><button id="btn-close-drawer" class="icon-btn" type="button" title="关闭">✕</button></div></div>
+    <div class="drawer-head"><div class="case-file-mark">项</div><div class="drawer-title-wrap"><div id="drawer-title" class="drawer-title"></div><div id="drawer-meta" class="drawer-meta"></div></div><div class="drawer-head-actions"><button id="btn-drawer-chat" class="btn sm" type="button">DSH 对话</button><button id="btn-drawer-folder" class="btn sm" type="button">项目文件</button><button id="btn-close-drawer" class="icon-btn" type="button" title="关闭" aria-label="关闭项目详情">✕</button></div></div>
     <div class="case-detail-layout">
       <aside class="detail-sidebar"><nav id="tabs" class="tabs"></nav><div id="drawer-summary" class="drawer-summary"></div></aside>
       <section class="detail-content"><div class="detail-section-head"><div><p id="drawer-section-kicker">项目档案</p><h2 id="drawer-section-title">项目概览</h2><span id="drawer-section-subtitle">基本信息、测试阶段与协作设置</span></div></div><div id="tab-body" class="tab-body"></div></section>
