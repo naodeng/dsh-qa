@@ -54,3 +54,24 @@ test('user can move between board and calendar views', async ({ page }) => {
   await expect(page.locator('#full-calendar')).toBeVisible();
   await expect(page.locator('#calendar-agenda')).toContainText('用例评审会');
 });
+
+test('user can switch visual themes without leaving the dashboard', async ({ page }) => {
+  await page.goto('/');
+  const initialTheme = await page.locator('body').getAttribute('data-theme');
+  await page.locator('#btn-settings').click();
+  await page.locator('[data-theme-option="terminal"]').click();
+
+  await expect(page.locator('body')).not.toHaveAttribute('data-theme', initialTheme);
+  await expect(page.locator('#metric-cards')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '需要你处理' })).toBeVisible();
+});
+
+test('user can open the new iteration dialog from the dashboard', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '新建迭代' }).click();
+
+  await expect(page.locator('.modal')).toContainText('新建测试迭代');
+  await expect(page.locator('#nc-title')).toBeVisible();
+  await page.locator('#nc-cancel').click();
+  await expect(page.locator('.modal')).toBeHidden();
+});
