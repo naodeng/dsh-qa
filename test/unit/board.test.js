@@ -30,3 +30,22 @@ test('schedule is sorted by date and reminders prioritize severity', () => {
   assert.equal(reminders[0].severity, 'danger');
   assert.equal(reminders.find((item) => item.type === 'gate').severity, 'review');
 });
+
+test('projectCard counts overdue and upcoming milestones independently', () => {
+  const dateFromToday = (days) => {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    return date.toISOString().slice(0, 10);
+  };
+  const card = projectCard(project({
+    milestones: [
+      { id: 'm1', dueDate: dateFromToday(-1), done: false },
+      { id: 'm2', dueDate: dateFromToday(3), done: false },
+      { id: 'm3', dueDate: dateFromToday(3), done: true },
+    ],
+  }));
+
+  assert.equal(card.counts.milestones, 3);
+  assert.equal(card.counts.milestoneOverdue, 1);
+  assert.equal(card.counts.milestoneSoon, 1);
+});
