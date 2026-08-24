@@ -389,7 +389,7 @@
         return `<button class="day-event ${item.type === 'milestone' ? 'deadline' : ''} ${danger ? 'danger' : ''}" data-project-id="${item.projectId}" type="button" title="${esc(item.projectTitle)} · ${esc(item.title)}">${esc(item.title)}</button>`;
       }).join('');
       const more = itemsOn(iso).length > 3 ? `<span class="day-more">${currentLang() === 'en' ? `${itemsOn(iso).length - 3} more` : `另有 ${itemsOn(iso).length - 3} 项`}</span>` : '';
-      return `<div class="${classes.join(' ')}" data-date="${iso}"><div class="day-top"><span class="day-number">${date.getDate()}</span><button class="day-add" type="button" title="在 ${iso} 新增日程">＋</button></div><div class="day-events">${events}${more}</div></div>`;
+      return `<div class="${classes.join(' ')}" data-date="${iso}"><div class="day-top"><span class="day-number">${date.getDate()}</span><button class="day-add" type="button" title="在 ${iso} 新增日程" aria-label="在 ${iso} 新增日程">＋</button></div><div class="day-events">${events}${more}</div></div>`;
     }).join('');
     $$('.full-day', $('#full-calendar')).forEach((el) => el.addEventListener('click', () => selectCalendarDate(el.dataset.date)));
     $$('.day-add', $('#full-calendar')).forEach((el) => el.addEventListener('click', (event) => { event.stopPropagation(); openScheduleModal(el.closest('.full-day').dataset.date); }));

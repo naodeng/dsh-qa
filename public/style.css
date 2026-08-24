@@ -978,6 +978,77 @@ body[data-theme="dashboard"] .ai-orb {
   background: linear-gradient(145deg, #2b7770, #d8f0e8);
   color: var(--navy);
 }
+
+/* Desktop readability pass: keep the dense workbench scannable without
+   changing the mobile layout rules. */
+@media (min-width: 721px) {
+  body[data-theme="dashboard"] .month-nav button,
+  body[data-theme="dashboard"] .square-add,
+  body[data-theme="dashboard"] .day-add,
+  body[data-theme="dashboard"] .rail-section-head button,
+  body[data-theme="dashboard"] .pane-collapse {
+    min-width: 34px;
+    min-height: 34px;
+  }
+  body[data-theme="dashboard"] .month-nav button,
+  body[data-theme="dashboard"] .square-add {
+    height: 34px;
+  }
+  body[data-theme="dashboard"] .day-add {
+    width: 34px;
+    height: 34px;
+  }
+  body[data-theme="dashboard"] .empty-col {
+    margin: 8px;
+    padding: 18px 10px;
+    border: 1px dashed var(--line-strong);
+    border-radius: 11px;
+    background: rgba(255, 254, 250, .42);
+  }
+  body[data-theme="dashboard"] .col:has(.empty-col) {
+    background: rgba(226, 238, 233, .42);
+  }
+  body[data-theme="dashboard"] .panel-head p,
+  body[data-theme="dashboard"] .case-overview-row .case-main span,
+  body[data-theme="dashboard"] .case-overview-row .last-active,
+  body[data-theme="dashboard"] .activity-copy span,
+  body[data-theme="dashboard"] .activity-time,
+  body[data-theme="dashboard"] .card-meta,
+  body[data-theme="dashboard"] .card-foot,
+  body[data-theme="dashboard"] .col-head-copy small {
+    font-size: 11px;
+  }
+  body[data-theme="dashboard"] .attention-meta,
+  body[data-theme="dashboard"] .attention-time,
+  body[data-theme="dashboard"] .attention-action,
+  body[data-theme="dashboard"] .risk-badge,
+  body[data-theme="dashboard"] .stage-pill,
+  body[data-theme="dashboard"] .badge {
+    font-size: 11px;
+  }
+  body[data-theme="dashboard"] .case-table-head,
+  body[data-theme="dashboard"] .metric-card small,
+  body[data-theme="dashboard"] .model-note {
+    font-size: 11px;
+  }
+  body[data-theme="dashboard"] .modal-sub,
+  body[data-theme="dashboard"] .field > label,
+  body[data-theme="dashboard"] .switch-copy span,
+  body[data-theme="dashboard"] .mode-option span {
+    font-size: 11px;
+  }
+  body[data-theme="dashboard"] .modal-foot {
+    position: sticky;
+    bottom: -20px;
+    z-index: 2;
+    margin: 17px -20px -20px;
+    padding: 12px 20px 20px;
+    background: linear-gradient(to bottom, rgba(255,254,250,.78), var(--panel) 35%);
+  }
+  body[data-theme="dashboard"] .modal-foot .btn {
+    min-height: 40px;
+  }
+}
 body[data-theme="dashboard"] .board-page,
 body[data-theme="dashboard"] .calendar-page,
 body[data-theme="dashboard"] .assistant-view {

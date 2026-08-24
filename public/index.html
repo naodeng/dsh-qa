@@ -12,7 +12,7 @@
   <header id="topbar">
     <div class="brand">
       <span class="brand-mark" aria-hidden="true">
-        <img src="assets/qa-workbench-logo.png" alt=""/>
+        <img src="assets/qa-workbench-logo-header.png" alt=""/>
       </span>
       <span class="brand-copy"><b data-i18n="brand.title">QA 工作台</b></span>
     </div>
@@ -50,7 +50,7 @@
       </nav>
 
       <div class="rail-section">
-        <div class="rail-section-head"><span data-i18n="rail.recent">最近项目</span><button id="btn-new-case-mini" type="button" title="新建测试项目">＋</button></div>
+        <div class="rail-section-head"><span data-i18n="rail.recent">最近项目</span><button id="btn-new-case-mini" type="button" title="新建测试项目" aria-label="新建测试项目">＋</button></div>
         <div id="rail-case-list" class="rail-cases"></div>
       </div>
 
@@ -80,7 +80,7 @@
             </section>
 
             <section class="panel mini-calendar-panel">
-              <div class="panel-head"><div><h2>日程</h2><p id="calendar-caption"></p></div><div class="month-nav"><button id="cal-prev-mini" type="button">‹</button><button id="cal-today-mini" type="button">今</button><button id="cal-next-mini" type="button">›</button></div></div>
+              <div class="panel-head"><div><h2>日程</h2><p id="calendar-caption"></p></div><div class="month-nav"><button id="cal-prev-mini" type="button" aria-label="上个月">‹</button><button id="cal-today-mini" type="button" aria-label="回到今天">今</button><button id="cal-next-mini" type="button" aria-label="下个月">›</button></div></div>
               <div id="mini-calendar" class="mini-calendar"></div>
               <div id="mini-agenda" class="mini-agenda"></div>
             </section>
@@ -163,7 +163,7 @@
         <div class="calendar-page">
           <div class="page-head"><div><p class="eyebrow">里程碑与日程</p><h1 id="full-calendar-title">工作日历</h1><p>选中日期即可新增会议、发布、评审或里程碑截止日。</p></div><div class="calendar-legend"><span><i class="hearing"></i>日程</span><span><i class="deadline"></i>里程碑</span><span><i class="danger"></i>逾期</span></div></div>
           <div class="calendar-toolbar">
-            <div class="month-nav large"><button id="cal-prev" type="button" title="上个月">‹</button><button id="cal-today" type="button">今天</button><button id="cal-next" type="button" title="下个月">›</button></div>
+            <div class="month-nav large"><button id="cal-prev" type="button" title="上个月" aria-label="上个月">‹</button><button id="cal-today" type="button" aria-label="回到今天">今天</button><button id="cal-next" type="button" title="下个月" aria-label="下个月">›</button></div>
             <div class="calendar-date-controls"><select id="cal-year" aria-label="选择年份"></select><span>年</span><select id="cal-month" aria-label="选择月份"></select><span>月</span><span class="control-divider"></span><input id="cal-date-jump" type="date" aria-label="跳转到具体日期"/></div>
             <button id="btn-add-schedule" class="btn primary sm" type="button">＋ 新建日程</button>
           </div>
