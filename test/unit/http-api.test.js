@@ -5,12 +5,14 @@ import os from 'node:os';
 import path from 'node:path';
 
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-qa-api-'));
+const skillsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-qa-skills-'));
 process.env.QA_DATA_DIR = dataDir;
+process.env.DSH_SKILLS_DIR = skillsDir;
 const { startQaBench, closeQaBench } = await import('../../server/index.js');
 const started = await startQaBench({ port: 0, openBrowser: false, log: () => {} });
 const base = `http://127.0.0.1:${started.server.address().port}`;
 
-test.after(async () => { await new Promise((resolve) => setTimeout(resolve, 100)); await closeQaBench(started.server); fs.rmSync(dataDir, { recursive: true, force: true }); });
+test.after(async () => { await new Promise((resolve) => setTimeout(resolve, 100)); await closeQaBench(started.server); fs.rmSync(dataDir, { recursive: true, force: true }); fs.rmSync(skillsDir, { recursive: true, force: true }); });
 
 test('project API creates projects and rejects invalid input', async () => {
   const empty = await fetch(`${base}/api/projects`);
@@ -111,4 +113,22 @@ test('skills API localizes card descriptions by language', async () => {
 test('skills API rejects unsupported language', async () => {
   const response = await fetch(`${base}/api/skills?lang=fr`);
   assert.equal(response.status, 400);
+});
+
+test('skills API reports whether a Skill is installed in the DSH directory', async () => {
+  const before = await (await fetch(`${base}/api/skills?lang=zh`)).json();
+  assert.equal(before.skills.find((skill) => skill.name === 'requirements-analysis').installed, false);
+  fs.mkdirSync(path.join(skillsDir, 'requirements-analysis'), { recursive: true });
+  fs.writeFileSync(path.join(skillsDir, 'requirements-analysis', 'SKILL.md'), '# 需求分析（中文版）\n');
+  const after = await (await fetch(`${base}/api/skills?lang=zh`)).json();
+  assert.equal(after.skills.find((skill) => skill.name === 'requirements-analysis').installed, true);
+});
+
+test('skills API uninstalls a Skill from the DSH directory', async () => {
+  const skillDir = path.join(skillsDir, 'test-case-writing');
+  fs.mkdirSync(skillDir, { recursive: true });
+  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), '# Test case writing\n');
+  const response = await fetch(`${base}/api/skills/test-case-writing`, { method: 'DELETE' });
+  assert.equal(response.status, 200);
+  assert.equal(fs.existsSync(skillDir), false);
 });

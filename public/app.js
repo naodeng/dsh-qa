@@ -59,7 +59,7 @@
     layout: { ...DEFAULT_LAYOUT },
     remote: { status: null, url: '', expiresAt: 0 },
     dsh: { projectId: null, sessionId: '', skills: [], commands: [], models: null, qaPreset: null, busy: false, turnToken: 0 },
-    skillCatalog: { lang: '', categories: [], groups: [], skills: [] }, skillSearch: '', installingSkill: '',
+    skillCatalog: { lang: '', categories: [], groups: [], skills: [] }, skillSearch: '', installingSkill: '', uninstallingSkill: '',
     calendarCursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), selectedDate: localDate(new Date()),
     refreshTimer: null,
   };
@@ -248,7 +248,7 @@
     $('#skills-count').textContent = skills.length;
     const query = state.skillSearch.trim().toLowerCase();
     const filtered = skills.filter((skill) => !query || `${skill.name} ${skill.title} ${skill.description}`.toLowerCase().includes(query));
-    const renderCard = (skill) => `<article class="skill-card"><div class="skill-card-head"><span class="skill-mark">⌘</span><div><h3>${esc(skill.title)}</h3><code>${esc(skill.name)}</code></div></div><p>${esc(skill.description)}</p><div class="skill-card-foot"><span>${esc(skill.category)}</span><a class="skill-detail" href="${esc(skill.siteUrl)}" target="_blank" rel="noreferrer">${esc(t('skills.details'))} →</a><button class="btn primary sm skill-install" type="button" data-skill-name="${esc(skill.name)}" ${state.installingSkill === skill.name ? 'disabled' : ''}>${state.installingSkill === skill.name ? esc(t('skills.installing')) : esc(t('skills.install'))}</button></div></article>`;
+    const renderCard = (skill) => `<article class="skill-card"><div class="skill-card-head"><span class="skill-mark">⌘</span><div><h3>${esc(skill.title)}</h3><code>${esc(skill.name)}</code></div></div><p>${esc(skill.description)}</p><div class="skill-card-foot"><span>${esc(skill.category)}</span><a class="skill-detail" href="${esc(skill.siteUrl)}" target="_blank" rel="noreferrer">${esc(t('skills.details'))} →</a>${skill.installed ? `<button class="btn subtle sm skill-uninstall" type="button" data-uninstall-skill="${esc(skill.name)}" ${state.uninstallingSkill === skill.name ? 'disabled' : ''}>${state.uninstallingSkill === skill.name ? esc(t('skills.installing')) : esc(t('skills.uninstall'))}</button>` : `<button class="btn primary sm skill-install" type="button" data-skill-name="${esc(skill.name)}" ${state.installingSkill === skill.name ? 'disabled' : ''}>${state.installingSkill === skill.name ? esc(t('skills.installing')) : esc(t('skills.install'))}</button>`}</div></article>`;
     list.innerHTML = filtered.length ? state.skillCatalog.categories.map((category) => {
       const rows = filtered.filter((skill) => skill.categoryId === category.id);
       if (!rows.length) return '';
@@ -275,6 +275,13 @@
     try { await api('api/skills/install', { method: 'POST', body: { lang: currentLang(), name } }); toast(t('skills.installDone'), 'ok'); }
     catch (error) { toast(error.message, 'err'); }
     finally { state.installingSkill = ''; renderSkills(); }
+  }
+  async function uninstallSkill(name) {
+    if (!confirm(t('skills.confirmUninstall'))) return;
+    state.uninstallingSkill = name; renderSkills();
+    try { await api(`api/skills/${encodeURIComponent(name)}`, { method: 'DELETE' }); toast(t('skills.uninstallDone'), 'ok'); await loadSkillCatalog(); }
+    catch (error) { toast(error.message, 'err'); }
+    finally { state.uninstallingSkill = ''; renderSkills(); }
   }
   function switchView(view) {
     if (!['dashboard', 'assistant', 'board', 'calendar', 'skills'].includes(view)) return;
@@ -1401,7 +1408,7 @@
     });
     $$('.nav-item').forEach((button) => button.addEventListener('click', () => { switchView(button.dataset.view); applyStaticCopy(); if (button.dataset.view === 'assistant' && state.activeProject) initializeDshChat({ initialize: true }).then(() => applyStaticCopy()).catch((error) => toast(error.message, 'err')); }));
     $('#skills-search').addEventListener('input', (event) => { state.skillSearch = event.target.value; renderSkills(); });
-    $('#skills-list').addEventListener('click', (event) => { const button = event.target.closest('[data-skill-name]'); if (button) installSkill(button.dataset.skillName); });
+    $('#skills-list').addEventListener('click', (event) => { const installButton = event.target.closest('[data-skill-name]'); if (installButton) installSkill(installButton.dataset.skillName); const uninstallButton = event.target.closest('[data-uninstall-skill]'); if (uninstallButton) uninstallSkill(uninstallButton.dataset.uninstallSkill); });
     $$('[data-view-jump]').forEach((button) => button.addEventListener('click', () => switchView(button.dataset.viewJump)));
     ['#btn-new-case', '#btn-new-case-mini', '#btn-new-case-side', '#btn-new-case-board'].forEach((selector) => $(selector).addEventListener('click', () => openNewProject(false)));
     $('#btn-new-iteration').addEventListener('click', () => openNewProject(true));
