@@ -80,3 +80,35 @@ test('project API validates schedule payloads and missing resources', async () =
   const missing = await fetch(`${base}/api/projects/${id}/schedule/evt-missing`, { method: 'DELETE' });
   assert.equal(missing.status, 404);
 });
+
+test('skills API returns language-specific catalog in website category order', async () => {
+  const response = await fetch(`${base}/api/skills?lang=zh`);
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.lang, 'zh');
+  assert.ok(payload.skills.length > 0);
+  assert.deepEqual(payload.categories.slice(0, 3).map((category) => category.id), ['testing-types', 'testing-workflows', 'enhanced']);
+  assert.deepEqual(payload.groups.map((group) => group.zh), ['需求与策略', '用例与评审', '功能与兼容', '接口与自动化', '质量保障专项', '缺陷、报告与审查']);
+  assert.equal(payload.skills[0].categoryId, 'testing-types');
+  assert.equal(payload.skills.find((skill) => skill.name === 'requirements-analysis').name, 'requirements-analysis');
+  assert.match(payload.skills.find((skill) => skill.name === 'requirements-analysis').description, /^输入需求文档/);
+  assert.doesNotMatch(payload.skills.find((skill) => skill.name === 'requirements-analysis').description, /^Use this skill/);
+  assert.match(payload.skills.find((skill) => skill.name === 'requirements-analysis').siteUrl, /inaodeng\.com\/zh-cn\/qaskills\/requirements-analysis/);
+  assert.ok(payload.skills.find((skill) => skill.name === 'requirements-analysis').intro);
+  assert.equal(payload.skills.findIndex((skill) => skill.name === 'requirements-analysis') < payload.skills.findIndex((skill) => skill.name === 'test-case-writing'), true);
+  assert.ok(payload.skills.some((skill) => skill.name === 'api-test-bruno'));
+  assert.deepEqual(payload.skills.filter((skill) => skill.categoryId === 'enhanced').map((skill) => skill.name), ['requirements-analysis-plus', 'test-case-reviewer-plus', 'test-strategy-plus', 'testcase-writer-plus']);
+});
+
+test('skills API localizes card descriptions by language', async () => {
+  const response = await fetch(`${base}/api/skills?lang=en`);
+  const payload = await response.json();
+  const skill = payload.skills.find((item) => item.name === 'requirements-analysis');
+  assert.match(skill.description, /^Provide requirements/);
+  assert.match(skill.siteUrl, /inaodeng\.com\/en\/qaskills\/requirements-analysis/);
+});
+
+test('skills API rejects unsupported language', async () => {
+  const response = await fetch(`${base}/api/skills?lang=fr`);
+  assert.equal(response.status, 400);
+});
