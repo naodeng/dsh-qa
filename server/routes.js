@@ -9,7 +9,7 @@ import { sseHandler, broadcast } from './sse.js';
 import { getBoard, projectCard, computeStats, KANBAN_COLUMNS } from './board.js';
 
 const PUBLIC = path.join(ROOT, 'public');
-const SKILLS_ROOT = path.join(os.homedir(), 'awsomeCode', 'awesome-qa-skills', 'skills');
+const SKILLS_ROOT = path.join(process.env.QA_SKILLS_ROOT || path.join(os.homedir(), 'awsomeCode', 'awesome-qa-skills'), 'skills');
 const WEBSITE_CONTENT_ROOT = path.join(process.env.QA_SKILLS_SITE_ROOT || path.join(os.homedir(), 'Desktop', 'AwsomeCode', 'naodeng.com.cn'), 'src', 'content', 'qaskills');
 const WEBSITE_ORIGIN = 'https://inaodeng.com';
 const WEBSITE_INTRO_FALLBACKS = {

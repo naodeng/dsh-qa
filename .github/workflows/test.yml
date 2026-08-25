@@ -17,6 +17,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Checkout QA Skills source
+        uses: actions/checkout@v4
+        with:
+          repository: naodeng/awesome-qa-skills
+          path: test-fixtures/awesome-qa-skills
+
+      - name: Checkout QA Skills website content
+        uses: actions/checkout@v4
+        with:
+          repository: naodeng/naodeng.com.cn
+          path: test-fixtures/naodeng.com.cn
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -30,6 +42,9 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run unit and E2E tests
+        env:
+          QA_SKILLS_ROOT: ${{ github.workspace }}/test-fixtures/awesome-qa-skills
+          QA_SKILLS_SITE_ROOT: ${{ github.workspace }}/test-fixtures/naodeng.com.cn
         run: npm test
 
       - name: Upload Playwright artifacts on failure
