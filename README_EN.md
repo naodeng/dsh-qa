@@ -13,7 +13,7 @@
 ```
 Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
 ```
-<img width="3926" height="2403" alt="image" src="https://github.com/user-attachments/assets/8f5f32ea-3f6d-4ba2-b632-7d39bd7ba102" />
+<img width="5090" height="2476" alt="image" src="https://github.com/user-attachments/assets/287ac2d2-aec0-4f7a-b3a6-72c183b871ba" />
 
 ## Table of Contents
 
