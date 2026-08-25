@@ -1,13 +1,69 @@
 // HTTP 路由：静态前端 + REST API + SSE
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { ROOT } from './config.js';
 import * as store from './store.js';
 import { sseHandler, broadcast } from './sse.js';
 import { getBoard, projectCard, computeStats, KANBAN_COLUMNS } from './board.js';
 
 const PUBLIC = path.join(ROOT, 'public');
+const SKILLS_ROOT = path.join(os.homedir(), 'awsomeCode', 'awesome-qa-skills', 'skills');
+const WEBSITE_CONTENT_ROOT = path.join(process.env.QA_SKILLS_SITE_ROOT || path.join(os.homedir(), 'Desktop', 'AwsomeCode', 'naodeng.com.cn'), 'src', 'content', 'qaskills');
+const WEBSITE_ORIGIN = 'https://inaodeng.com';
+const WEBSITE_INTRO_FALLBACKS = {
+  zh: {
+    'discover-testing': '输入当前测试任务和项目背景，选择最匹配的主 Skill，并给出下一步执行方式。',
+    'requirements-analysis': '输入需求文档或 User Story，输出信息缺口、业务规则、风险和测试范围。',
+    'test-case-writing': '输入测试场景和业务约束，输出带优先级的结构化测试用例。',
+    'test-strategy': '输入项目目标、范围和风险，输出可执行的测试策略与质量保障重点。',
+    'bug-reporting': '输入问题现象、日志和复现信息，输出清晰、可诊断的缺陷报告。',
+    'daily-testing-workflow': '输入当天范围、进度和风险，输出可执行的日常测试节奏与交付清单。',
+  },
+  en: {
+    'discover-testing': 'Provide the testing task and project context to select the best primary Skill and the next execution step.',
+    'requirements-analysis': 'Provide requirements or a user story to produce gaps, rules, risks, and test scope.',
+    'test-case-writing': 'Provide test scenarios and constraints to produce prioritized, structured test cases.',
+    'test-strategy': 'Provide project goals, scope, and risks to produce an actionable test strategy and quality priorities.',
+    'bug-reporting': 'Provide symptoms, logs, and reproduction details to produce a clear, diagnosable defect report.',
+    'daily-testing-workflow': "Provide today's scope, progress, and risks to produce an actionable daily QA flow and delivery checklist.",
+  },
+};
+const SKILLS_INSTALLER = path.join(ROOT, 'scripts', 'install-qa-skills.sh');
+const SKILL_CATEGORIES = [
+  { id: 'testing-types', zh: '测试类型', en: 'Testing types', order: 0 },
+  { id: 'testing-workflows', zh: '测试工作流程', en: 'Testing workflows', order: 1 },
+  { id: 'enhanced', zh: '加强版', en: 'Enhanced', order: 2 },
+];
+const WEBSITE_SKILL_ORDER = [
+  'requirements-analysis', 'test-strategy', 'test-case-writing', 'test-case-reviewer',
+  'functional-testing', 'manual-testing', 'mobile-testing', 'api-testing', 'api-test-bruno',
+  'api-test-pytest', 'api-test-restassure', 'api-test-supertest', 'automation-testing',
+  'performance-testing', 'performance-test-gatling', 'performance-test-k6', 'security-testing',
+  'accessibility-testing', 'bug-reporting', 'test-reporting', 'ai-assisted-testing',
+  'daily-testing-workflow', 'skill-router', 'iteration-testing-workflow', 'release-testing-workflow',
+  'requirements-analysis-plus', 'test-case-reviewer-plus', 'test-strategy-plus', 'test-case-writing-plus',
+];
+const WEBSITE_SKILL_ORDER_INDEX = new Map(WEBSITE_SKILL_ORDER.map((name, index) => [name, index]));
+const ENHANCED_SKILLS = new Set(['requirements-analysis-plus', 'test-case-reviewer-plus', 'test-strategy-plus', 'testcase-writer-plus']);
+const TYPE_GROUPS = [
+  ['requirements-strategy', '需求与策略', 'Requirements & strategy'],
+  ['case-review', '用例与评审', 'Cases & review'],
+  ['functional-compatibility', '功能与兼容', 'Functional & compatibility'],
+  ['api-automation', '接口与自动化', 'API & automation'],
+  ['quality-specialization', '质量保障专项', 'Quality specialties'],
+  ['defect-reporting-review', '缺陷、报告与审查', 'Defects, reports & review'],
+];
+const TYPE_GROUP_BY_NAME = new Map([
+  ['requirements-analysis', 'requirements-strategy'], ['test-strategy', 'requirements-strategy'],
+  ['test-case-writing', 'case-review'], ['test-case-reviewer', 'case-review'],
+  ['functional-testing', 'functional-compatibility'], ['manual-testing', 'functional-compatibility'], ['exploratory-testing', 'functional-compatibility'], ['mobile-testing', 'functional-compatibility'],
+  ['api-testing', 'api-automation'], ['api-test-bruno', 'api-automation'], ['api-test-pytest', 'api-automation'], ['api-test-restassure', 'api-automation'], ['api-test-supertest', 'api-automation'], ['automation-testing', 'api-automation'],
+  ['performance-testing', 'quality-specialization'], ['performance-test-gatling', 'quality-specialization'], ['performance-test-k6', 'quality-specialization'], ['security-testing', 'quality-specialization'], ['accessibility-testing', 'quality-specialization'],
+  ['bug-reporting', 'defect-reporting-review'], ['defect-reporting', 'defect-reporting-review'], ['test-reporting', 'defect-reporting-review'], ['ai-assisted-testing', 'defect-reporting-review'],
+]);
+const TYPE_GROUP_ORDER = new Map(TYPE_GROUPS.map(([id], index) => [id, index]));
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png',
@@ -21,6 +77,59 @@ function json(res, code, obj) {
 }
 function ok(res, obj) { json(res, 200, { ok: true, ...obj }); }
 function fail(res, code, error) { json(res, code, { ok: false, error }); }
+
+function parseSkillFile(file, lang, categoryId, groupId) {
+  const source = fs.readFileSync(file, 'utf8');
+  const name = source.match(/^name:\s*(.+)$/m)?.[1]?.trim() || path.basename(path.dirname(file));
+  const frontmatterDescription = source.match(/^description:\s*(.+)$/m)?.[1]?.trim() || '';
+  const siteFile = path.join(WEBSITE_CONTENT_ROOT, lang === 'zh' ? 'zh-cn' : 'en', `${name}.md`);
+  const siteSource = fs.existsSync(siteFile) ? fs.readFileSync(siteFile, 'utf8') : '';
+  const localizedSource = siteSource || source;
+  const localizedHeading = lang === 'zh' ? '何时使用' : 'When to Use';
+  const localizedSection = localizedSource.match(new RegExp(`##\\s+${localizedHeading}\\s*\\n([\\s\\S]*?)(?=\\n##\\s|$)`, 'i'))?.[1] || '';
+  const bullets = [...localizedSection.matchAll(/^\s*-\s+(.+)$/gm)].map((match) => match[1].trim());
+  const genericIntro = lang === 'zh' ? /真实项目里处理|相关任务/ : /real project context|related tasks?/i;
+  const intro = WEBSITE_INTRO_FALLBACKS[lang][name] || bullets.find((bullet) => !genericIntro.test(bullet)) || bullets[0] || frontmatterDescription;
+  const description = intro;
+  const title = localizedSource.match(/^#\s+(.+)$/m)?.[1]?.trim() || name;
+  const category = SKILL_CATEGORIES.find((item) => item.id === categoryId);
+  const group = TYPE_GROUPS.find((item) => item[0] === groupId);
+  return { name, title, description, intro, lang, categoryId, category: category?.[lang] || category?.en, groupId, group: group?.[lang] || group?.[2] || '', siteUrl: `${WEBSITE_ORIGIN}/${lang === 'zh' ? 'zh-cn' : 'en'}/qaskills/${name}/` };
+}
+
+function skillCatalog(lang) {
+  const root = path.join(SKILLS_ROOT, lang);
+  const skills = [];
+  for (const categoryId of ['testing-types', 'testing-workflows', 'skill-engineering']) {
+    const category = categoryId === 'skill-engineering' ? 'enhanced' : categoryId;
+    const dir = path.join(root, categoryId);
+    if (!fs.existsSync(dir)) continue;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      if (categoryId === 'skill-engineering' && !ENHANCED_SKILLS.has(entry.name)) continue;
+      const file = path.join(dir, entry.name, 'SKILL.md');
+      if (!fs.existsSync(file)) continue;
+      const normalizedCategory = ENHANCED_SKILLS.has(entry.name) ? 'enhanced' : category;
+      const groupId = normalizedCategory === 'testing-types' ? (TYPE_GROUP_BY_NAME.get(entry.name) || 'quality-specialization') : '';
+      skills.push(parseSkillFile(file, lang, normalizedCategory, groupId));
+    }
+  }
+  skills.sort((a, b) => {
+    const categoryOrder = (SKILL_CATEGORIES.find((item) => item.id === a.categoryId)?.order || 0) - (SKILL_CATEGORIES.find((item) => item.id === b.categoryId)?.order || 0);
+    return categoryOrder || (TYPE_GROUP_ORDER.get(a.groupId) ?? 999) - (TYPE_GROUP_ORDER.get(b.groupId) ?? 999) || (WEBSITE_SKILL_ORDER_INDEX.get(a.name) ?? 999) - (WEBSITE_SKILL_ORDER_INDEX.get(b.name) ?? 999) || a.title.localeCompare(b.title, lang);
+  });
+  return skills;
+}
+
+function installSkill(lang, name) {
+  return new Promise((resolve, reject) => {
+    const args = ['--lang', lang, '--skill', name];
+    execFile('bash', [SKILLS_INSTALLER, ...args], { timeout: 120000 }, (error, stdout, stderr) => {
+      if (error) return reject(new Error((stderr || stdout || error.message).trim()));
+      resolve({ output: stdout.trim() });
+    });
+  });
+}
 
 async function readBody(req) {
   let size = 0;
@@ -54,6 +163,23 @@ async function api(req, res, url, body) {
   const parts = p.split('/').filter(Boolean); // [api, ...]
 
   if (p === '/api/events') { sseHandler(req, res); return true; }
+
+  if (p === '/api/skills' && m('GET')) {
+    const lang = new Set(['zh', 'en']).has(url.searchParams.get('lang')) ? url.searchParams.get('lang') : null;
+    if (!lang) return fail(res, 400, 'lang 必须是 zh 或 en');
+    ok(res, { lang, categories: SKILL_CATEGORIES, groups: TYPE_GROUPS.map(([id, zh, en]) => ({ id, zh, en })), skills: skillCatalog(lang) });
+    return true;
+  }
+
+  if (p === '/api/skills/install' && m('POST')) {
+    const lang = body.lang;
+    const name = String(body.name || '').trim();
+    if (!new Set(['zh', 'en']).has(lang)) return fail(res, 400, 'lang 必须是 zh 或 en');
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(name)) return fail(res, 400, 'Skill 名称无效');
+    if (!skillCatalog(lang).some((skill) => skill.name === name)) return fail(res, 404, 'Skill 不存在');
+    try { ok(res, await installSkill(lang, name)); } catch (error) { fail(res, 500, error.message); }
+    return true;
+  }
 
   if (p === '/api/board' && m('GET')) { ok(res, getBoard(store)); return true; }
 

@@ -59,6 +59,7 @@
     layout: { ...DEFAULT_LAYOUT },
     remote: { status: null, url: '', expiresAt: 0 },
     dsh: { projectId: null, sessionId: '', skills: [], commands: [], models: null, qaPreset: null, busy: false, turnToken: 0 },
+    skillCatalog: { lang: '', categories: [], groups: [], skills: [] }, skillSearch: '', installingSkill: '',
     calendarCursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), selectedDate: localDate(new Date()),
     refreshTimer: null,
   };
@@ -240,14 +241,51 @@
         : '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>';
 
   // ---------- navigation ----------
+  function renderSkills() {
+    const list = $('#skills-list');
+    if (!list) return;
+    const skills = state.skillCatalog.skills || [];
+    $('#skills-count').textContent = skills.length;
+    const query = state.skillSearch.trim().toLowerCase();
+    const filtered = skills.filter((skill) => !query || `${skill.name} ${skill.title} ${skill.description}`.toLowerCase().includes(query));
+    const renderCard = (skill) => `<article class="skill-card"><div class="skill-card-head"><span class="skill-mark">⌘</span><div><h3>${esc(skill.title)}</h3><code>${esc(skill.name)}</code></div></div><p>${esc(skill.description)}</p><div class="skill-card-foot"><span>${esc(skill.category)}</span><a class="skill-detail" href="${esc(skill.siteUrl)}" target="_blank" rel="noreferrer">${esc(t('skills.details'))} →</a><button class="btn primary sm skill-install" type="button" data-skill-name="${esc(skill.name)}" ${state.installingSkill === skill.name ? 'disabled' : ''}>${state.installingSkill === skill.name ? esc(t('skills.installing')) : esc(t('skills.install'))}</button></div></article>`;
+    list.innerHTML = filtered.length ? state.skillCatalog.categories.map((category) => {
+      const rows = filtered.filter((skill) => skill.categoryId === category.id);
+      if (!rows.length) return '';
+      const groups = category.id === 'testing-types' ? state.skillCatalog.groups || [] : [{ id: '', zh: '', en: '' }];
+      const sections = groups.map((group) => {
+        const groupRows = group.id ? rows.filter((skill) => skill.groupId === group.id) : rows;
+        if (!groupRows.length) return '';
+        return `<div class="skill-subcategory"><h3>${esc(group[currentLang()] || group.en)}</h3><div class="skill-grid">${groupRows.map(renderCard).join('')}</div></div>`;
+      }).join('');
+      return `<section class="skill-category"><div class="skill-category-head"><div><p class="eyebrow">Skills</p><h2>${esc(category[currentLang()] || category.en)}</h2></div><span>${rows.length}</span></div>${sections}</section>`;
+    }).join('') : emptyHtml(t('skills.empty'));
+  }
+  async function loadSkillCatalog() {
+    const lang = currentLang();
+    try {
+      state.skillCatalog = await api(`api/skills?lang=${lang}`);
+      renderSkills();
+    } catch (error) {
+      $('#skills-list').innerHTML = emptyHtml(error.message);
+    }
+  }
+  async function installSkill(name) {
+    state.installingSkill = name; renderSkills();
+    try { await api('api/skills/install', { method: 'POST', body: { lang: currentLang(), name } }); toast(t('skills.installDone'), 'ok'); }
+    catch (error) { toast(error.message, 'err'); }
+    finally { state.installingSkill = ''; renderSkills(); }
+  }
   function switchView(view) {
-    if (!['dashboard', 'assistant', 'board', 'calendar'].includes(view)) return;
+    if (!['dashboard', 'assistant', 'board', 'calendar', 'skills'].includes(view)) return;
     state.view = view;
     $$('.view').forEach((el) => el.classList.toggle('active', el.id === `view-${view}`));
     $$('.nav-item').forEach((el) => el.classList.toggle('active', el.dataset.view === view));
     if (view === 'dashboard') renderDashboard();
     if (view === 'board') renderBoard();
     if (view === 'calendar') renderCalendars();
+    if (view === 'skills' && !state.skillCatalog.skills.length) loadSkillCatalog();
+    if (view === 'skills') renderSkills();
   }
   async function openProject(id) {
     switchView('assistant');
@@ -1349,6 +1387,9 @@
     renderBoard(); renderRailCases(); renderCaseList(); renderDashboard(); renderCalendars();
     if (state.activeProject) { updateChatHead(state.activeProject); renderProjectRadar(state.activeProject); }
     if (state.drawerProject) renderTab(state.drawerTab);
+    const skillSearch = $('#skills-search');
+    if (skillSearch) skillSearch.placeholder = t('skills.search');
+    if (state.view === 'skills') loadSkillCatalog();
     applyStaticCopy();
   }
 
@@ -1359,6 +1400,8 @@
       toast(currentLang() === 'en' ? 'Language switched to English' : '已切换为中文', 'ok');
     });
     $$('.nav-item').forEach((button) => button.addEventListener('click', () => { switchView(button.dataset.view); applyStaticCopy(); if (button.dataset.view === 'assistant' && state.activeProject) initializeDshChat({ initialize: true }).then(() => applyStaticCopy()).catch((error) => toast(error.message, 'err')); }));
+    $('#skills-search').addEventListener('input', (event) => { state.skillSearch = event.target.value; renderSkills(); });
+    $('#skills-list').addEventListener('click', (event) => { const button = event.target.closest('[data-skill-name]'); if (button) installSkill(button.dataset.skillName); });
     $$('[data-view-jump]').forEach((button) => button.addEventListener('click', () => switchView(button.dataset.viewJump)));
     ['#btn-new-case', '#btn-new-case-mini', '#btn-new-case-side', '#btn-new-case-board'].forEach((selector) => $(selector).addEventListener('click', () => openNewProject(false)));
     $('#btn-new-iteration').addEventListener('click', () => openNewProject(true));
