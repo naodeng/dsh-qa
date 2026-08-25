@@ -43,6 +43,7 @@ Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
 - **Controllable AI modes**: Per project — full assistance, on-demand collaboration, or fully off; auto-extraction and dashboard reminders can be toggled independently
 - **AI material boards**: The AI registers requirements (linkable to test cases with verification purposes), test cases (priority, requirement-trace `trace`, risk tags, three states), defects (business-impact-based severity plus reproduction frequency and impact scope), milestones (auto-computed due dates with overdue/due-soon badges), events, test knowledge, meeting minutes, and test reports (versioned), and can ingest Playwright/Pytest automation results; every registration appears live on kanban cards and the material feed
 - **DSH skills & commands**: Each project binds an independent DSH session; the "Skills & Commands" panel supports categories, search, and click-to-insert, with `/` instant suggestions and results echoed back into the workbench
+- **QA Skill installer**: The `QA Skill Installer` tab groups skills into Testing Types, Testing Workflows, and Enhanced; Testing Types uses the site-aligned groups Requirements & Strategy, Case Design & Review, Functional & Compatibility, API & Automation, Quality Specialties, and Defects, Reports & Review, with bilingual switching, search, detail links, and one-click DSH installation
 - **Single DSH chat & model switching**: Uses only this project's DSH Test Mode session; the model switcher reads DSH's native model catalog — no second model set inside the plugin
 
 ### UI & Connectivity
@@ -131,6 +132,10 @@ The preset is based on DSH's official `standard` (full coding capabilities) with
 
 
 The workbench chat reuses DSH-native skills and commands (type `/` to search). You can install [awesome-qa-skills](https://github.com/naodeng/awesome-qa-skills) as companion testing skills and reference the multi-role workflows of [awesome-qa-prompt](https://github.com/naodeng/awesome-qa-prompt).
+
+Open the workbench from the DSH sidebar and select `QA Skill Installer` to browse and install skills. The page shows `skills/zh` or `skills/en` according to the active UI language. Card names, descriptions, use cases, and detail links are synchronized from the [QA Skills Library](https://inaodeng.com/zh-cn/qaskills/); the local `awesome-qa-skills` checkout remains the installation source.
+
+The installer keeps the website's category order: Testing Types (Requirements & Strategy, Case Design & Review, Functional & Compatibility, API & Automation, Quality Specialties, Defects, Reports & Review), Testing Workflows, and Enhanced. Skills are installed into DeepSeek Harness at `~/.dsh/skills/`; restart `dsh web` after installation before using them in a new DSH session.
 
 ```bash
 # One-click install of awesome-qa-skills (92 zh+en skills) into the DSH skills directory
