@@ -704,6 +704,7 @@
     state.dsh.models = models;
     state.dsh.skills = skillResult.status === 'fulfilled' ? skillResult.value.skills || [] : [];
     state.dsh.commands = commandResult.status === 'fulfilled' ? commandResult.value || [] : [];
+    await loadSkillCatalog().catch(() => {});
     populateDshModelSelect(models);
     updateDshChrome();
     return sessionId;
@@ -744,11 +745,19 @@
     const visibleMessage = en
       ? (message.includes('正在连接') ? 'DSH Test Mode is connecting to this project session…' : 'Enter the chat space to use DSH models, skills, commands and tools.')
       : message;
-    const prompts = en
+    const fallbackPrompts = en
       ? ['/qa-testcase-generator Generate test cases from a requirement', '/qa-defect-analysis Analyze defects and suggest root causes', 'Outline this project’s test scope and list next steps', '/plan Create a test execution plan for this project']
       : ['/qa-testcase-generator 为需求生成测试用例', '/qa-defect-analysis 分析缺陷并给根因建议', '梳理本项目测试范围并列出下一步', '/plan 为本项目制定测试执行计划'];
-    $('#chat-msgs').innerHTML = `<div class="chat-empty"><span class="ai-orb">DSH</span><h3>${en ? 'DSH Test Mode' : 'DSH 测试模式'}</h3><p>${esc(visibleMessage)}</p><div class="prompt-grid">${prompts.map((prompt) => `<button class="prompt-chip dsh-prompt" type="button">${prompt}</button>`).join('')}</div></div>`;
-    $$('.dsh-prompt', $('#chat-msgs')).forEach((button) => button.addEventListener('click', () => { $('#chat-input').value = button.textContent; $('#chat-input').focus(); autoGrow($('#chat-input')); renderSlashSuggestions(); }));
+    const installed = (state.skillCatalog.skills || []).filter((skill) => skill.installed).slice(0, 4);
+    const prompts = installed.map((skill) => {
+      const label = en
+        ? `Perform ${skill.title.toLowerCase()} and output the corresponding document`
+        : `进行${skill.title}，输出对应的文档`;
+      return { value: `/${skill.name}`, label: `/${skill.name} · ${label}` };
+    });
+    fallbackPrompts.slice(installed.length, 4).forEach((prompt) => prompts.push({ value: prompt, label: prompt }));
+    $('#chat-msgs').innerHTML = `<div class="chat-empty"><span class="ai-orb">DSH</span><h3>${en ? 'DSH Test Mode' : 'DSH 测试模式'}</h3><p>${esc(visibleMessage)}</p><div class="prompt-grid">${prompts.map((prompt) => `<button class="prompt-chip dsh-prompt" type="button" data-prompt="${esc(prompt.value)}">${esc(prompt.label)}</button>`).join('')}</div></div>`;
+    $$('.dsh-prompt', $('#chat-msgs')).forEach((button) => button.addEventListener('click', () => { $('#chat-input').value = button.dataset.prompt; $('#chat-input').focus(); autoGrow($('#chat-input')); renderSlashSuggestions(); }));
   }
   function contentText(content) { return (Array.isArray(content) ? content : []).filter((block) => block?.type === 'text').map((block) => block.text || '').join('\n').trim(); }
   function dshRows(events) {
