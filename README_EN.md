@@ -4,7 +4,7 @@
 <img width="2135" height="736" alt="image" src="https://github.com/user-attachments/assets/45d9f541-808e-46c0-993a-e1e9824464b5" />
 
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.6-informational)]()
+[![Version](https://img.shields.io/badge/version-0.1.8-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
 
@@ -13,7 +13,7 @@
 ```
 Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
 ```
-<img width="3926" height="2403" alt="image" src="https://github.com/user-attachments/assets/8f5f32ea-3f6d-4ba2-b632-7d39bd7ba102" />
+<img width="5090" height="2476" alt="image" src="https://github.com/user-attachments/assets/287ac2d2-aec0-4f7a-b3a6-72c183b871ba" />
 
 ## Table of Contents
 

@@ -10,6 +10,7 @@ import { getBoard, projectCard, computeStats, KANBAN_COLUMNS } from './board.js'
 
 const PUBLIC = path.join(ROOT, 'public');
 const SKILLS_ROOT = path.join(process.env.QA_SKILLS_ROOT || path.join(os.homedir(), 'awsomeCode', 'awesome-qa-skills'), 'skills');
+const DSH_SKILLS_ROOT = process.env.DSH_SKILLS_DIR || path.join(os.homedir(), '.dsh', 'skills');
 const WEBSITE_CONTENT_ROOT = path.join(process.env.QA_SKILLS_SITE_ROOT || path.join(os.homedir(), 'Desktop', 'AwsomeCode', 'naodeng.com.cn'), 'src', 'content', 'qaskills');
 const WEBSITE_ORIGIN = 'https://inaodeng.com';
 const WEBSITE_INTRO_FALLBACKS = {
@@ -94,7 +95,7 @@ function parseSkillFile(file, lang, categoryId, groupId) {
   const title = localizedSource.match(/^#\s+(.+)$/m)?.[1]?.trim() || name;
   const category = SKILL_CATEGORIES.find((item) => item.id === categoryId);
   const group = TYPE_GROUPS.find((item) => item[0] === groupId);
-  return { name, title, description, intro, lang, categoryId, category: category?.[lang] || category?.en, groupId, group: group?.[lang] || group?.[2] || '', siteUrl: `${WEBSITE_ORIGIN}/${lang === 'zh' ? 'zh-cn' : 'en'}/qaskills/${name}/` };
+  return { name, title, description, intro, lang, categoryId, category: category?.[lang] || category?.en, groupId, group: group?.[lang] || group?.[2] || '', siteUrl: `${WEBSITE_ORIGIN}/${lang === 'zh' ? 'zh-cn' : 'en'}/qaskills/${name}/`, installed: fs.existsSync(path.join(DSH_SKILLS_ROOT, name, 'SKILL.md')) };
 }
 
 function skillCatalog(lang) {
@@ -178,6 +179,17 @@ async function api(req, res, url, body) {
     if (!/^[a-z0-9][a-z0-9-]*$/.test(name)) return fail(res, 400, 'Skill 名称无效');
     if (!skillCatalog(lang).some((skill) => skill.name === name)) return fail(res, 404, 'Skill 不存在');
     try { ok(res, await installSkill(lang, name)); } catch (error) { fail(res, 500, error.message); }
+    return true;
+  }
+
+  if (parts[1] === 'skills' && parts[2] && !parts[3] && m('DELETE')) {
+    const name = parts[2];
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(name)) return fail(res, 400, 'Skill 名称无效');
+    if (!skillCatalog('zh').some((skill) => skill.name === name) && !skillCatalog('en').some((skill) => skill.name === name)) return fail(res, 404, 'Skill 不存在');
+    const target = path.join(DSH_SKILLS_ROOT, name);
+    if (!fs.existsSync(target)) return fail(res, 404, 'Skill 尚未安装');
+    fs.rmSync(target, { recursive: true, force: true });
+    ok(res, { name, uninstalled: true });
     return true;
   }
 

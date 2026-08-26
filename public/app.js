@@ -59,7 +59,7 @@
     layout: { ...DEFAULT_LAYOUT },
     remote: { status: null, url: '', expiresAt: 0 },
     dsh: { projectId: null, sessionId: '', skills: [], commands: [], models: null, qaPreset: null, busy: false, turnToken: 0 },
-    skillCatalog: { lang: '', categories: [], groups: [], skills: [] }, skillSearch: '', installingSkill: '',
+    skillCatalog: { lang: '', categories: [], groups: [], skills: [] }, skillSearch: '', installingSkill: '', uninstallingSkill: '',
     calendarCursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), selectedDate: localDate(new Date()),
     refreshTimer: null,
   };
@@ -248,7 +248,7 @@
     $('#skills-count').textContent = skills.length;
     const query = state.skillSearch.trim().toLowerCase();
     const filtered = skills.filter((skill) => !query || `${skill.name} ${skill.title} ${skill.description}`.toLowerCase().includes(query));
-    const renderCard = (skill) => `<article class="skill-card"><div class="skill-card-head"><span class="skill-mark">⌘</span><div><h3>${esc(skill.title)}</h3><code>${esc(skill.name)}</code></div></div><p>${esc(skill.description)}</p><div class="skill-card-foot"><span>${esc(skill.category)}</span><a class="skill-detail" href="${esc(skill.siteUrl)}" target="_blank" rel="noreferrer">${esc(t('skills.details'))} →</a><button class="btn primary sm skill-install" type="button" data-skill-name="${esc(skill.name)}" ${state.installingSkill === skill.name ? 'disabled' : ''}>${state.installingSkill === skill.name ? esc(t('skills.installing')) : esc(t('skills.install'))}</button></div></article>`;
+    const renderCard = (skill) => `<article class="skill-card"><div class="skill-card-head"><span class="skill-mark">⌘</span><div><h3>${esc(skill.title)}</h3><code>${esc(skill.name)}</code></div></div><p>${esc(skill.description)}</p><div class="skill-card-foot"><span>${esc(skill.category)}</span><a class="skill-detail" href="${esc(skill.siteUrl)}" target="_blank" rel="noreferrer">${esc(t('skills.details'))} →</a>${skill.installed ? `<button class="btn subtle sm skill-uninstall" type="button" data-uninstall-skill="${esc(skill.name)}" ${state.uninstallingSkill === skill.name ? 'disabled' : ''}>${state.uninstallingSkill === skill.name ? esc(t('skills.installing')) : esc(t('skills.uninstall'))}</button>` : `<button class="btn primary sm skill-install" type="button" data-skill-name="${esc(skill.name)}" ${state.installingSkill === skill.name ? 'disabled' : ''}>${state.installingSkill === skill.name ? esc(t('skills.installing')) : esc(t('skills.install'))}</button>`}</div></article>`;
     list.innerHTML = filtered.length ? state.skillCatalog.categories.map((category) => {
       const rows = filtered.filter((skill) => skill.categoryId === category.id);
       if (!rows.length) return '';
@@ -275,6 +275,13 @@
     try { await api('api/skills/install', { method: 'POST', body: { lang: currentLang(), name } }); toast(t('skills.installDone'), 'ok'); }
     catch (error) { toast(error.message, 'err'); }
     finally { state.installingSkill = ''; renderSkills(); }
+  }
+  async function uninstallSkill(name) {
+    if (!confirm(t('skills.confirmUninstall'))) return;
+    state.uninstallingSkill = name; renderSkills();
+    try { await api(`api/skills/${encodeURIComponent(name)}`, { method: 'DELETE' }); toast(t('skills.uninstallDone'), 'ok'); await loadSkillCatalog(); }
+    catch (error) { toast(error.message, 'err'); }
+    finally { state.uninstallingSkill = ''; renderSkills(); }
   }
   function switchView(view) {
     if (!['dashboard', 'assistant', 'board', 'calendar', 'skills'].includes(view)) return;
@@ -697,6 +704,7 @@
     state.dsh.models = models;
     state.dsh.skills = skillResult.status === 'fulfilled' ? skillResult.value.skills || [] : [];
     state.dsh.commands = commandResult.status === 'fulfilled' ? commandResult.value || [] : [];
+    await loadSkillCatalog().catch(() => {});
     populateDshModelSelect(models);
     updateDshChrome();
     return sessionId;
@@ -737,11 +745,19 @@
     const visibleMessage = en
       ? (message.includes('正在连接') ? 'DSH Test Mode is connecting to this project session…' : 'Enter the chat space to use DSH models, skills, commands and tools.')
       : message;
-    const prompts = en
+    const fallbackPrompts = en
       ? ['/qa-testcase-generator Generate test cases from a requirement', '/qa-defect-analysis Analyze defects and suggest root causes', 'Outline this project’s test scope and list next steps', '/plan Create a test execution plan for this project']
       : ['/qa-testcase-generator 为需求生成测试用例', '/qa-defect-analysis 分析缺陷并给根因建议', '梳理本项目测试范围并列出下一步', '/plan 为本项目制定测试执行计划'];
-    $('#chat-msgs').innerHTML = `<div class="chat-empty"><span class="ai-orb">DSH</span><h3>${en ? 'DSH Test Mode' : 'DSH 测试模式'}</h3><p>${esc(visibleMessage)}</p><div class="prompt-grid">${prompts.map((prompt) => `<button class="prompt-chip dsh-prompt" type="button">${prompt}</button>`).join('')}</div></div>`;
-    $$('.dsh-prompt', $('#chat-msgs')).forEach((button) => button.addEventListener('click', () => { $('#chat-input').value = button.textContent; $('#chat-input').focus(); autoGrow($('#chat-input')); renderSlashSuggestions(); }));
+    const installed = (state.skillCatalog.skills || []).filter((skill) => skill.installed).slice(0, 4);
+    const prompts = installed.map((skill) => {
+      const label = en
+        ? `Perform ${skill.title.toLowerCase()} and output the corresponding document`
+        : `进行${skill.title}，输出对应的文档`;
+      return { value: `/${skill.name}`, label: `/${skill.name} · ${label}` };
+    });
+    fallbackPrompts.slice(installed.length, 4).forEach((prompt) => prompts.push({ value: prompt, label: prompt }));
+    $('#chat-msgs').innerHTML = `<div class="chat-empty"><span class="ai-orb">DSH</span><h3>${en ? 'DSH Test Mode' : 'DSH 测试模式'}</h3><p>${esc(visibleMessage)}</p><div class="prompt-grid">${prompts.map((prompt) => `<button class="prompt-chip dsh-prompt" type="button" data-prompt="${esc(prompt.value)}">${esc(prompt.label)}</button>`).join('')}</div></div>`;
+    $$('.dsh-prompt', $('#chat-msgs')).forEach((button) => button.addEventListener('click', () => { $('#chat-input').value = button.dataset.prompt; $('#chat-input').focus(); autoGrow($('#chat-input')); renderSlashSuggestions(); }));
   }
   function contentText(content) { return (Array.isArray(content) ? content : []).filter((block) => block?.type === 'text').map((block) => block.text || '').join('\n').trim(); }
   function dshRows(events) {
@@ -1401,7 +1417,7 @@
     });
     $$('.nav-item').forEach((button) => button.addEventListener('click', () => { switchView(button.dataset.view); applyStaticCopy(); if (button.dataset.view === 'assistant' && state.activeProject) initializeDshChat({ initialize: true }).then(() => applyStaticCopy()).catch((error) => toast(error.message, 'err')); }));
     $('#skills-search').addEventListener('input', (event) => { state.skillSearch = event.target.value; renderSkills(); });
-    $('#skills-list').addEventListener('click', (event) => { const button = event.target.closest('[data-skill-name]'); if (button) installSkill(button.dataset.skillName); });
+    $('#skills-list').addEventListener('click', (event) => { const installButton = event.target.closest('[data-skill-name]'); if (installButton) installSkill(installButton.dataset.skillName); const uninstallButton = event.target.closest('[data-uninstall-skill]'); if (uninstallButton) uninstallSkill(uninstallButton.dataset.uninstallSkill); });
     $$('[data-view-jump]').forEach((button) => button.addEventListener('click', () => switchView(button.dataset.viewJump)));
     ['#btn-new-case', '#btn-new-case-mini', '#btn-new-case-side', '#btn-new-case-board'].forEach((selector) => $(selector).addEventListener('click', () => openNewProject(false)));
     $('#btn-new-iteration').addEventListener('click', () => openNewProject(true));
