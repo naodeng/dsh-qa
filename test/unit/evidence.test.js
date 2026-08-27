@@ -38,3 +38,16 @@ test('rejects non-terminal runs and artifacts outside controlled root', async ()
   project.testruns.push(passed);
   await assert.rejects(() => finalizeEvidence(project, passed.id), /受控产物目录/);
 });
+
+test('concurrent finalization returns one evidence bundle', async () => {
+  const artifactRoot = tempDir();
+  const stagingDir = path.join(artifactRoot, 'run.staging');
+  fs.mkdirSync(stagingDir);
+  const project = makeProject({ artifactRoot });
+  const run = makeTestRun({ projectId: project.id, status: 'passed', artifactDir: stagingDir });
+  project.testruns.push(run);
+  fs.writeFileSync(path.join(stagingDir, 'process.log'), 'passed');
+  const [first, second] = await Promise.all([finalizeEvidence(project, run.id), finalizeEvidence(project, run.id)]);
+  assert.equal(first.id, second.id);
+  assert.equal(project.evidenceBundles.length, 1);
+});

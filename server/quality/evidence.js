@@ -6,6 +6,7 @@ import { uid, now } from '../store.js';
 const TERMINAL = new Set(['passed', 'failed', 'cancelled', 'environment-error']);
 const MAX_FILE = 100 * 1024 * 1024;
 const MAX_BUNDLE = 500 * 1024 * 1024;
+const finalizations = new WeakMap();
 
 const inside = (root, target) => {
   const relative = path.relative(path.resolve(root), path.resolve(target));
@@ -34,7 +35,7 @@ async function digestFile(full) {
   return { size: after.size, sha256: hash.digest('hex') };
 }
 
-export async function finalizeEvidence(project, testRunId) {
+async function finalizeEvidenceOnce(project, testRunId) {
   project.evidenceBundles ||= [];
   const existing = project.evidenceBundles.find((bundle) => bundle.testRunId === testRunId);
   if (existing?.state === 'ready') return existing;
@@ -70,6 +71,16 @@ export async function finalizeEvidence(project, testRunId) {
   if (index >= 0) project.evidenceBundles[index] = bundle;
   else project.evidenceBundles.push(bundle);
   return bundle;
+}
+
+export function finalizeEvidence(project, testRunId) {
+  let locks = finalizations.get(project);
+  if (!locks) { locks = new Map(); finalizations.set(project, locks); }
+  const existing = locks.get(testRunId);
+  if (existing) return existing;
+  const promise = finalizeEvidenceOnce(project, testRunId).finally(() => locks.delete(testRunId));
+  locks.set(testRunId, promise);
+  return promise;
 }
 
 export async function verifyEvidence(bundle) {
