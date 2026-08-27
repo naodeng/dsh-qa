@@ -13,6 +13,7 @@ export function migrateDb(rawDb) {
     if (version === 0) {
       db.projects = Array.isArray(db.projects) ? db.projects : [];
       db.feed = Array.isArray(db.feed) ? db.feed : [];
+      db.artifactCleanupJobs = Array.isArray(db.artifactCleanupJobs) ? db.artifactCleanupJobs : [];
       for (const project of db.projects) {
         if (!project || typeof project !== 'object' || Array.isArray(project)) throw new TypeError('项目必须是对象');
         project.qualityTasks ||= [];

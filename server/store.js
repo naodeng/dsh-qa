@@ -17,12 +17,12 @@ export function uid(prefix = '') {
 }
 export const now = () => new Date().toISOString();
 
-let db = migrateDb({ projects: [], feed: [] });
+let db = migrateDb({ projects: [], feed: [], artifactCleanupJobs: [] });
 let saveTimer = null;
 
 export function loadStore() {
   if (fs.existsSync(DATA_PATH)) db = migrateDb(JSON.parse(fs.readFileSync(DATA_PATH, 'utf8')));
-  else db = migrateDb({ projects: [], feed: [] });
+  else db = migrateDb({ projects: [], feed: [], artifactCleanupJobs: [] });
   for (const p of db.projects) normalizeProject(p);
   return db;
 }
@@ -75,6 +75,7 @@ function writeNow() {
 
 // ---------- projects ----------
 export function listProjects() { return db.projects; }
+export function listArtifactCleanupJobs() { return db.artifactCleanupJobs || []; }
 export function getProject(id) { return db.projects.find((p) => p.id === id) || null; }
 
 export function createProject(fields = {}) {
@@ -147,8 +148,11 @@ export function updateProject(id, patch) {
 export function deleteProject(id) {
   const i = db.projects.findIndex((p) => p.id === id);
   if (i < 0) return false;
+  db.artifactCleanupJobs ||= [];
+  const project = db.projects[i];
+  db.artifactCleanupJobs.push({ id: uid('cleanup'), projectId: project.id, artifactRoot: project.artifactRoot || '', status: 'queued', attempts: 0, createdAt: now() });
   db.projects.splice(i, 1);
-  persist();
+  flush();
   return true;
 }
 
