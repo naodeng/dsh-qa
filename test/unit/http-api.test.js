@@ -201,6 +201,21 @@ test('quality APIs expose gate state and regression assets', async () => {
   assert.equal((await gate.json()).gate.status, 'passed');
 });
 
+test('failure analysis API requires confirmation before defect promotion', async () => {
+  const project = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '故障分析 API 项目', createWorkspace: false }) })).json();
+  const projectId = project.project.id;
+  const current = store.getProject(projectId);
+  current.testruns.push({ id: 'run_failure_api', projectId, status: 'failed', mode: 'local', resultTrust: 'controlled-local' });
+  const analysisResponse = await fetch(`${base}/api/projects/${projectId}/test-runs/run_failure_api/failure-analysis`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ summary: '提交失败', rootCause: '接口错误', category: 'product' }) });
+  assert.equal(analysisResponse.status, 201);
+  const analysis = (await analysisResponse.json()).analysis;
+  const rejected = await fetch(`${base}/api/projects/${projectId}/failure-analyses/${analysis.id}/promote-defect`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ confirmed: false }) });
+  assert.equal(rejected.status, 400);
+  const promoted = await fetch(`${base}/api/projects/${projectId}/failure-analyses/${analysis.id}/promote-defect`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ confirmed: true, actor: 'tester' }) });
+  assert.equal(promoted.status, 201);
+  assert.equal((await promoted.json()).defect.status, 'open');
+});
+
 test('skills API returns language-specific catalog in website category order', async () => {
   const response = await fetch(`${base}/api/skills?lang=zh`);
   assert.equal(response.status, 200);
