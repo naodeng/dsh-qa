@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { makeProject, makeTestRun } from '../helpers/quality-fixtures.js';
 import { saveFailureAnalysis, promoteConfirmedDefect } from '../../server/quality/failure-analysis.js';
-import { createRegressionSet, excludeRegressionCase } from '../../server/quality/regression.js';
+import { createRegressionSet, excludeRegressionCase, calculateRegressionSet } from '../../server/quality/regression.js';
 
 test('failure analysis requires a failed controlled run and human confirmation for defect promotion', () => {
   const project = makeProject();
@@ -22,4 +22,13 @@ test('regression set is deterministic and exclusions retain actor and reason', (
   assert.deepEqual(set.testCaseIds, ['tc-a', 'tc-b', 'tc-c']);
   excludeRegressionCase(set, 'tc-b', { actor: 'tester', reason: '依赖外部支付环境' });
   assert.deepEqual(set.exclusions, [{ testCaseId: 'tc-b', actor: 'tester', reason: '依赖外部支付环境' }]);
+});
+
+test('calculated regression set records stable input digest and risk references', () => {
+  const project = makeProject({ requirements: [{ id: 'req-2' }, { id: 'req-1' }], defects: [{ id: 'def-1', status: 'open' }] });
+  const first = calculateRegressionSet(project, 'task-1', 'sha256:change-1');
+  const second = calculateRegressionSet(project, 'task-1', 'sha256:change-1');
+  assert.deepEqual(first, second);
+  assert.equal(first.inputDigest, 'sha256:change-1');
+  assert.deepEqual(first.references, { requirementIds: ['req-1', 'req-2'], defectIds: ['def-1'] });
 });

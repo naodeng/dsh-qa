@@ -1,4 +1,5 @@
 import { uid, now } from '../store.js';
+import crypto from 'node:crypto';
 
 export function createRegressionSet(project, { name = '', testCaseIds = [] } = {}) {
   project.regressionSets ||= [];
@@ -15,4 +16,12 @@ export function excludeRegressionCase(set, testCaseId, { actor = '', reason = ''
   set.exclusions.push({ testCaseId, actor, reason });
   set.updatedAt = now();
   return set;
+}
+
+export function calculateRegressionSet(project, qualityTaskId, inputDigest = '') {
+  const requirementIds = (project.requirements || []).map((item) => item.id).sort();
+  const defectIds = (project.defects || []).filter((item) => item.status !== 'closed').map((item) => item.id).sort();
+  const testCaseIds = (project.testcases || []).map((item) => item.id).sort();
+  const canonical = JSON.stringify({ qualityTaskId, inputDigest, requirementIds, defectIds, testCaseIds });
+  return { id: `regression_${crypto.createHash('sha256').update(canonical).digest('hex').slice(0, 16)}`, projectId: project.id, qualityTaskId, inputDigest, testCaseIds, references: { requirementIds, defectIds }, exclusions: [] };
 }
