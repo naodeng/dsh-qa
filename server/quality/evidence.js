@@ -62,7 +62,7 @@ async function finalizeEvidenceOnce(project, testRunId) {
     const destination = path.join(temporaryRoot, candidate.relativePath);
     await fs.mkdir(path.dirname(destination), { recursive: true });
     await fs.copyFile(candidate.full, destination);
-    items.push({ relativePath: candidate.relativePath, ...digest });
+    items.push({ id: uid('evidence_item'), relativePath: candidate.relativePath, ...digest });
   }
   await fs.rm(finalRoot, { recursive: true, force: true });
   await fs.rename(temporaryRoot, finalRoot);

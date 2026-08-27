@@ -89,7 +89,7 @@ function json(res, code, obj) {
 function ok(res, obj) { json(res, 200, { ok: true, ...obj }); }
 function created(res, obj) { json(res, 201, { ok: true, ...obj }); }
 function publicEvidence(bundle) {
-  return { id: bundle.id, projectId: bundle.projectId, testRunId: bundle.testRunId, state: bundle.state, totalSize: bundle.totalSize, items: bundle.items.map(({ relativePath, size, sha256 }) => ({ relativePath, size, sha256 })) };
+  return { id: bundle.id, projectId: bundle.projectId, testRunId: bundle.testRunId, state: bundle.state, totalSize: bundle.totalSize, items: bundle.items.map(({ id, relativePath, size, sha256 }) => ({ id, relativePath, size, sha256 })) };
 }
 function publicProject(project) {
   const { artifactRoot, evidenceBundles, ...safe } = project;
@@ -354,17 +354,19 @@ async function api(req, res, url, body) {
     return ok(res, { evidence: (c.evidenceBundles || []).map(publicEvidence) });
   }
 
-  if (parts[1] === 'projects' && parts[2] && parts[3] === 'evidence' && parts[4] && parts[5] === 'download' && m('GET')) {
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'evidence' && parts[4] && ((parts[5] === 'download') || (parts[5] === 'items' && parts[7] === 'download')) && m('GET')) {
     const c = store.getProject(parts[2]);
     const bundle = c && resolveEvidence(c, parts[4]);
     if (!bundle) return fail(res, 404, '证据包不存在');
+    const itemId = parts[5] === 'items' ? parts[6] : '';
     const relativePath = url.searchParams.get('path') || '';
-    const item = bundle.items.find((entry) => entry.relativePath === relativePath);
-    if (!item || path.isAbsolute(relativePath) || relativePath.split(/[\\/]/).includes('..')) return fail(res, 400, '证据文件路径无效');
+    const item = bundle.items.find((entry) => itemId ? entry.id === itemId : entry.relativePath === relativePath);
+    const resolvedPath = item?.relativePath || relativePath;
+    if (!item || path.isAbsolute(resolvedPath) || resolvedPath.split(/[\\/]/).includes('..')) return fail(res, 400, '证据文件路径无效');
     if (!(await verifyEvidence({ ...bundle, items: [item] })).ok) return fail(res, 409, '证据完整性校验失败');
-    const file = path.join(bundle.root, relativePath);
+    const file = path.join(bundle.root, resolvedPath);
     if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return fail(res, 404, '证据文件不存在');
-    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': String(item.size), 'Content-Disposition': `attachment; filename="${path.basename(relativePath).replace(/[^a-zA-Z0-9._-]/g, '_')}"` });
+    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': String(item.size), 'Content-Disposition': `attachment; filename="${path.basename(resolvedPath).replace(/[^a-zA-Z0-9._-]/g, '_')}"` });
     fs.createReadStream(file).pipe(res);
     return true;
   }

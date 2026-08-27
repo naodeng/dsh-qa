@@ -233,6 +233,8 @@ test('evidence API finalizes, lists, downloads, and rejects tampered files', asy
   const downloaded = await fetch(`${base}/api/projects/${projectId}/evidence/${evidence.id}/download?path=process.log`);
   assert.equal(downloaded.status, 200);
   assert.equal(await downloaded.text(), 'passed');
+  const itemDownload = await fetch(`${base}/api/projects/${projectId}/evidence/${evidence.id}/items/${evidence.items[0].id}/download`);
+  assert.equal(itemDownload.status, 200);
   fs.appendFileSync(path.join(dataDir, 'artifacts', projectId, 'evidence', evidence.id, 'process.log'), 'changed');
   const tampered = await fetch(`${base}/api/projects/${projectId}/evidence/${evidence.id}/download?path=process.log`);
   assert.equal(tampered.status, 409);
