@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { makeProject } from '../helpers/quality-fixtures.js';
-import { enqueueArtifactCleanup, runArtifactCleanup, executeArtifactCleanup } from '../../server/quality/evidence-retention.js';
+import { enqueueArtifactCleanup, runArtifactCleanup, executeArtifactCleanup, startArtifactCleanupWorker } from '../../server/quality/evidence-retention.js';
+const tempDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-retention-'));
 
 test('retention enqueues controlled cleanup and preserves referenced evidence', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-retention-'));
@@ -32,4 +33,13 @@ test('cleanup failure is retryable and records attempt details', async () => {
   assert.equal(result.status, 'retryable');
   assert.equal(result.attempts, 1);
   assert.equal(result.lastError, 'busy');
+});
+
+test('cleanup worker processes pending jobs immediately and can stop', async () => {
+  const root = tempDir();
+  const jobs = [{ id: 'job-1', artifactRoot: root, status: 'queued', attempts: 0 }];
+  const worker = startArtifactCleanupWorker({ jobs, intervalMs: 60_000, batchSize: 1 });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(jobs[0].status, 'completed');
+  worker.stop();
 });

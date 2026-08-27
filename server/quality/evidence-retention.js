@@ -27,6 +27,19 @@ export async function executeArtifactCleanup(job, deps = { rm: fs.rm }) {
   return job;
 }
 
+export function startArtifactCleanupWorker({ jobs = [], intervalMs = 60_000, batchSize = 10, deps } = {}) {
+  let stopped = false;
+  const tick = async () => {
+    if (stopped) return;
+    const pending = jobs.filter((job) => job.status === 'queued' || job.status === 'retryable').slice(0, batchSize);
+    for (const job of pending) await executeArtifactCleanup(job, deps);
+  };
+  const timer = setInterval(() => { tick().catch(() => {}); }, intervalMs);
+  timer.unref?.();
+  tick().catch(() => {});
+  return { stop() { stopped = true; clearInterval(timer); } };
+}
+
 export async function runArtifactCleanup(project, jobId) {
   const job = (project.artifactCleanupJobs || []).find((item) => item.id === jobId);
   if (!job) throw new Error('清理任务不存在');
