@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { makeProject } from '../helpers/quality-fixtures.js';
-import { enqueueArtifactCleanup, runArtifactCleanup, executeArtifactCleanup, startArtifactCleanupWorker } from '../../server/quality/evidence-retention.js';
+import { enqueueArtifactCleanup, runArtifactCleanup, executeArtifactCleanup, startArtifactCleanupWorker, recoverOrphanStaging } from '../../server/quality/evidence-retention.js';
 const tempDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-retention-'));
 
 test('retention enqueues controlled cleanup and preserves referenced evidence', async () => {
@@ -42,4 +42,14 @@ test('cleanup worker processes pending jobs immediately and can stop', async () 
   await new Promise((resolve) => setTimeout(resolve, 10));
   assert.equal(jobs[0].status, 'completed');
   worker.stop();
+});
+
+test('recovery removes only orphan staging directories under artifact root', async () => {
+  const root = tempDir();
+  fs.mkdirSync(path.join(root, 'run_orphan.staging'));
+  fs.mkdirSync(path.join(root, 'keep'));
+  const project = makeProject({ artifactRoot: root });
+  await recoverOrphanStaging([project]);
+  assert.equal(fs.existsSync(path.join(root, 'run_orphan.staging')), false);
+  assert.equal(fs.existsSync(path.join(root, 'keep')), true);
 });

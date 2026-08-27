@@ -40,6 +40,16 @@ export function startArtifactCleanupWorker({ jobs = [], intervalMs = 60_000, bat
   return { stop() { stopped = true; clearInterval(timer); } };
 }
 
+export async function recoverOrphanStaging(projects) {
+  for (const project of projects || []) {
+    const root = path.resolve(project.artifactRoot || '');
+    let entries;
+    try { entries = await fs.readdir(root, { withFileTypes: true }); } catch { continue; }
+    for (const entry of entries) if (entry.isDirectory() && entry.name.endsWith('.staging')) await fs.rm(path.join(root, entry.name), { recursive: true, force: true });
+  }
+  return projects;
+}
+
 export async function runArtifactCleanup(project, jobId) {
   const job = (project.artifactCleanupJobs || []).find((item) => item.id === jobId);
   if (!job) throw new Error('清理任务不存在');

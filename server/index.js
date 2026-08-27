@@ -5,7 +5,7 @@ import * as store from './store.js';
 import { seedIfEmpty } from './seed.js';
 import { handleRequest } from './routes.js';
 import { recoverEvidenceFinalization } from './quality/evidence.js';
-import { startArtifactCleanupWorker } from './quality/evidence-retention.js';
+import { startArtifactCleanupWorker, recoverOrphanStaging } from './quality/evidence-retention.js';
 
 const workers = new WeakMap();
 
@@ -24,6 +24,7 @@ export function startQaBench(opts = {}) {
   store.loadStore();
   seedIfEmpty();
   recoverEvidenceFinalization(store.listProjects()).catch(() => {});
+  recoverOrphanStaging(store.listProjects()).catch(() => {});
   const cleanupWorker = startArtifactCleanupWorker({ jobs: store.listArtifactCleanupJobs() });
 
   const server = http.createServer((req, res) => {
