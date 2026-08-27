@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { makeProject, makeTestRun } from '../helpers/quality-fixtures.js';
-import { finalizeEvidence, verifyEvidence } from '../../server/quality/evidence.js';
+import { finalizeEvidence, recoverEvidenceFinalization, verifyEvidence } from '../../server/quality/evidence.js';
 
 const tempDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-evidence-'));
 
@@ -50,4 +50,15 @@ test('concurrent finalization returns one evidence bundle', async () => {
   const [first, second] = await Promise.all([finalizeEvidence(project, run.id), finalizeEvidence(project, run.id)]);
   assert.equal(first.id, second.id);
   assert.equal(project.evidenceBundles.length, 1);
+});
+
+test('recovery removes partial evidence directories without exposing them', async () => {
+  const artifactRoot = tempDir();
+  fs.mkdirSync(path.join(artifactRoot, 'evidence', 'ev-partial.tmp'), { recursive: true });
+  fs.mkdirSync(path.join(artifactRoot, 'evidence', 'ev-orphan'), { recursive: true });
+  const project = makeProject({ artifactRoot, evidenceBundles: [{ id: 'ev-partial', state: 'finalizing' }] });
+  await recoverEvidenceFinalization([project]);
+  assert.equal(fs.existsSync(path.join(artifactRoot, 'evidence', 'ev-partial.tmp')), false);
+  assert.equal(fs.existsSync(path.join(artifactRoot, 'evidence', 'ev-orphan')), false);
+  assert.equal(project.evidenceBundles.filter((bundle) => bundle.state === 'ready').length, 0);
 });

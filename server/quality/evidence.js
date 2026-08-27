@@ -97,3 +97,18 @@ export async function verifyEvidence(bundle) {
 export function resolveEvidence(project, evidenceId) {
   return (project.evidenceBundles || []).find((bundle) => bundle.id === evidenceId) || null;
 }
+
+export async function recoverEvidenceFinalization(projects) {
+  for (const project of projects || []) {
+    const root = path.join(path.resolve(project.artifactRoot || ''), 'evidence');
+    let entries;
+    try { entries = await fs.readdir(root, { withFileTypes: true }); } catch { continue; }
+    const ready = new Set((project.evidenceBundles || []).filter((bundle) => bundle.state === 'ready').map((bundle) => bundle.id));
+    for (const entry of entries) {
+      if (!entry.isDirectory() || ready.has(entry.name)) continue;
+      await fs.rm(path.join(root, entry.name), { recursive: true, force: true });
+    }
+    project.evidenceBundles = (project.evidenceBundles || []).filter((bundle) => bundle.state === 'ready');
+  }
+  return projects;
+}
