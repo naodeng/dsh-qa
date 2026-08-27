@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { makeProject } from '../helpers/quality-fixtures.js';
-import { enqueueArtifactCleanup, runArtifactCleanup } from '../../server/quality/evidence-retention.js';
+import { enqueueArtifactCleanup, runArtifactCleanup, executeArtifactCleanup } from '../../server/quality/evidence-retention.js';
 
 test('retention enqueues controlled cleanup and preserves referenced evidence', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-retention-'));
@@ -23,4 +23,13 @@ test('retention defaults to a 30-day cutoff when omitted', () => {
   const project = makeProject();
   const before = Date.parse(enqueueArtifactCleanup(project).before);
   assert.ok(Math.abs(Date.now() - before - 30 * 24 * 60 * 60 * 1000) < 5000);
+});
+
+test('cleanup failure is retryable and records attempt details', async () => {
+  const project = makeProject();
+  const job = enqueueArtifactCleanup(project);
+  const result = await executeArtifactCleanup(job, { rm: async () => { throw new Error('busy'); } });
+  assert.equal(result.status, 'retryable');
+  assert.equal(result.attempts, 1);
+  assert.equal(result.lastError, 'busy');
 });

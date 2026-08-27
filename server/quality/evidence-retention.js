@@ -11,8 +11,19 @@ export function enqueueArtifactCleanup(project, { before } = {}) {
   const cutoff = before || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   if (Number.isNaN(Date.parse(cutoff))) throw new Error('清理截止时间无效');
   project.artifactCleanupJobs ||= [];
-  const job = { id: uid('cleanup'), projectId: project.id, before: cutoff, status: 'queued', deleted: [], createdAt: now() };
+  const job = { id: uid('cleanup'), projectId: project.id, artifactRoot: project.artifactRoot || '', before: cutoff, status: 'queued', attempts: 0, deleted: [], createdAt: now() };
   project.artifactCleanupJobs.push(job);
+  return job;
+}
+
+export async function executeArtifactCleanup(job, deps = { rm: fs.rm }) {
+  job.attempts = Number(job.attempts || 0) + 1;
+  try {
+    await deps.rm(job.artifactRoot, { recursive: true, force: true });
+    job.status = 'completed'; job.completedAt = now();
+  } catch (error) {
+    job.status = 'retryable'; job.lastError = error.message;
+  }
   return job;
 }
 
