@@ -216,6 +216,28 @@ test('failure analysis API requires confirmation before defect promotion', async
   assert.equal((await promoted.json()).defect.status, 'open');
 });
 
+test('evidence API finalizes, lists, downloads, and rejects tampered files', async () => {
+  const project = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '证据 API 项目', createWorkspace: false }) })).json();
+  const projectId = project.project.id;
+  const current = store.getProject(projectId);
+  const staging = path.join(dataDir, 'artifacts', projectId, 'run_evidence.staging');
+  fs.mkdirSync(staging, { recursive: true });
+  fs.writeFileSync(path.join(staging, 'process.log'), 'passed');
+  current.testruns.push({ id: 'run_evidence', projectId, status: 'passed', mode: 'local', resultTrust: 'controlled-local', artifactDir: staging });
+  const finalized = await fetch(`${base}/api/projects/${projectId}/test-runs/run_evidence/evidence/finalize`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+  assert.equal(finalized.status, 201);
+  const evidence = (await finalized.json()).evidence;
+  assert.equal('root' in evidence, false);
+  const listed = await fetch(`${base}/api/projects/${projectId}/evidence`);
+  assert.equal((await listed.json()).evidence[0].id, evidence.id);
+  const downloaded = await fetch(`${base}/api/projects/${projectId}/evidence/${evidence.id}/download?path=process.log`);
+  assert.equal(downloaded.status, 200);
+  assert.equal(await downloaded.text(), 'passed');
+  fs.appendFileSync(path.join(dataDir, 'artifacts', projectId, 'evidence', evidence.id, 'process.log'), 'changed');
+  const tampered = await fetch(`${base}/api/projects/${projectId}/evidence/${evidence.id}/download?path=process.log`);
+  assert.equal(tampered.status, 409);
+});
+
 test('skills API returns language-specific catalog in website category order', async () => {
   const response = await fetch(`${base}/api/skills?lang=zh`);
   assert.equal(response.status, 200);
