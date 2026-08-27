@@ -62,3 +62,22 @@ test('recovery removes partial evidence directories without exposing them', asyn
   assert.equal(fs.existsSync(path.join(artifactRoot, 'evidence', 'ev-orphan')), false);
   assert.equal(project.evidenceBundles.filter((bundle) => bundle.state === 'ready').length, 0);
 });
+
+test('rejects symlinks, hard links, and files over the per-file quota', async () => {
+  const artifactRoot = tempDir();
+  const stagingDir = path.join(artifactRoot, 'run.staging');
+  fs.mkdirSync(stagingDir);
+  const project = makeProject({ artifactRoot });
+  const run = makeTestRun({ projectId: project.id, status: 'passed', artifactDir: stagingDir });
+  project.testruns.push(run);
+  fs.writeFileSync(path.join(stagingDir, 'original.log'), 'x');
+  fs.linkSync(path.join(stagingDir, 'original.log'), path.join(stagingDir, 'hard.log'));
+  await assert.rejects(() => finalizeEvidence(project, run.id), /硬链接/);
+  fs.unlinkSync(path.join(stagingDir, 'hard.log'));
+  fs.symlinkSync(path.join(stagingDir, 'original.log'), path.join(stagingDir, 'link.log'));
+  await assert.rejects(() => finalizeEvidence(project, run.id), /符号链接/);
+  fs.unlinkSync(path.join(stagingDir, 'link.log'));
+  fs.writeFileSync(path.join(stagingDir, 'large.log'), '');
+  fs.truncateSync(path.join(stagingDir, 'large.log'), 100 * 1024 * 1024 + 1);
+  await assert.rejects(() => finalizeEvidence(project, run.id), /100MiB/);
+});
