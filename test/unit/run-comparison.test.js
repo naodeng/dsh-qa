@@ -11,8 +11,8 @@ test('compares terminal runs under the same plan with deterministic case changes
   const result = compareRuns(project, before.id, after.id);
   assert.equal(result.samePlan, true);
   assert.deepEqual(result.changedCases, [
-    { caseId: 'a', before: 'failed', after: 'passed' },
-    { caseId: 'b', before: 'passed', after: 'failed' },
+    { caseId: 'a', before: 'failed', after: 'passed', classification: 'fixed' },
+    { caseId: 'b', before: 'passed', after: 'failed', classification: 'new-failure' },
   ]);
 });
 
