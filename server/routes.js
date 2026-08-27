@@ -7,6 +7,16 @@ import { ROOT } from './config.js';
 import * as store from './store.js';
 import { sseHandler, broadcast } from './sse.js';
 import { getBoard, projectCard, computeStats, KANBAN_COLUMNS } from './board.js';
+import { createQualityTask, getQualityTask, listQualityTasks, normalizeQualityProject } from './quality/task.js';
+import { createExecutionProfile, createExecutionProfileVersion, disableExecutionProfile } from './quality/execution-profile.js';
+import { cancelRun, createRunPreview, startRun } from './quality/test-runner.js';
+import { createTestPlanVersion, getTestPlan, reviewTestPlan } from './quality/test-plan.js';
+import { finalizeEvidence, resolveEvidence, verifyEvidence } from './quality/evidence.js';
+import { compareRuns } from './quality/run-comparison.js';
+import { saveFailureAnalysis, promoteConfirmedDefect } from './quality/failure-analysis.js';
+import { createRegressionSet, excludeRegressionCase } from './quality/regression.js';
+import { enqueueArtifactCleanup, runArtifactCleanup } from './quality/evidence-retention.js';
+import { evaluateQualityGate } from './quality/gate.js';
 
 const PUBLIC = path.join(ROOT, 'public');
 const SKILLS_ROOT = path.join(process.env.QA_SKILLS_ROOT || path.join(os.homedir(), 'awsomeCode', 'awesome-qa-skills'), 'skills');
@@ -77,6 +87,11 @@ function json(res, code, obj) {
   res.end(JSON.stringify(obj));
 }
 function ok(res, obj) { json(res, 200, { ok: true, ...obj }); }
+function created(res, obj) { json(res, 201, { ok: true, ...obj }); }
+function publicEvidence(bundle) {
+  return { id: bundle.id, projectId: bundle.projectId, testRunId: bundle.testRunId, state: bundle.state, totalSize: bundle.totalSize, items: bundle.items.map(({ relativePath, size, sha256 }) => ({ relativePath, size, sha256 })) };
+}
+function accepted(res, obj) { json(res, 202, { ok: true, ...obj }); }
 function fail(res, code, error) { json(res, code, { ok: false, error }); }
 
 function parseSkillFile(file, lang, categoryId, groupId) {
@@ -212,6 +227,202 @@ async function api(req, res, url, body) {
     return true;
   }
 
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'quality-tasks' && !parts[4]) {
+    const c = store.getProject(parts[2]);
+    if (!c) return fail(res, 404, '项目不存在');
+    normalizeQualityProject(c);
+    if (m('GET')) { return ok(res, { tasks: listQualityTasks(c) }); }
+    if (m('POST')) {
+      if (!String(body.title || '').trim()) return fail(res, 400, '质量任务标题不能为空');
+      const task = createQualityTask(c, body);
+      store.touch(c); store.persist(); emitProject(c.id);
+      return created(res, { task });
+    }
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'quality-tasks' && parts[4] && parts[5] === 'decisions' && m('POST')) {
+    const c = store.getProject(parts[2]);
+    const task = c && getQualityTask(c, parts[4]);
+    if (!task) return fail(res, 404, '质量任务不存在');
+    if (body.expectedRevision !== task.version) return fail(res, 409, '质量任务版本已变化，请重新加载');
+    task.decisions.push({ action: String(body.action || ''), at: store.now(), by: 'human' });
+    task.version += 1;
+    task.updatedAt = store.now();
+    store.touch(c); store.persist(); emitProject(c.id);
+    return ok(res, { task });
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'quality-tasks' && parts[4] && parts[5] === 'manual-analyses' && m('POST')) {
+    const c = store.getProject(parts[2]);
+    const task = c && getQualityTask(c, parts[4]);
+    if (!task) return fail(res, 404, '质量任务不存在');
+    if (body.expectedRevision !== task.version) return fail(res, 409, '质量任务版本已变化，请重新加载');
+    if (['origin', 'dshSessionId', 'stage', 'version', 'analysisOrigin', 'analysisRuns'].some((field) => field in body)) return fail(res, 400, '手工分析不允许提交宿主或派生字段');
+    task.acceptanceCriteria = Array.isArray(body.acceptanceCriteria) ? body.acceptanceCriteria : [];
+    task.risks = Array.isArray(body.risks) ? body.risks : [];
+    task.testScope = Array.isArray(body.testScope) ? body.testScope : [];
+    task.analysisOrigin = 'manual';
+    task.analysisRuns ||= [];
+    task.analysisRuns.push({ actorLabel: String(body.actorLabel || ''), dshSessionId: '', at: store.now(), origin: 'manual' });
+    task.version += 1;
+    task.updatedAt = store.now();
+    store.touch(c); store.persist(); emitProject(c.id);
+    return created(res, { task });
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'execution-profiles' && !parts[4] && m('POST')) {
+    const c = store.getProject(parts[2]);
+    if (!c) return fail(res, 404, '项目不存在');
+    try { const profile = createExecutionProfile(c, body); store.touch(c); store.persist(); return created(res, { profile }); }
+    catch (error) { return fail(res, 400, error.message); }
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'execution-profiles' && parts[4] && parts[5] === 'versions' && m('POST')) {
+    const c = store.getProject(parts[2]);
+    const profile = c?.executionProfiles?.find((item) => item.id === parts[4]);
+    if (!profile) return fail(res, 404, '执行配置不存在');
+    if (body.expectedRevision !== (profile.currentVersion || profile.version)) return fail(res, 409, '执行配置版本已变化，请重新加载');
+    try { const version = createExecutionProfileVersion(c, profile.id, body); store.touch(c); store.persist(); return created(res, { profile: version }); }
+    catch (error) { return fail(res, 400, error.message); }
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'execution-profiles' && parts[4] && parts[5] === 'disable' && m('POST')) {
+    const c = store.getProject(parts[2]);
+    const profile = c?.executionProfiles?.find((item) => item.id === parts[4]);
+    if (!profile) return fail(res, 404, '执行配置不存在');
+    if (body.expectedRevision !== (profile.currentVersion || profile.version)) return fail(res, 409, '执行配置版本已变化，请重新加载');
+    const disabled = disableExecutionProfile(c, profile.id); store.touch(c); store.persist(); return ok(res, { profile: disabled });
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'test-plans' && parts[4] && parts[5] === 'run-preview' && m('POST')) {
+    const c = store.getProject(parts[2]);
+    if (!c) return fail(res, 404, '项目不存在');
+    try { return ok(res, { preview: createRunPreview(c, parts[4], body.profileId) }); }
+    catch (error) { return fail(res, 400, error.message); }
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'test-plans' && parts[4] && parts[5] === 'review' && m('POST')) {
+    const c = store.getProject(parts[2]);
+    const plan = c && getTestPlan(c, parts[4]);
+    if (!plan) return fail(res, 404, '测试计划不存在');
+    if (body.expectedRevision !== plan.version) return fail(res, 409, '测试计划版本已变化，请重新加载');
+    try { const reviewed = reviewTestPlan(c, plan.id, body.actorLabel); store.touch(c); store.persist(); return ok(res, { plan: reviewed }); }
+    catch (error) { return fail(res, 400, error.message); }
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'test-plans' && parts[4] && parts[5] === 'versions' && m('POST')) {
+    const c = store.getProject(parts[2]);
+    const plan = c && getTestPlan(c, parts[4]);
+    if (!plan) return fail(res, 404, '测试计划不存在');
+    if (body.expectedRevision !== plan.version) return fail(res, 409, '测试计划版本已变化，请重新加载');
+    try { const version = createTestPlanVersion(c, plan.id, body); store.touch(c); store.persist(); return created(res, { plan: version }); }
+    catch (error) { return fail(res, 400, error.message); }
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'test-plans' && parts[4] && parts[5] === 'runs' && m('POST')) {
+    const c = store.getProject(parts[2]);
+    if (!c) return fail(res, 404, '项目不存在');
+    try { const run = await startRun(c, body.previewToken, { defer: true }); return accepted(res, { run: { id: run.id, status: run.status, mode: run.mode, resultTrust: run.resultTrust } }); }
+    catch (error) { return fail(res, 400, error.message); }
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'test-runs' && parts[4] && parts[5] === 'cancel' && m('POST')) {
+    const c = store.getProject(parts[2]);
+    if (!c) return fail(res, 404, '项目不存在');
+    try { const run = cancelRun(c, parts[4]); return ok(res, { run: { id: run.id, status: run.status } }); }
+    catch (error) { return fail(res, 400, error.message); }
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'test-runs' && parts[4] && parts[5] === 'evidence' && parts[6] === 'finalize' && m('POST')) {
+    const c = store.getProject(parts[2]);
+    if (!c) return fail(res, 404, '项目不存在');
+    try {
+      const bundle = await finalizeEvidence(c, parts[4]);
+      store.touch(c); store.persist();
+      return bundle.createdAt === bundle.updatedAt ? created(res, { evidence: publicEvidence(bundle) }) : ok(res, { evidence: publicEvidence(bundle) });
+    } catch (error) { return fail(res, 400, error.message); }
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'evidence' && !parts[4] && m('GET')) {
+    const c = store.getProject(parts[2]);
+    if (!c) return fail(res, 404, '项目不存在');
+    return ok(res, { evidence: (c.evidenceBundles || []).map(publicEvidence) });
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'evidence' && parts[4] && parts[5] === 'download' && m('GET')) {
+    const c = store.getProject(parts[2]);
+    const bundle = c && resolveEvidence(c, parts[4]);
+    if (!bundle) return fail(res, 404, '证据包不存在');
+    const relativePath = url.searchParams.get('path') || '';
+    const item = bundle.items.find((entry) => entry.relativePath === relativePath);
+    if (!item || path.isAbsolute(relativePath) || relativePath.split(/[\\/]/).includes('..')) return fail(res, 400, '证据文件路径无效');
+    if (!(await verifyEvidence({ ...bundle, items: [item] })).ok) return fail(res, 409, '证据完整性校验失败');
+    const file = path.join(bundle.root, relativePath);
+    if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return fail(res, 404, '证据文件不存在');
+    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': String(item.size), 'Content-Disposition': `attachment; filename="${path.basename(relativePath).replace(/[^a-zA-Z0-9._-]/g, '_')}"` });
+    fs.createReadStream(file).pipe(res);
+    return true;
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'test-runs' && parts[4] && parts[5] === 'compare' && m('POST')) {
+    const c = store.getProject(parts[2]);
+    if (!c) return fail(res, 404, '项目不存在');
+    try { return ok(res, { comparison: compareRuns(c, parts[4], body.otherRunId) }); }
+    catch (error) { return fail(res, 400, error.message); }
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'test-runs' && parts[4] && parts[5] === 'failure-analysis' && m('POST')) {
+    const c = store.getProject(parts[2]);
+    if (!c) return fail(res, 404, '项目不存在');
+    try { const analysis = saveFailureAnalysis(c, parts[4], body); store.touch(c); store.persist(); return created(res, { analysis }); }
+    catch (error) { return fail(res, 400, error.message); }
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'failure-analyses' && parts[4] && parts[5] === 'promote-defect' && m('POST')) {
+    const c = store.getProject(parts[2]);
+    if (!c) return fail(res, 404, '项目不存在');
+    try { const defect = promoteConfirmedDefect(c, parts[4], body); store.touch(c); store.persist(); return created(res, { defect }); }
+    catch (error) { return fail(res, 400, error.message); }
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'regression-sets' && !parts[4]) {
+    const c = store.getProject(parts[2]);
+    if (!c) return fail(res, 404, '项目不存在');
+    if (m('GET')) return ok(res, { regressionSets: c.regressionSets || [] });
+    if (m('POST')) {
+      try { const set = createRegressionSet(c, body); store.touch(c); store.persist(); return created(res, { regressionSet: set }); }
+      catch (error) { return fail(res, 400, error.message); }
+    }
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'regression-sets' && parts[4] && parts[5] === 'exclude' && m('POST')) {
+    const c = store.getProject(parts[2]);
+    const set = c?.regressionSets?.find((item) => item.id === parts[4]);
+    if (!set) return fail(res, 404, '回归集不存在');
+    try { const updated = excludeRegressionCase(set, body.testCaseId, body); store.touch(c); store.persist(); return ok(res, { regressionSet: updated }); }
+    catch (error) { return fail(res, 400, error.message); }
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'quality-gate' && !parts[4] && m('GET')) {
+    const c = store.getProject(parts[2]);
+    if (!c) return fail(res, 404, '项目不存在');
+    return ok(res, { gate: evaluateQualityGate(c) });
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'artifact-cleanup' && !parts[4] && m('POST')) {
+    const c = store.getProject(parts[2]);
+    if (!c) return fail(res, 404, '项目不存在');
+    try { const job = enqueueArtifactCleanup(c, body); store.touch(c); store.persist(); return accepted(res, { job }); }
+    catch (error) { return fail(res, 400, error.message); }
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'artifact-cleanup' && parts[4] && parts[5] === 'run' && m('POST')) {
+    const c = store.getProject(parts[2]);
+    if (!c) return fail(res, 404, '项目不存在');
+    try { const job = await runArtifactCleanup(c, parts[4]); store.touch(c); store.persist(); return ok(res, { job }); }
+    catch (error) { return fail(res, 400, error.message); }
+  }
+
   if (parts[1] === 'projects' && parts[2] && !parts[3]) {
     const c = store.getProject(parts[2]);
     if (!c) return fail(res, 404, '项目不存在');
@@ -236,6 +447,10 @@ async function api(req, res, url, body) {
     const c = store.getProject(parts[2]);
     if (!c) return fail(res, 404, '项目不存在');
     if (!KANBAN_COLUMNS.some((k) => k.id === body.to)) return fail(res, 400, '无效目标列');
+    if (body.to === 'closed') {
+      const gate = evaluateQualityGate(c);
+      if (gate.status === 'blocked') return fail(res, 409, `质量门禁阻断：${gate.blockers.join('、')}`);
+    }
     const from = c.status;
     store.transitionProject(c, body.to, 'human');
     feedAndBroadcast({ type: 'transition', projectId: c.id, projectTitle: c.title, label: `阶段变更：${KANBAN_COLUMNS.find((k) => k.id === from)?.title} → ${KANBAN_COLUMNS.find((k) => k.id === body.to)?.title}` });

@@ -912,9 +912,10 @@
   }
 
   // ---------- drawer ----------
-  const TABS = [['overview', 'drawer.tab.overview', '项'], ['requirements', 'drawer.tab.requirements', '需'], ['testcases', 'drawer.tab.testcases', '例'], ['defects', 'drawer.tab.defects', '缺'], ['milestones', 'drawer.tab.milestones', '里'], ['reports', 'drawer.tab.reports', '报'], ['knowledge', 'drawer.tab.knowledge', '知'], ['minutes', 'drawer.tab.minutes', '纪'], ['gates', 'drawer.tab.gates', '审']];
+  const TABS = [['overview', 'drawer.tab.overview', '项'], ['qualityTasks', 'drawer.tab.qualityTasks', '质'], ['requirements', 'drawer.tab.requirements', '需'], ['testcases', 'drawer.tab.testcases', '例'], ['defects', 'drawer.tab.defects', '缺'], ['milestones', 'drawer.tab.milestones', '里'], ['reports', 'drawer.tab.reports', '报'], ['knowledge', 'drawer.tab.knowledge', '知'], ['minutes', 'drawer.tab.minutes', '纪'], ['gates', 'drawer.tab.gates', '审']];
   const TAB_META = {
     overview: ['drawer.overview.kicker', 'drawer.tab.overview', 'drawer.overview.sub'],
+    qualityTasks: ['drawer.qualityTasks.kicker', 'drawer.tab.qualityTasks', 'drawer.qualityTasks.sub'],
     requirements: ['drawer.requirements.kicker', 'drawer.tab.requirements', 'drawer.requirements.sub'],
     testcases: ['drawer.testcases.kicker', 'drawer.tab.testcases', 'drawer.testcases.sub'],
     defects: ['drawer.defects.kicker', 'drawer.tab.defects', 'drawer.defects.sub'],
@@ -947,7 +948,7 @@
   function renderTabs() {
     const p = state.drawerProject;
     $('#tabs').innerHTML = TABS.map(([key, label, icon]) => {
-      const count = p ? { requirements: p.requirements.length, testcases: p.testcases.length, defects: p.defects.length, milestones: p.milestones.length, reports: p.reports.length, knowledge: p.knowledge.length, minutes: p.minutes.length, gates: p.gates.filter((g) => g.status === 'pending').length }[key] : null;
+      const count = p ? { qualityTasks: p.qualityTasks?.length || 0, requirements: p.requirements.length, testcases: p.testcases.length, defects: p.defects.length, milestones: p.milestones.length, reports: p.reports.length, knowledge: p.knowledge.length, minutes: p.minutes.length, gates: p.gates.filter((g) => g.status === 'pending').length }[key] : null;
       return `<button class="tab ${state.drawerTab === key ? 'active' : ''}" data-tab="${key}" type="button"><span class="tab-icon">${icon}</span><span>${t(label)}</span>${count != null ? `<span class="tab-count">${count}</span>` : ''}</button>`;
     }).join('');
     $$('.tab', $('#tabs')).forEach((tab) => tab.addEventListener('click', () => { state.drawerTab = tab.dataset.tab; renderTabs(); renderTab(state.drawerTab); }));
@@ -958,8 +959,15 @@
     $('#drawer-section-kicker').textContent = kicker;
     $('#drawer-section-title').textContent = title;
     $('#drawer-section-subtitle').textContent = subtitle;
-    ({ overview: renderOverview, requirements: renderRequirements, testcases: renderTestcases, defects: renderDefects, milestones: renderMilestones, reports: renderReports, knowledge: renderKnowledge, minutes: renderMinutes, gates: renderGates }[tab])($('#tab-body'), p);
+    ({ overview: renderOverview, qualityTasks: renderQualityTasks, requirements: renderRequirements, testcases: renderTestcases, defects: renderDefects, milestones: renderMilestones, reports: renderReports, knowledge: renderKnowledge, minutes: renderMinutes, gates: renderGates }[tab])($('#tab-body'), p);
     applyStaticCopy();
+  }
+  function renderQualityTasks(body, p) {
+    const tasks = p.qualityTasks || [];
+    body.innerHTML = `<section class="detail-card" id="quality-gate-summary"><div class="detail-card-head"><div><span>QUALITY GATE</span><h3>质量门禁</h3></div><span class="badge">计算中</span></div><div class="li-sub">正在检查测试运行、证据包和高风险项。</div></section><section class="detail-card quality-assets"><div class="detail-card-head"><div><span>QUALITY ASSETS</span><h3>质量资产</h3></div></div><div class="radar-grid"><div class="radar-stat"><b>${(p.evidenceBundles || []).filter((item) => item.state === 'ready').length}</b><span>就绪证据包</span></div><div class="radar-stat"><b>${(p.failureAnalyses || []).length}</b><span>故障分析</span></div><div class="radar-stat"><b>${(p.regressionSets || []).length}</b><span>回归集</span></div><div class="radar-stat"><b>${(p.testruns || []).length}</b><span>测试运行</span></div></div></section><div class="tab-toolbar"><div><b>质量任务</b><span>记录验收标准、风险、测试范围和分析决策</span></div><button class="btn primary sm" id="qt-add" type="button">＋ 新建质量任务</button></div><div class="list">${tasks.map((task) => `<article class="list-item quality-task-card"><div class="li-title">${esc(task.title)} <span class="badge">v${task.version || 1}</span></div><div class="li-meta">阶段：${esc(task.stage || 'intake')} · 结果来源：${task.analysisOrigin === 'agent' ? 'DSH 分析' : '人工录入'}</div><h4>验收标准</h4><div class="li-sub">${task.acceptanceCriteria?.map((item) => esc(item.condition || item)).join('、') || '暂无验收标准'}</div></article>`).join('') || emptyHtml('暂无质量任务')}</div><section class="detail-card execution-card"><div class="detail-card-head"><div><span>LOCAL EXECUTION</span><h3>执行配置</h3></div><button class="btn primary sm" id="ep-add" type="button">＋ 新建执行配置</button></div><div class="list">${(p.executionProfiles || []).map((profile) => `<div class="list-item"><div class="li-title">${esc(profile.name)} · v${profile.currentVersion || profile.version || 1}</div><div class="li-meta">${esc(profile.executor)} · 网络意图：${profile.networkIntent === 'none' ? '不需要' : '已声明'}</div></div>`).join('') || emptyHtml('暂无执行配置')}</div></section>`;
+    $('#qt-add', body).addEventListener('click', () => openQualityTaskModal(p));
+    $('#ep-add', body).addEventListener('click', () => openExecutionProfileModal(p));
+    api(`api/projects/${p.id}/quality-gate`).then(({ gate }) => { const card = $('#quality-gate-summary', body); if (!card) return; card.innerHTML = `<div class="detail-card-head"><div><span>QUALITY GATE</span><h3>质量门禁</h3></div><span class="badge ${gate.status === 'blocked' ? 'danger' : ''}">${gate.status === 'blocked' ? '阻断' : '通过'}</span></div><div class="li-sub">${gate.blockers.length ? `阻断原因：${gate.blockers.map(esc).join('、')}` : '当前检查项均已满足。'}</div>`; }).catch(() => {});
   }
   function renderOverview(body, p) {
     const options = state.columns.map((column) => `<option value="${column.id}" ${p.status === column.id ? 'selected' : ''}>${esc(column.title)}</option>`).join('');
@@ -1015,6 +1023,28 @@
   function renderGates(body, p) {
     body.innerHTML = `<div class="list">${p.gates.map((gate) => { const badge = gate.status === 'pending' ? '<span class="badge gate">待负责人审批</span>' : gate.status === 'approved' ? '<span class="badge doc">已通过</span>' : '<span class="badge danger">已驳回</span>'; return `<div class="list-item" data-gate-id="${gate.id}"><div class="li-title">${esc(gate.title)} ${badge} <span class="badge">${GATE_CN[gate.type] || gate.type}</span></div><div class="li-sub">${esc(gate.summary || '')}</div>${gate.status === 'pending' ? '<div class="li-actions"><button class="btn sm primary" data-decision="approve" type="button">通过</button><button class="btn sm danger" data-decision="reject" type="button">驳回</button></div>' : ''}</div>`; }).join('') || emptyHtml('暂无待审批门禁。')}</div>`;
     $$('[data-decision]', body).forEach((button) => button.addEventListener('click', async () => { if (button.dataset.decision === 'approve' && !confirm('确认通过该门禁？')) return; const item = button.closest('.list-item'); try { await api(`api/projects/${p.id}/gates/${item.dataset.gateId}/decide`, { method: 'POST', body: { decision: button.dataset.decision } }); toast('门禁已处理', 'ok'); } catch (e) { toast(e.message, 'err'); } }));
+  }
+
+  function openQualityTaskModal(project) {
+    const modal = modalShell('新建质量任务', '先登记任务名称，后续可由 DSH 分析或人工录入补全质量信息。', `<div class="field"><label for="qt-title">任务名称</label><input id="qt-title" placeholder="如：支付回调风险"/></div><div class="modal-foot"><button class="btn" id="qt-cancel" type="button">取消</button><button class="btn primary" id="qt-ok" type="button">创建任务</button></div>`);
+    $('#qt-cancel', modal).addEventListener('click', closeModal);
+    $('#qt-ok', modal).addEventListener('click', async () => {
+      const title = $('#qt-title', modal).value.trim();
+      if (!title) return toast('请填写任务名称', 'err');
+      try { await api(`api/projects/${project.id}/quality-tasks`, { method: 'POST', body: { title } }); closeModal(); await refreshDrawer(project.id); toast('质量任务已创建', 'ok'); }
+      catch (error) { toast(error.message, 'err'); }
+    });
+    setTimeout(() => $('#qt-title', modal).focus(), 30);
+  }
+
+  function openExecutionProfileModal(project) {
+    const modal = modalShell('新建执行配置', '仅允许执行项目工作区内的精确测试文件。', `<div class="field"><label for="ep-name">配置名称</label><input id="ep-name" value="unit"/></div><div class="field"><label for="ep-executor">执行器</label><select id="ep-executor"><option value="node-test">Node Test</option><option value="playwright">Playwright</option></select></div><div class="field"><label for="ep-targets">精确文件（每行一个）</label><textarea id="ep-targets" rows="3">test/fixtures/runner/pass.fixture.mjs</textarea></div><div class="modal-foot"><button class="btn" id="ep-cancel" type="button">取消</button><button class="btn primary" id="ep-ok" type="button">保存配置</button></div>`);
+    $('#ep-cancel', modal).addEventListener('click', closeModal);
+    $('#ep-ok', modal).addEventListener('click', async () => {
+      const targetFiles = $('#ep-targets', modal).value.split('\n').map((value) => value.trim()).filter(Boolean);
+      try { await api(`api/projects/${project.id}/execution-profiles`, { method: 'POST', body: { name: $('#ep-name', modal).value.trim(), executor: $('#ep-executor', modal).value, cwdRelative: '.', targetFiles, networkIntent: 'none' } }); closeModal(); await refreshDrawer(project.id); toast('执行配置已保存', 'ok'); }
+      catch (error) { toast(error.message, 'err'); }
+    });
   }
 
   // ---------- modals and workspaces ----------

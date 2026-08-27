@@ -9,6 +9,7 @@ const skillsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-qa-skills-'));
 process.env.QA_DATA_DIR = dataDir;
 process.env.DSH_SKILLS_DIR = skillsDir;
 const { startQaBench, closeQaBench } = await import('../../server/index.js');
+const store = await import('../../server/store.js');
 const started = await startQaBench({ port: 0, openBrowser: false, log: () => {} });
 const base = `http://127.0.0.1:${started.server.address().port}`;
 
@@ -81,6 +82,121 @@ test('project API validates schedule payloads and missing resources', async () =
 
   const missing = await fetch(`${base}/api/projects/${id}/schedule/evt-missing`, { method: 'DELETE' });
   assert.equal(missing.status, 404);
+});
+
+test('quality task API creates, lists, and enforces revision conflicts', async () => {
+  const project = await (await fetch(`${base}/api/projects`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '质量任务 API 项目', createWorkspace: false }),
+  })).json();
+  const projectId = project.project.id;
+  const created = await fetch(`${base}/api/projects/${projectId}/quality-tasks`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '支付回调风险' }),
+  });
+  assert.equal(created.status, 201);
+  const task = (await created.json()).task;
+  assert.equal(task.title, '支付回调风险');
+  const listed = await fetch(`${base}/api/projects/${projectId}/quality-tasks`);
+  assert.equal(listed.status, 200);
+  assert.equal((await listed.json()).tasks[0].id, task.id);
+  const conflict = await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/decisions`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: 0, action: 'confirm' }),
+  });
+  assert.equal(conflict.status, 409);
+  assert.match((await conflict.json()).error, /版本|revision/i);
+});
+
+test('manual analysis rejects host fields and records manual origin', async () => {
+  const project = await (await fetch(`${base}/api/projects`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '手工分析 API 项目', createWorkspace: false }),
+  })).json();
+  const projectId = project.project.id;
+  const task = (await (await fetch(`${base}/api/projects/${projectId}/quality-tasks`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '手工任务' }),
+  })).json()).task;
+  const forged = await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/manual-analyses`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: 1, origin: 'agent', dshSessionId: 'forged', risks: [] }),
+  });
+  assert.equal(forged.status, 400);
+  const manual = await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/manual-analyses`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: 1, actorLabel: '张测试', acceptanceCriteria: [], risks: [], testScope: [] }),
+  });
+  assert.equal(manual.status, 201);
+  const saved = (await manual.json()).task;
+  assert.equal(saved.analysisOrigin, 'manual');
+  assert.equal(saved.analysisRuns.at(-1).dshSessionId, '');
+});
+
+test('execution API creates profiles and returns a run preview', async () => {
+  const project = await (await fetch(`${base}/api/projects`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '执行 API 项目', createWorkspace: false }),
+  })).json();
+  const projectId = project.project.id;
+  const profileResponse = await fetch(`${base}/api/projects/${projectId}/execution-profiles`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'unit', executor: 'node-test', cwdRelative: '.', targetFiles: ['test/fixtures/runner/pass.fixture.mjs'], networkIntent: 'none' }),
+  });
+  assert.equal(profileResponse.status, 201);
+  const profile = (await profileResponse.json()).profile;
+  const current = store.getProject(projectId);
+  current.testcases.push({ id: 'tc_api_run', target: 'test/fixtures/runner/pass.fixture.mjs', planIds: [] });
+  current.testPlans.push({ id: 'plan_api_run', version: 1, testcaseIds: ['tc_api_run'], status: 'reviewed' });
+  const previewResponse = await fetch(`${base}/api/projects/${projectId}/test-plans/plan_api_run/run-preview`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ profileId: profile.id }),
+  });
+  assert.equal(previewResponse.status, 200);
+  const preview = (await previewResponse.json()).preview;
+  const runResponse = await fetch(`${base}/api/projects/${projectId}/test-plans/plan_api_run/runs`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ previewToken: preview.previewToken }),
+  });
+  assert.equal(runResponse.status, 202);
+  assert.equal((await runResponse.json()).run.status, 'queued');
+});
+
+test('execution API versions and disables profiles with revision checks', async () => {
+  const project = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '配置版本 API 项目', createWorkspace: false }) })).json();
+  const projectId = project.project.id;
+  const created = await (await fetch(`${base}/api/projects/${projectId}/execution-profiles`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'unit', executor: 'node-test', cwdRelative: '.', targetFiles: ['test/fixtures/runner/pass.fixture.mjs'], networkIntent: 'none' }) })).json();
+  const profile = created.profile;
+  const version = await fetch(`${base}/api/projects/${projectId}/execution-profiles/${profile.id}/versions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 1, timeoutMs: 60000 }) });
+  assert.equal(version.status, 201);
+  assert.equal((await version.json()).profile.version, 2);
+  const stale = await fetch(`${base}/api/projects/${projectId}/execution-profiles/${profile.id}/disable`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 1 }) });
+  assert.equal(stale.status, 409);
+});
+
+test('plan API reviews versions and cancels a queued run', async () => {
+  const project = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '计划 API 项目', createWorkspace: false }) })).json();
+  const projectId = project.project.id;
+  const current = store.getProject(projectId);
+  current.qualityTasks.push({ id: 'qt_api_plan', projectId, risks: [] });
+  current.testcases.push({ id: 'tc_plan_api', target: 'test/fixtures/runner/pass.fixture.mjs', planIds: [] });
+  current.testPlans.push({ id: 'plan_api_review', qualityTaskId: 'qt_api_plan', version: 1, testcaseIds: ['tc_plan_api'], status: 'draft' });
+  const reviewed = await fetch(`${base}/api/projects/${projectId}/test-plans/plan_api_review/review`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 1, actorLabel: '张测试' }) });
+  assert.equal(reviewed.status, 200);
+  assert.equal((await reviewed.json()).plan.status, 'reviewed');
+  const next = await fetch(`${base}/api/projects/${projectId}/test-plans/plan_api_review/versions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 1, testcaseIds: ['tc_plan_api'] }) });
+  assert.equal(next.status, 201);
+  assert.equal((await next.json()).plan.version, 2);
+});
+
+test('quality APIs expose gate state and regression assets', async () => {
+  const project = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '质量门禁 API 项目', createWorkspace: false }) })).json();
+  const projectId = project.project.id;
+  const current = store.getProject(projectId);
+  current.testcases.push({ id: 'tc_gate_api', title: '门禁用例', planIds: [] });
+  const created = await fetch(`${base}/api/projects/${projectId}/regression-sets`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: '主回归', testCaseIds: ['tc_gate_api'] }) });
+  assert.equal(created.status, 201);
+  const set = (await created.json()).regressionSet;
+  const excluded = await fetch(`${base}/api/projects/${projectId}/regression-sets/${set.id}/exclude`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ testCaseId: 'tc_gate_api', actor: 'tester', reason: '环境未就绪' }) });
+  assert.equal(excluded.status, 200);
+  const gate = await fetch(`${base}/api/projects/${projectId}/quality-gate`);
+  assert.equal(gate.status, 200);
+  assert.equal((await gate.json()).gate.status, 'passed');
 });
 
 test('skills API returns language-specific catalog in website category order', async () => {

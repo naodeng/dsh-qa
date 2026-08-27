@@ -3,6 +3,8 @@ import crypto from 'node:crypto';
 import * as store from './store.js';
 import { broadcast } from './sse.js';
 import { projectCard, computeStats, KANBAN_COLUMNS } from './board.js';
+import { createAnalysisRequest, saveAnalysis } from './quality/analysis.js';
+import { createTestRun } from './quality/test-run.js';
 
 export const TOOL_CN = {
   project_get: '读取项目信息',
@@ -23,6 +25,9 @@ export const TOOL_CN = {
   project_transition: '推进项目阶段',
   gate_request: '提交门禁',
   testrun_import: '导入测试结果',
+  qa_quality_task_get: '读取质量任务',
+  qa_quality_analysis_request: '创建质量分析请求',
+  qa_quality_analysis_save: '保存质量分析',
 };
 
 const str = (v) => (typeof v === 'string' ? v : v == null ? '' : String(v));
@@ -93,6 +98,11 @@ export const TOOL_DEFS = [
       framework: { type: 'string', description: '框架名，如 Playwright / Pytest' },
       summary: { type: 'string', description: '执行汇总，如 通过 42 / 失败 3 / 跳过 2，总耗时 4m12s' },
       detail: { type: 'string', description: '可选的失败详情/附件路径' } }, additionalProperties: false } } },
+  { type: 'function', function: { name: 'qa_quality_task_get', description: '读取当前项目中的质量任务', parameters: { type: 'object', required: ['taskId'], properties: { taskId: { type: 'string' } }, additionalProperties: false } } },
+  { type: 'function', function: { name: 'qa_quality_analysis_request', description: '为当前项目质量任务创建受控分析请求', parameters: { type: 'object', required: ['taskId'], properties: { taskId: { type: 'string' } }, additionalProperties: false } } },
+  { type: 'function', function: { name: 'qa_quality_analysis_save', description: '保存与当前来源和版本匹配的质量分析结果', parameters: { type: 'object', required: ['analysisRequestId', 'expectedRevision', 'sourceDigests'], properties: {
+      analysisRequestId: { type: 'string' }, expectedRevision: { type: 'integer' }, sourceDigests: { type: 'array', items: { type: 'string' } },
+      acceptanceCriteria: { type: 'array', items: { type: 'object' } }, risks: { type: 'array', items: { type: 'object' } }, testScope: { type: 'array', items: { type: 'object' } }, analysisVersion: { type: 'string' } }, additionalProperties: false } } },
 ];
 
 // ---------- 事件发射 ----------
@@ -269,12 +279,28 @@ export async function executeTool(projectId, name, args = {}) {
     }
 
     case 'testrun_import': {
-      const tr = { id: store.uid('run'), framework: str(args.framework), summary: str(args.summary), detail: str(args.detail), at: store.now() };
-      p.materials.unshift({ id: tr.id, ts: tr.at, type: 'run', label: `导入 ${tr.framework} 测试结果：${tr.summary}` });
-      p.materials = p.materials.slice(0, 6);
+      const tr = createTestRun(p, { mode: 'imported', executor: str(args.framework), summary: str(args.summary), provenance: { detail: str(args.detail) } });
       store.touch(p); store.persist();
       afterChange(projectId, { type: 'run', label: `AI 导入 ${tr.framework} 测试结果：${tr.summary}` });
       return { ok: true, run: tr };
+    }
+
+    case 'qa_quality_task_get': {
+      const task = p.qualityTasks?.find((item) => item.id === args.taskId && item.projectId === p.id);
+      return task ? { ok: true, task } : { ok: false, error: '质量任务不存在' };
+    }
+
+    case 'qa_quality_analysis_request': {
+      const request = createAnalysisRequest(p, args.taskId);
+      if (!request) return { ok: false, error: '质量任务不存在' };
+      store.touch(p); store.persist();
+      return { ok: true, request };
+    }
+
+    case 'qa_quality_analysis_save': {
+      const result = await saveAnalysis({ ...args, origin: 'agent' }, p);
+      if (!result.ok) return result;
+      return result;
     }
 
     default:
