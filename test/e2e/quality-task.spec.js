@@ -24,8 +24,9 @@ test('项目详情可以创建质量任务并在刷新后保留', async ({ page 
   await expect(page.getByText('质量门禁')).toBeVisible();
   await expect(page.getByText('通过', { exact: true })).toBeVisible();
   await expect(page.getByText('质量资产')).toBeVisible();
-  await expect(page.getByText('证据包')).toBeVisible();
-  await expect(page.getByText('故障分析')).toBeVisible();
-  await expect(page.getByText('回归集')).toBeVisible();
+  const assets = page.locator('.quality-asset-list');
+  await expect(assets.getByText('证据包', { exact: true })).toBeVisible();
+  await expect(assets.getByText('故障分析', { exact: true })).toBeVisible();
+  await expect(assets.getByText('回归集', { exact: true })).toBeVisible();
   await expect(page.getByText('支付回调风险')).toBeVisible();
 });
