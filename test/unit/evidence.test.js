@@ -81,3 +81,14 @@ test('rejects symlinks, hard links, and files over the per-file quota', async ()
   fs.truncateSync(path.join(stagingDir, 'large.log'), 100 * 1024 * 1024 + 1);
   await assert.rejects(() => finalizeEvidence(project, run.id), /100MiB/);
 });
+
+test('rejects evidence when the project quota is exceeded', async () => {
+  const artifactRoot = tempDir();
+  const stagingDir = path.join(artifactRoot, 'run.staging');
+  fs.mkdirSync(stagingDir);
+  const project = makeProject({ artifactRoot, artifactUsageBytes: 10, artifactQuotaBytes: 10 });
+  const run = makeTestRun({ projectId: project.id, status: 'passed', artifactDir: stagingDir });
+  project.testruns.push(run);
+  fs.writeFileSync(path.join(stagingDir, 'process.log'), 'passed');
+  await assert.rejects(() => finalizeEvidence(project, run.id), /5GiB|项目产物配额/);
+});

@@ -6,6 +6,7 @@ import { uid, now } from '../store.js';
 const TERMINAL = new Set(['passed', 'failed', 'cancelled', 'environment-error']);
 const MAX_FILE = 100 * 1024 * 1024;
 const MAX_BUNDLE = 500 * 1024 * 1024;
+const MAX_PROJECT = 5 * 1024 * 1024 * 1024;
 const finalizations = new WeakMap();
 
 const inside = (root, target) => {
@@ -59,6 +60,7 @@ async function finalizeEvidenceOnce(project, testRunId) {
     const digest = await digestFile(candidate.full);
     total += digest.size;
     if (total > MAX_BUNDLE) throw new Error('证据包超过 500MiB');
+    if (Number(project.artifactUsageBytes || 0) + total > Number(project.artifactQuotaBytes || MAX_PROJECT)) throw new Error('项目产物配额超过 5GiB');
     const destination = path.join(temporaryRoot, candidate.relativePath);
     await fs.mkdir(path.dirname(destination), { recursive: true });
     await fs.copyFile(candidate.full, destination);
