@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 export function createRegressionSet(project, { name = '', testCaseIds = [] } = {}) {
   project.regressionSets ||= [];
   const valid = new Set((project.testcases || []).map((item) => item.id));
-  const set = { id: uid('regression'), projectId: project.id, name: String(name), testCaseIds: [...new Set(testCaseIds.filter((id) => valid.has(id)))].sort(), exclusions: [], createdAt: now(), updatedAt: now() };
+  const set = { id: uid('regression'), projectId: project.id, version: 1, name: String(name), testCaseIds: [...new Set(testCaseIds.filter((id) => valid.has(id)))].sort(), exclusions: [], createdAt: now(), updatedAt: now() };
   project.regressionSets.push(set);
   return set;
 }
@@ -14,6 +14,7 @@ export function excludeRegressionCase(set, testCaseId, { actor = '', reason = ''
   if (!set.testCaseIds.includes(testCaseId)) throw new Error('回归用例不存在');
   set.exclusions = (set.exclusions || []).filter((item) => item.testCaseId !== testCaseId);
   set.exclusions.push({ testCaseId, actor, reason });
+  set.version = (set.version || 1) + 1;
   set.updatedAt = now();
   return set;
 }

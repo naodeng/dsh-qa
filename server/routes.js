@@ -409,6 +409,7 @@ async function api(req, res, url, body) {
     const c = store.getProject(parts[2]);
     const set = c?.regressionSets?.find((item) => item.id === parts[4]);
     if (!set) return fail(res, 404, '回归集不存在');
+    if (body.expectedRevision !== set.version) return fail(res, 409, '回归集版本已变化，请重新加载');
     try { const updated = excludeRegressionCase(set, body.testCaseId, body); store.touch(c); store.persist(); return ok(res, { regressionSet: updated }); }
     catch (error) { return fail(res, 400, error.message); }
   }

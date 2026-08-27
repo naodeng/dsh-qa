@@ -194,7 +194,7 @@ test('quality APIs expose gate state and regression assets', async () => {
   const created = await fetch(`${base}/api/projects/${projectId}/regression-sets`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: '主回归', testCaseIds: ['tc_gate_api'] }) });
   assert.equal(created.status, 201);
   const set = (await created.json()).regressionSet;
-  const excluded = await fetch(`${base}/api/projects/${projectId}/regression-sets/${set.id}/exclude`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ testCaseId: 'tc_gate_api', actor: 'tester', reason: '环境未就绪' }) });
+  const excluded = await fetch(`${base}/api/projects/${projectId}/regression-sets/${set.id}/exclude`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 1, testCaseId: 'tc_gate_api', actor: 'tester', reason: '环境未就绪' }) });
   assert.equal(excluded.status, 200);
   const gate = await fetch(`${base}/api/projects/${projectId}/quality-gate`);
   assert.equal(gate.status, 200);
