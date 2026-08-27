@@ -388,6 +388,9 @@ async function api(req, res, url, body) {
   if (parts[1] === 'projects' && parts[2] && parts[3] === 'failure-analyses' && parts[4] && parts[5] === 'promote-defect' && m('POST')) {
     const c = store.getProject(parts[2]);
     if (!c) return fail(res, 404, '项目不存在');
+    const analysis = c.failureAnalyses?.find((item) => item.id === parts[4]);
+    if (!analysis) return fail(res, 404, '故障分析不存在');
+    if (body.expectedRevision !== analysis.version) return fail(res, 409, '故障分析版本已变化，请重新加载');
     try { const defect = promoteConfirmedDefect(c, parts[4], body); store.touch(c); store.persist(); return created(res, { defect }); }
     catch (error) { return fail(res, 400, error.message); }
   }

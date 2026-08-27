@@ -209,9 +209,9 @@ test('failure analysis API requires confirmation before defect promotion', async
   const analysisResponse = await fetch(`${base}/api/projects/${projectId}/test-runs/run_failure_api/failure-analysis`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ summary: '提交失败', rootCause: '接口错误', category: 'product' }) });
   assert.equal(analysisResponse.status, 201);
   const analysis = (await analysisResponse.json()).analysis;
-  const rejected = await fetch(`${base}/api/projects/${projectId}/failure-analyses/${analysis.id}/promote-defect`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ confirmed: false }) });
+  const rejected = await fetch(`${base}/api/projects/${projectId}/failure-analyses/${analysis.id}/promote-defect`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 1, confirmed: false }) });
   assert.equal(rejected.status, 400);
-  const promoted = await fetch(`${base}/api/projects/${projectId}/failure-analyses/${analysis.id}/promote-defect`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ confirmed: true, actor: 'tester' }) });
+  const promoted = await fetch(`${base}/api/projects/${projectId}/failure-analyses/${analysis.id}/promote-defect`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 1, confirmed: true, actor: 'tester' }) });
   assert.equal(promoted.status, 201);
   assert.equal((await promoted.json()).defect.status, 'open');
 });
