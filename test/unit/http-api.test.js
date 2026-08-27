@@ -30,6 +30,8 @@ test('board API exposes created project and rejects invalid transition', async (
   const board = await (await fetch(`${base}/api/board`)).json();
   assert.equal(board.projects.some((project) => project.title === 'API 项目'), true);
   const id = board.projects.find((project) => project.title === 'API 项目').id;
+  const detail = await (await fetch(`${base}/api/projects/${id}`)).json();
+  assert.equal('artifactRoot' in detail.project, false);
   const invalid = await fetch(`${base}/api/projects/${id}/transition`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ to: 'unknown' }) });
   assert.equal(invalid.status, 400);
 });

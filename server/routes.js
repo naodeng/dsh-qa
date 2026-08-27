@@ -91,6 +91,11 @@ function created(res, obj) { json(res, 201, { ok: true, ...obj }); }
 function publicEvidence(bundle) {
   return { id: bundle.id, projectId: bundle.projectId, testRunId: bundle.testRunId, state: bundle.state, totalSize: bundle.totalSize, items: bundle.items.map(({ relativePath, size, sha256 }) => ({ relativePath, size, sha256 })) };
 }
+function publicProject(project) {
+  const { artifactRoot, evidenceBundles, ...safe } = project;
+  safe.evidenceBundles = (evidenceBundles || []).map(publicEvidence);
+  return safe;
+}
 function accepted(res, obj) { json(res, 202, { ok: true, ...obj }); }
 function fail(res, code, error) { json(res, code, { ok: false, error }); }
 
@@ -426,7 +431,7 @@ async function api(req, res, url, body) {
   if (parts[1] === 'projects' && parts[2] && !parts[3]) {
     const c = store.getProject(parts[2]);
     if (!c) return fail(res, 404, '项目不存在');
-    if (m('GET')) { ok(res, { project: c }); return true; }
+    if (m('GET')) { ok(res, { project: publicProject(c) }); return true; }
     if (m('DELETE')) {
       store.deleteProject(c.id);
       broadcast('project.deleted', { projectId: c.id });
