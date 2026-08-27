@@ -168,6 +168,20 @@
         </div>
       </section>
 
+      <section id="view-project-detail" class="view">
+        <div class="project-detail-page">
+          <div class="project-detail-head">
+            <button id="btn-project-detail-back" class="btn sm" type="button">← 返回项目看板</button>
+            <div><p class="eyebrow">PROJECT WORKBENCH</p><h1>项目详情</h1><p id="project-detail-meta"></p></div>
+            <div class="project-detail-actions"><button id="btn-project-detail-chat" class="btn primary sm" type="button">DSH 对话</button><button id="btn-project-detail-folder" class="btn sm" type="button">项目文件</button></div>
+          </div>
+          <div class="project-detail-layout">
+            <aside class="detail-sidebar"><nav id="project-detail-tabs" class="tabs"></nav><div id="project-detail-summary" class="drawer-summary"></div></aside>
+            <section class="detail-content"><div class="detail-section-head"><div><p id="project-detail-kicker"></p><h2 id="project-detail-title"></h2><span id="project-detail-subtitle"></span></div></div><div id="project-detail-body" class="tab-body"></div></section>
+          </div>
+        </div>
+      </section>
+
       <section id="view-calendar" class="view">
         <div class="calendar-page">
           <div class="page-head"><div><p class="eyebrow" data-i18n="calendar.eyebrow">里程碑与日程</p><h1 id="full-calendar-title" data-i18n="calendar.title">工作日历</h1><p data-i18n="calendar.sub">选中日期即可新增会议、发布、评审或里程碑截止日。</p></div><div class="calendar-legend"><span><i class="hearing"></i><span data-i18n="calendar.legendEvent">日程</span></span><span><i class="deadline"></i><span data-i18n="calendar.legendMilestone">里程碑</span></span><span><i class="danger"></i><span data-i18n="calendar.legendOverdue">逾期</span></span></div></div>
@@ -184,7 +198,7 @@
 
   <div id="drawer-backdrop" class="backdrop hidden"></div>
   <aside id="drawer" class="drawer hidden">
-    <div class="drawer-head"><div class="case-file-mark">项</div><div class="drawer-title-wrap"><div id="drawer-title" class="drawer-title"></div><div id="drawer-meta" class="drawer-meta"></div></div><div class="drawer-head-actions"><button id="btn-drawer-chat" class="btn sm" type="button">DSH 对话</button><button id="btn-drawer-folder" class="btn sm" type="button">项目文件</button><button id="btn-close-drawer" class="icon-btn" type="button" title="关闭" aria-label="关闭项目详情">✕</button></div></div>
+    <div class="drawer-head"><div class="case-file-mark">项</div><div class="drawer-title-wrap"><div id="drawer-title" class="drawer-title"></div><div id="drawer-meta" class="drawer-meta"></div></div><div class="drawer-head-actions"><button id="btn-drawer-full" class="btn primary sm" type="button">进入完整详情</button><button id="btn-drawer-chat" class="btn sm" type="button">DSH 对话</button><button id="btn-drawer-folder" class="btn sm" type="button">项目文件</button><button id="btn-close-drawer" class="icon-btn" type="button" title="关闭" aria-label="关闭项目详情">✕</button></div></div>
     <div class="case-detail-layout">
       <aside class="detail-sidebar"><nav id="tabs" class="tabs"></nav><div id="drawer-summary" class="drawer-summary"></div></aside>
       <section class="detail-content"><div class="detail-section-head"><div><p id="drawer-section-kicker">项目档案</p><h2 id="drawer-section-title">项目概览</h2><span id="drawer-section-subtitle">基本信息、测试阶段与协作设置</span></div></div><div id="tab-body" class="tab-body"></div></section>

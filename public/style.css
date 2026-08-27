@@ -514,6 +514,15 @@ body.dsh-busy .model-reminder { color: var(--blue); background: var(--blue-soft)
 /* drawer, lists and forms */
 .backdrop { position: fixed; inset: 0; z-index: 70; background: rgba(11, 25, 35, .48); backdrop-filter: blur(3px); }
 .drawer { position: fixed; z-index: 71; top: 28px; right: 28px; bottom: 28px; width: min(1160px, calc(100vw - 56px)); display: flex; flex-direction: column; overflow: hidden; border: 1px solid rgba(255,255,255,.7); border-radius: 17px; background: #f4f6f8; box-shadow: 0 30px 90px rgba(8,25,37,.28); animation: drawer-in .2s ease; }
+.project-detail-page { height: calc(100vh - 28px); margin: 14px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: #f4f6f8; box-shadow: 0 12px 36px rgba(8,25,37,.08); }
+.project-detail-head { min-height: 84px; padding: 14px 20px; display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 18px; border-bottom: 1px solid var(--line); background: #fff; }
+.project-detail-head h1 { font: 650 22px/1.3 "Songti SC", serif; }
+.project-detail-head p:last-child { margin-top: 4px; color: var(--faint); font-size: 10px; }
+.project-detail-actions { display: flex; gap: 8px; }
+.project-detail-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: 230px minmax(0,1fr); }
+.card-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.card-detail-link, .row-detail-link { border: 0; color: var(--blue); background: transparent; font: inherit; cursor: pointer; }
+.card-detail-link:hover, .row-detail-link:hover { text-decoration: underline; }
 @keyframes drawer-in { from { transform: translateY(12px) scale(.985); opacity: .65; } }
 .drawer-head { min-height: 74px; padding: 14px 18px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); background: #fff; }
 .case-file-mark { width: 38px; height: 38px; flex: none; display: grid; place-items: center; border-radius: 10px; color: #fff; background: var(--navy); font: 600 17px "Songti SC", serif; }

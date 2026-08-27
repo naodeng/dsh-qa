@@ -8,9 +8,8 @@ test('项目详情可以预览并执行本地测试', async ({ page }) => {
   await page.locator('#nc-workspace').uncheck();
   await page.getByRole('button', { name: '创建项目' }).click();
   await page.getByRole('button', { name: '项目看板' }).click();
-  await page.locator('.card').filter({ hasText: projectTitle }).click();
-  await page.getByRole('button', { name: '项目详情' }).click();
-  await page.locator('#tabs button[data-tab="qualityTasks"]').click();
+  await page.locator('.card').filter({ hasText: projectTitle }).getByRole('button', { name: '完整详情' }).click();
+  await page.locator('#project-detail-tabs button[data-detail-tab="qualityTasks"]').click();
   await expect(page.getByRole('button', { name: '新建执行配置' })).toBeVisible();
   await page.getByRole('button', { name: '新建执行配置' }).click();
   await page.getByLabel('执行器').selectOption('node-test');
