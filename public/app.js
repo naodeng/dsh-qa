@@ -1003,6 +1003,19 @@
       });
       analysisList?.append(button);
     });
+    const runList = $('.quality-asset-list .list-item:nth-child(1)', body);
+    const runs = p.testruns || [];
+    if (runs.length >= 2 && runList) {
+      const compare = document.createElement('button');
+      compare.className = 'btn sm'; compare.type = 'button'; compare.textContent = '对比测试运行';
+      compare.addEventListener('click', async () => {
+        const before = prompt('基线运行 ID', runs.at(-2).id);
+        const after = prompt('当前运行 ID', runs.at(-1).id);
+        if (!before || !after) return;
+        try { const result = await api(`api/projects/${p.id}/test-runs/${encodeURIComponent(after)}/compare`, { method: 'POST', body: { otherRunId: before } }); toast(`对比完成：${result.comparison.changedCases.length} 个用例发生变化`, 'ok'); } catch (error) { toast(error.message, 'err'); }
+      });
+      runList.append(compare);
+    }
     $('#qt-add', body).addEventListener('click', () => openQualityTaskModal(p));
     $('#ep-add', body).addEventListener('click', () => openExecutionProfileModal(p));
     api(`api/projects/${p.id}/quality-gate`).then(({ gate }) => { const card = $('#quality-gate-summary', body); if (!card) return; card.innerHTML = `<div class="detail-card-head"><div><span>QUALITY GATE</span><h3>质量门禁</h3></div><span class="badge ${gate.status === 'blocked' ? 'danger' : ''}">${gate.status === 'blocked' ? '阻断' : '通过'}</span></div><div class="li-sub">${gate.blockers.length ? `阻断原因：${gate.blockers.map(esc).join('、')}` : '当前检查项均已满足。'}</div>`; }).catch(() => {});
