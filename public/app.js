@@ -992,6 +992,17 @@
         try { await api(`api/projects/${p.id}/test-runs/${failedRun.id}/failure-analysis`, { method: 'POST', body: { category: 'product', summary: summary.trim(), rootCause } }); toast('故障分析已创建', 'ok'); await refreshDrawer(p.id); } catch (error) { toast(error.message, 'err'); }
       });
     }
+    const analysisList = $('.quality-asset-list .list-item:nth-child(2)', body);
+    analyses.filter((item) => item.status === 'proposed').forEach((analysis) => {
+      const button = document.createElement('button');
+      button.className = 'btn sm'; button.type = 'button'; button.textContent = '升级为缺陷';
+      button.addEventListener('click', async () => {
+        const actor = prompt('确认人');
+        if (!actor?.trim() || !confirm('确认将该故障分析升级为缺陷？')) return;
+        try { await api(`api/projects/${p.id}/failure-analyses/${analysis.id}/promote-defect`, { method: 'POST', body: { actor: actor.trim(), confirmed: true } }); toast('已升级为缺陷', 'ok'); await refreshDrawer(p.id); } catch (error) { toast(error.message, 'err'); }
+      });
+      analysisList?.append(button);
+    });
     $('#qt-add', body).addEventListener('click', () => openQualityTaskModal(p));
     $('#ep-add', body).addEventListener('click', () => openExecutionProfileModal(p));
     api(`api/projects/${p.id}/quality-gate`).then(({ gate }) => { const card = $('#quality-gate-summary', body); if (!card) return; card.innerHTML = `<div class="detail-card-head"><div><span>QUALITY GATE</span><h3>质量门禁</h3></div><span class="badge ${gate.status === 'blocked' ? 'danger' : ''}">${gate.status === 'blocked' ? '阻断' : '通过'}</span></div><div class="li-sub">${gate.blockers.length ? `阻断原因：${gate.blockers.map(esc).join('、')}` : '当前检查项均已满足。'}</div>`; }).catch(() => {});
