@@ -972,7 +972,7 @@
     const assetHead = $('.quality-assets .detail-card-head', body);
     if (assetHead) {
       const actions = document.createElement('div');
-      actions.innerHTML = '<button class="btn sm" id="reg-add" type="button">＋ 新建回归集</button><button class="btn sm" id="cleanup-add" type="button">清理过期证据</button>';
+      actions.innerHTML = '<button class="btn sm" id="reg-add" type="button">＋ 新建回归集</button><button class="btn sm" id="analysis-add" type="button">＋ 新建故障分析</button><button class="btn sm" id="cleanup-add" type="button">清理过期证据</button>';
       assetHead.append(actions);
       $('#reg-add', actions).addEventListener('click', async () => {
         const name = prompt('回归集名称');
@@ -982,6 +982,14 @@
       $('#cleanup-add', actions).addEventListener('click', async () => {
         if (!confirm('确认创建过期证据清理任务？默认保留最近 30 天。')) return;
         try { await api(`api/projects/${p.id}/artifact-cleanup`, { method: 'POST', body: {} }); toast('清理任务已创建', 'ok'); } catch (error) { toast(error.message, 'err'); }
+      });
+      $('#analysis-add', actions).addEventListener('click', async () => {
+        const failedRun = [...(p.testruns || [])].reverse().find((run) => run.status === 'failed' && run.resultTrust === 'controlled-local');
+        if (!failedRun) { toast('暂无可分析的受控失败运行', 'err'); return; }
+        const summary = prompt('故障摘要');
+        if (!summary?.trim()) return;
+        const rootCause = prompt('根因（可选）') || '';
+        try { await api(`api/projects/${p.id}/test-runs/${failedRun.id}/failure-analysis`, { method: 'POST', body: { category: 'product', summary: summary.trim(), rootCause } }); toast('故障分析已创建', 'ok'); await refreshDrawer(p.id); } catch (error) { toast(error.message, 'err'); }
       });
     }
     $('#qt-add', body).addEventListener('click', () => openQualityTaskModal(p));
