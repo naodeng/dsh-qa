@@ -25,7 +25,11 @@ export function startQaBench(opts = {}) {
   seedIfEmpty();
   recoverEvidenceFinalization(store.listProjects()).catch(() => {});
   recoverOrphanStaging(store.listProjects()).catch(() => {});
-  const cleanupWorker = startArtifactCleanupWorker({ jobs: store.listArtifactCleanupJobs() });
+  const cleanupWorker = startArtifactCleanupWorker({
+    jobs: store.listArtifactCleanupJobs(),
+    projectExists: (projectId) => Boolean(store.getProject(projectId)),
+    onChange: store.flush,
+  });
 
   const server = http.createServer((req, res) => {
     try { handleRequest(req, res); }

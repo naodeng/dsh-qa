@@ -19,5 +19,6 @@ export function compareRuns(project, beforeId, afterId) {
       const classification = before === 'failed' && after === 'passed' ? 'fixed' : before === 'passed' && after === 'failed' ? 'new-failure' : 'changed';
       return { caseId, before, after, classification };
     });
-  return { beforeRunId: before.id, afterRunId: after.id, testPlanId: before.testPlanId, samePlan: true, changedCases };
+  const evidenceRefs = [...new Set([...(before.evidenceRefs || []), ...(after.evidenceRefs || [])])];
+  return { beforeRunId: before.id, afterRunId: after.id, testPlanId: before.testPlanId, samePlan: true, changedCases, evidenceRefs };
 }

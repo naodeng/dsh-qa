@@ -27,12 +27,18 @@ export async function executeArtifactCleanup(job, deps = { rm: fs.rm }) {
   return job;
 }
 
-export function startArtifactCleanupWorker({ jobs = [], intervalMs = 60_000, batchSize = 10, deps } = {}) {
+export function startArtifactCleanupWorker({ jobs = [], intervalMs = 60_000, batchSize = 10, deps, projectExists = () => false, onChange = () => {} } = {}) {
   let stopped = false;
   const tick = async () => {
     if (stopped) return;
-    const pending = jobs.filter((job) => job.status === 'queued' || job.status === 'retryable').slice(0, batchSize);
-    for (const job of pending) await executeArtifactCleanup(job, deps);
+    const pending = jobs.filter((job) => !projectExists(job.projectId) && (job.status === 'queued' || job.status === 'retryable')).slice(0, batchSize);
+    let changed = false;
+    for (const job of pending) {
+      await executeArtifactCleanup(job, deps);
+      changed = true;
+      if (job.status === 'completed') jobs.splice(jobs.indexOf(job), 1);
+    }
+    if (changed) onChange();
   };
   const timer = setInterval(() => { tick().catch(() => {}); }, intervalMs);
   timer.unref?.();

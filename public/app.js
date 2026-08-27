@@ -53,7 +53,7 @@
   const state = {
     view: 'dashboard', columns: [], cards: new Map(), feed: [], schedule: [], reminders: [], stats: {}, settings: {},
     activeProjectId: null, activeProject: null, drawerProject: null, drawerTab: 'overview',
-    streams: new Map(), busy: new Set(), justDragged: false, search: '', caseFilter: 'all',
+    streams: new Map(), evidenceRevisions: new Map(), busy: new Set(), justDragged: false, search: '', caseFilter: 'all',
     dshEmbedded: location.pathname.startsWith('/api/dsh-qa/workbench'),
     theme: 'dashboard',
     layout: { ...DEFAULT_LAYOUT },
@@ -963,12 +963,14 @@
     applyStaticCopy();
   }
   function renderQualityTasks(body, p) {
+    const q = (zh, en) => currentLang() === 'en' ? en : zh;
     const tasks = p.qualityTasks || [];
     const evidence = p.evidenceBundles || [];
-    const evidenceDownload = evidence.flatMap((bundle) => (bundle.items || []).map((item) => `<a class="btn sm" href="api/projects/${encodeURIComponent(p.id)}/evidence/${encodeURIComponent(bundle.id)}/download?path=${encodeURIComponent(item.relativePath)}" download>下载 ${esc(item.relativePath)}</a>`)).join('');
+    const evidenceDownload = evidence.filter((bundle) => bundle.state === 'ready').flatMap((bundle) => (bundle.items || []).map((item) => `<a class="btn sm" href="api/projects/${encodeURIComponent(p.id)}/evidence/${encodeURIComponent(bundle.id)}/items/${encodeURIComponent(item.id)}/download" download>${q('下载', 'Download')} ${esc(item.relativePath)}</a>`)).join('');
     const analyses = p.failureAnalyses || [];
     const regressions = p.regressionSets || [];
-    body.innerHTML = `<section class="detail-card" id="quality-gate-summary"><div class="detail-card-head"><div><span>QUALITY GATE</span><h3>质量门禁</h3></div><span class="badge">计算中</span></div><div class="li-sub">正在检查测试运行、证据包和高风险项。</div></section><section class="detail-card quality-assets"><div class="detail-card-head"><div><span>QUALITY ASSETS</span><h3>质量资产</h3></div></div><div class="radar-grid"><div class="radar-stat"><b>${evidence.filter((item) => item.state === 'ready').length}</b><span>就绪证据包</span></div><div class="radar-stat"><b>${analyses.length}</b><span>故障分析</span></div><div class="radar-stat"><b>${regressions.length}</b><span>回归集</span></div><div class="radar-stat"><b>${(p.testruns || []).length}</b><span>测试运行</span></div></div><div class="list quality-asset-list"><div class="list-item"><div class="li-title">证据包</div><div class="li-sub">${evidence.map((item) => `${esc(item.id)} · ${esc(item.state || 'unknown')}`).join('、') || '暂无证据包'}</div>${evidenceDownload ? `<div class="li-meta">${evidenceDownload}</div>` : ''}</div><div class="list-item"><div class="li-title">故障分析</div><div class="li-sub">${analyses.map((item) => `${esc(item.summary || item.id)} · ${esc(item.status || 'proposed')}`).join('、') || '暂无故障分析'}</div></div><div class="list-item"><div class="li-title">回归集</div><div class="li-sub">${regressions.map((item) => `${esc(item.name || item.id)} · ${item.testCaseIds?.length || 0} 个用例`).join('、') || '暂无回归集'}</div></div></div></section><div class="tab-toolbar"><div><b>质量任务</b><span>记录验收标准、风险、测试范围和分析决策</span></div><button class="btn primary sm" id="qt-add" type="button">＋ 新建质量任务</button></div><div class="list">${tasks.map((task) => `<article class="list-item quality-task-card"><div class="li-title">${esc(task.title)} <span class="badge">v${task.version || 1}</span></div><div class="li-meta">阶段：${esc(task.stage || 'intake')} · 结果来源：${task.analysisOrigin === 'agent' ? 'DSH 分析' : '人工录入'}</div><h4>验收标准</h4><div class="li-sub">${task.acceptanceCriteria?.map((item) => esc(item.condition || item)).join('、') || '暂无验收标准'}</div></article>`).join('') || emptyHtml('暂无质量任务')}</div><section class="detail-card execution-card"><div class="detail-card-head"><div><span>LOCAL EXECUTION</span><h3>执行配置</h3></div><button class="btn primary sm" id="ep-add" type="button">＋ 新建执行配置</button></div><div class="list">${(p.executionProfiles || []).map((profile) => `<div class="list-item"><div class="li-title">${esc(profile.name)} · v${profile.currentVersion || profile.version || 1}</div><div class="li-meta">${esc(profile.executor)} · 网络意图：${profile.networkIntent === 'none' ? '不需要' : '已声明'}</div></div>`).join('') || emptyHtml('暂无执行配置')}</div></section>`;
+    const evidenceState = (item) => ({ ready: q('已验证', 'Verified'), finalizing: q('处理中', 'Finalizing'), expired: q('已过期', 'Expired'), 'integrity-failed': q('完整性失败', 'Integrity failed') }[item.state] || item.state || q('未知', 'Unknown'));
+    body.innerHTML = `<section class="detail-card" id="quality-gate-summary"><div class="detail-card-head"><div><span>QUALITY GATE</span><h3>${q('质量门禁', 'Quality gate')}</h3></div><span class="badge">${q('计算中', 'Checking')}</span></div><div class="li-sub">${q('正在检查测试运行、证据包和高风险项。', 'Checking test runs, evidence bundles, and high risks.')}</div></section><section class="detail-card quality-assets"><div class="detail-card-head"><div><span>QUALITY EVIDENCE</span><h3>${q('质量证据', 'Quality evidence')}</h3></div></div><div class="radar-grid"><div class="radar-stat"><b>${evidence.filter((item) => item.state === 'ready').length}</b><span>${q('就绪证据包', 'Ready bundles')}</span></div><div class="radar-stat"><b>${analyses.length}</b><span>${q('故障分析', 'Failure analyses')}</span></div><div class="radar-stat"><b>${regressions.length}</b><span>${q('回归集', 'Regression sets')}</span></div><div class="radar-stat"><b>${(p.testruns || []).length}</b><span>${q('测试运行', 'Test runs')}</span></div></div><div class="list quality-asset-list"><div class="list-item"><div class="li-title">${q('证据包', 'Evidence bundles')}</div><div class="li-sub">${evidence.map((item) => `${esc(item.id)} · ${esc(evidenceState(item))}`).join('、') || q('暂无证据包', 'No evidence bundles')}</div>${evidenceDownload ? `<div class="li-meta">${evidenceDownload}</div>` : ''}</div><div class="list-item"><div class="li-title">${q('故障分析', 'Failure analyses')}</div><div class="li-sub">${analyses.map((item) => `${esc(item.summary || item.id)} · ${esc(item.status || 'proposed')}`).join('、') || q('暂无故障分析', 'No failure analyses')}</div></div><div class="list-item"><div class="li-title">${q('回归集', 'Regression sets')}</div><div class="li-sub">${regressions.map((item) => `${esc(item.name || item.id)} · ${item.testCaseIds?.length || 0} ${q('个用例', 'cases')}`).join('、') || q('暂无回归集', 'No regression sets')}</div></div><div class="list-item"><div class="li-title">${q('修复前后对比', 'Before/after comparison')}</div><div class="li-sub">${q('选择同一测试计划的两个终态运行进行对比。', 'Compare two terminal runs from the same test plan.')}</div></div></div></section><div class="tab-toolbar"><div><b>${q('质量任务', 'Quality tasks')}</b><span>${q('记录验收标准、风险、测试范围和分析决策', 'Track acceptance criteria, risks, scope, and analysis decisions')}</span></div><button class="btn primary sm" id="qt-add" type="button">＋ ${q('新建质量任务', 'New quality task')}</button></div><div class="list">${tasks.map((task) => `<article class="list-item quality-task-card"><div class="li-title">${esc(task.title)} <span class="badge">v${task.version || 1}</span></div><div class="li-meta">${q('阶段', 'Stage')}：${esc(task.stage || 'intake')} · ${q('结果来源', 'Origin')}：${task.analysisOrigin === 'agent' ? 'DSH 分析' : q('人工录入', 'Manual')}</div><h4>${q('验收标准', 'Acceptance criteria')}</h4><div class="li-sub">${task.acceptanceCriteria?.map((item) => esc(item.condition || item)).join('、') || q('暂无验收标准', 'No acceptance criteria')}</div></article>`).join('') || emptyHtml(q('暂无质量任务', 'No quality tasks'))}</div><section class="detail-card execution-card"><div class="detail-card-head"><div><span>LOCAL EXECUTION</span><h3>${q('执行配置', 'Execution profiles')}</h3></div><button class="btn primary sm" id="ep-add" type="button">＋ ${q('新建执行配置', 'New execution profile')}</button></div><div class="list">${(p.executionProfiles || []).map((profile) => `<div class="list-item"><div class="li-title">${esc(profile.name)} · v${profile.currentVersion || profile.version || 1}</div></div>`).join('') || emptyHtml(q('暂无执行配置', 'No execution profiles'))}</div></section>`;
     const assetHead = $('.quality-assets .detail-card-head', body);
     if (assetHead) {
       const actions = document.createElement('div');
@@ -999,9 +1001,24 @@
       button.addEventListener('click', async () => {
         const actor = prompt('确认人');
         if (!actor?.trim() || !confirm('确认将该故障分析升级为缺陷？')) return;
-        try { await api(`api/projects/${p.id}/failure-analyses/${analysis.id}/promote-defect`, { method: 'POST', body: { actor: actor.trim(), confirmed: true } }); toast('已升级为缺陷', 'ok'); await refreshDrawer(p.id); } catch (error) { toast(error.message, 'err'); }
+        try { await api(`api/projects/${p.id}/failure-analyses/${analysis.id}/promote-defect`, { method: 'POST', body: { expectedRevision: analysis.version, actorLabel: actor.trim(), confirmed: true } }); toast('已登记为待处理缺陷', 'ok'); await refreshDrawer(p.id); } catch (error) { toast(error.message, 'err'); }
       });
       analysisList?.append(button);
+    });
+    const regressionList = $('.quality-asset-list .list-item:nth-child(3)', body);
+    regressions.forEach((set) => {
+      const available = (set.testCaseIds || []).find((id) => !(set.exclusions || []).some((item) => item.testCaseId === id));
+      if (!available) return;
+      const button = document.createElement('button');
+      button.className = 'btn sm'; button.type = 'button'; button.textContent = q('排除回归项', 'Exclude regression case');
+      button.addEventListener('click', async () => {
+        const reason = prompt(q('请填写排除理由', 'Enter an exclusion reason'));
+        if (!reason?.trim()) { toast(q('请填写排除理由', 'Enter an exclusion reason'), 'err'); return; }
+        const actor = prompt(q('操作者', 'Actor'));
+        if (!actor?.trim()) return;
+        try { await api(`api/projects/${p.id}/regression-sets/${set.id}/exclude`, { method: 'POST', body: { expectedRevision: set.version, testCaseId: available, actor: actor.trim(), reason: reason.trim() } }); toast(q('回归项已排除', 'Regression case excluded'), 'ok'); await refreshDrawer(p.id); } catch (error) { toast(error.message, 'err'); }
+      });
+      regressionList?.append(button);
     });
     const runList = $('.quality-asset-list .list-item:nth-child(1)', body);
     const runs = p.testruns || [];
@@ -1387,6 +1404,13 @@
     events.addEventListener('project.updated', (event) => { updateCard(JSON.parse(event.data).project); scheduleRefresh(); });
     events.addEventListener('project.created', (event) => { const card = JSON.parse(event.data).project; state.cards.set(card.id, card); renderRailCases(); renderCaseList(); scheduleRefresh(); });
     events.addEventListener('project.deleted', (event) => { removeCard(JSON.parse(event.data).projectId); scheduleRefresh(); });
+    events.addEventListener('quality.evidence.updated', (event) => {
+      const update = JSON.parse(event.data);
+      const seen = state.evidenceRevisions.get(update.entityId) || 0;
+      if (Number(update.revision || 0) <= seen) return;
+      state.evidenceRevisions.set(update.entityId, Number(update.revision));
+      if (state.drawerProject?.id === update.projectId) refreshDrawer(update.projectId).catch(() => {});
+    });
     events.addEventListener('feed', (event) => { state.feed.unshift(JSON.parse(event.data).entry); state.feed = state.feed.slice(0, 100); renderFeed(); renderDashboardFeed(); });
     events.addEventListener('stats', (event) => { state.stats = JSON.parse(event.data); renderMetrics(); });
     events.onerror = () => {};

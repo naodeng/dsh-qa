@@ -214,6 +214,8 @@ test('failure analysis API requires confirmation before defect promotion', async
   const promoted = await fetch(`${base}/api/projects/${projectId}/failure-analyses/${analysis.id}/promote-defect`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 1, confirmed: true, actor: 'tester' }) });
   assert.equal(promoted.status, 201);
   assert.equal((await promoted.json()).defect.status, 'open');
+  const duplicate = await fetch(`${base}/api/projects/${projectId}/failure-analyses/${analysis.id}/promote-defect`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 2, confirmed: true, actor: 'tester' }) });
+  assert.equal(duplicate.status, 409);
 });
 
 test('evidence API finalizes, lists, downloads, and rejects tampered files', async () => {
@@ -223,20 +225,26 @@ test('evidence API finalizes, lists, downloads, and rejects tampered files', asy
   const staging = path.join(dataDir, 'artifacts', projectId, 'run_evidence.staging');
   fs.mkdirSync(staging, { recursive: true });
   fs.writeFileSync(path.join(staging, 'process.log'), 'passed');
-  current.testruns.push({ id: 'run_evidence', projectId, status: 'passed', mode: 'local', resultTrust: 'controlled-local', artifactDir: staging });
-  const finalized = await fetch(`${base}/api/projects/${projectId}/test-runs/run_evidence/evidence/finalize`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+  fs.writeFileSync(path.join(staging, 'trace.zip'), 'trace');
+  current.testruns.push({ id: 'run_evidence', projectId, revision: 1, status: 'passed', mode: 'local', resultTrust: 'controlled-local', artifactDir: staging });
+  const missingRevision = await fetch(`${base}/api/projects/${projectId}/test-runs/run_evidence/evidence/finalize`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+  assert.equal(missingRevision.status, 409);
+  const finalized = await fetch(`${base}/api/projects/${projectId}/test-runs/run_evidence/evidence/finalize`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRunRevision: 1 }) });
   assert.equal(finalized.status, 201);
   const evidence = (await finalized.json()).evidence;
   assert.equal('root' in evidence, false);
   const listed = await fetch(`${base}/api/projects/${projectId}/evidence`);
   assert.equal((await listed.json()).evidence[0].id, evidence.id);
-  const downloaded = await fetch(`${base}/api/projects/${projectId}/evidence/${evidence.id}/download?path=process.log`);
-  assert.equal(downloaded.status, 200);
-  assert.equal(await downloaded.text(), 'passed');
+  const legacyDownload = await fetch(`${base}/api/projects/${projectId}/evidence/${evidence.id}/download?path=process.log`);
+  assert.equal(legacyDownload.status, 404);
   const itemDownload = await fetch(`${base}/api/projects/${projectId}/evidence/${evidence.id}/items/${evidence.items[0].id}/download`);
   assert.equal(itemDownload.status, 200);
+  assert.ok(['passed', 'trace'].includes(await itemDownload.text()));
+  const repeated = await fetch(`${base}/api/projects/${projectId}/test-runs/run_evidence/evidence/finalize`, { method: 'POST' });
+  assert.equal(repeated.status, 200);
+  const processItem = evidence.items.find((item) => item.relativePath === 'process.log');
   fs.appendFileSync(path.join(dataDir, 'artifacts', projectId, 'evidence', evidence.id, 'process.log'), 'changed');
-  const tampered = await fetch(`${base}/api/projects/${projectId}/evidence/${evidence.id}/download?path=process.log`);
+  const tampered = await fetch(`${base}/api/projects/${projectId}/evidence/${evidence.id}/items/${processItem.id}/download`);
   assert.equal(tampered.status, 409);
 });
 

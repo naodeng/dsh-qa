@@ -2,7 +2,7 @@
 
 ## 目的
 
-本文档记录 0.2.0–0.4.0 的实际实现边界、验证结果和未完成项。它是当前代码状态说明，不替代原始需求、方案和技术设计文档。
+本文档记录 0.2.0–0.4.0 的实际实现边界和验收结果。它是当前代码状态说明，不替代原始需求、方案和技术设计文档。
 
 ## 迭代状态
 
@@ -22,37 +22,32 @@
 
 ### 0.4.0：证据与质量判断
 
-- 已实现终态运行证据 finalize、逐文件 SHA-256、篡改检测和安全下载。
-- 已实现证据保留任务，默认截止时间为当前时间前 30 天；被引用证据不会清理。
-- 已实现失败分析、人工确认后升级缺陷、回归集稳定排序和排除理由。
-- 已实现同一测试计划下的终态运行对比。
-- 已实现质量门禁计算及项目质量任务页展示。
+- 已实现终态运行的 staging → finalizing → final 原子 finalize、manifest、逐文件 SHA-256、篡改检测、并发幂等、恢复和 ID 安全下载。
+- 已实现单文件、单 bundle、项目累计配额；失败 finalize 会把 staging 恢复到可重试状态。
+- 已实现顶层项目删除清理任务、30 天保留策略、引用保护、失败重试、启动立即恢复、批量限制、孤立 staging 清理和停机钩子。
+- 已实现失败分析、人工确认后升级既有缺陷、重复提升冲突保护、确定性回归集、带操作者与理由的排除审计。
+- 已实现同一测试计划终态运行对比，输出 fixed/new-failure 并保留前后证据引用。
+- 已实现质量门禁计算和阶段推进阻断，以及质量证据、故障分析、回归集、修复前后对比的双语页面。
+- 已实现 `quality.evidence.updated` SSE；浏览器按实体 revision 忽略重复或乱序事件，并刷新已打开的项目详情。
 
 ## 关键 API
 
 | 能力 | API |
 |---|---|
-| 证据 finalize | `POST /api/projects/:projectId/test-runs/:runId/evidence/finalize` |
+| 证据 finalize | `POST /api/projects/:projectId/test-runs/:runId/evidence/finalize`（首次要求 `expectedRunRevision`） |
 | 证据列表 | `GET /api/projects/:projectId/evidence` |
-| 证据下载 | `GET /api/projects/:projectId/evidence/:evidenceId/download?path=...` |
+| 证据下载 | `GET /api/projects/:projectId/evidence/:evidenceId/items/:itemId/download` |
 | 运行对比 | `POST /api/projects/:projectId/test-runs/:runId/compare` |
+| 运行对比（ID 路径） | `GET /api/projects/:projectId/test-runs/:beforeRunId/compare/:afterRunId` |
 | 失败分析 | `POST /api/projects/:projectId/test-runs/:runId/failure-analysis` |
 | 缺陷升级 | `POST /api/projects/:projectId/failure-analyses/:analysisId/promote-defect` |
 | 回归集 | `GET/POST /api/projects/:projectId/regression-sets` |
 | 质量门禁 | `GET /api/projects/:projectId/quality-gate` |
 | 清理任务 | `POST /api/projects/:projectId/artifact-cleanup` |
 
-## 当前验证
+## 完成与验证标准
 
-- 证据、保留、故障分析、回归集、运行对比和质量门禁专项测试通过。
-- 受控 node-test 执行器回归测试通过。
-- `node --check` 和 `git diff --check` 通过。
-- HTTP 全量测试在当前沙箱中受 `listen EPERM` 限制，尚未获得完整监听验证。
-- Chromium E2E 在当前沙箱中受 Mach 服务权限限制，不能据此判定页面功能失败。
-
-## 后续工作
-
-1. 为新增 API 补完整 HTTP 测试并在可监听环境执行。
-2. 补证据、失败分析、回归集的前端展示与交互。
-3. 将质量门禁接入发布/阶段推进阻断，而不仅是页面展示。
-4. 完成全量 `npm test`、浏览器验收、提交和远端推送。
+- 单元测试覆盖 0.2.0–0.4.0 领域行为、迁移、存储、受控执行器和质量门禁。
+- HTTP 测试使用真实随机本地端口，覆盖新增 API 的成功、冲突、篡改与路径安全场景。
+- Chromium E2E 使用 8899 端口和真实服务，覆盖质量任务、受控执行配置、证据/回归空状态、回归集创建与双语页面。
+- 发布验收统一执行 `npm test` 与 `git diff --check`；只有两者均成功才可标记 0.4.0 及之前完成。

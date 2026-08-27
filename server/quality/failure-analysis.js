@@ -9,14 +9,16 @@ export function saveFailureAnalysis(project, testRunId, fields = {}) {
   return analysis;
 }
 
-export function promoteConfirmedDefect(project, analysisId, { actor = '', confirmed = false } = {}) {
+export function promoteConfirmedDefect(project, analysisId, { actor = '', actorLabel = '', confirmed = false } = {}) {
   const analysis = (project.failureAnalyses || []).find((item) => item.id === analysisId);
   if (!analysis) throw new Error('故障分析不存在');
   if (analysis.status === 'promoted') throw new Error('分析已升级');
-  if (!confirmed || !actor) throw new Error('升级缺少人工确认');
-  const defect = { id: uid('defect'), title: analysis.summary || '未命名缺陷', status: 'open', sourceAnalysisId: analysis.id, createdAt: now() };
+  const confirmedBy = actorLabel || actor;
+  if (!confirmed || !confirmedBy) throw new Error('升级缺少人工确认');
+  const run = (project.testruns || []).find((item) => item.id === analysis.testRunId);
+  const defect = { id: uid('defect'), title: analysis.summary || '未命名缺陷', status: 'open', failureAnalysisId: analysis.id, sourceAnalysisId: analysis.id, testRunId: analysis.testRunId, evidenceRefs: [...(run?.evidenceRefs || [])], createdAt: now() };
   project.defects ||= [];
   project.defects.push(defect);
-  analysis.status = 'promoted'; analysis.version += 1; analysis.confirmedBy = actor; analysis.confirmedAt = now();
+  analysis.status = 'promoted'; analysis.version += 1; analysis.confirmedBy = confirmedBy; analysis.confirmedAt = now();
   return defect;
 }

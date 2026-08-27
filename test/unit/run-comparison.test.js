@@ -5,8 +5,8 @@ import { compareRuns } from '../../server/quality/run-comparison.js';
 
 test('compares terminal runs under the same plan with deterministic case changes', () => {
   const project = makeProject();
-  const before = makeTestRun({ projectId: project.id, status: 'passed', testPlanId: 'plan-1', cases: [{ id: 'b', status: 'passed' }, { id: 'a', status: 'failed' }] });
-  const after = makeTestRun({ projectId: project.id, status: 'failed', testPlanId: 'plan-1', cases: [{ id: 'a', status: 'passed' }, { id: 'b', status: 'failed' }] });
+  const before = makeTestRun({ projectId: project.id, status: 'passed', testPlanId: 'plan-1', evidenceRefs: ['ev-before'], cases: [{ id: 'b', status: 'passed' }, { id: 'a', status: 'failed' }] });
+  const after = makeTestRun({ projectId: project.id, status: 'failed', testPlanId: 'plan-1', evidenceRefs: ['ev-after'], cases: [{ id: 'a', status: 'passed' }, { id: 'b', status: 'failed' }] });
   project.testruns.push(before, after);
   const result = compareRuns(project, before.id, after.id);
   assert.equal(result.samePlan, true);
@@ -14,6 +14,7 @@ test('compares terminal runs under the same plan with deterministic case changes
     { caseId: 'a', before: 'failed', after: 'passed', classification: 'fixed' },
     { caseId: 'b', before: 'passed', after: 'failed', classification: 'new-failure' },
   ]);
+  assert.deepEqual(result.evidenceRefs, ['ev-before', 'ev-after']);
 });
 
 test('rejects non-terminal, cross-project, and cross-plan comparisons', () => {

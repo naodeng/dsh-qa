@@ -89,7 +89,7 @@ function json(res, code, obj) {
 function ok(res, obj) { json(res, 200, { ok: true, ...obj }); }
 function created(res, obj) { json(res, 201, { ok: true, ...obj }); }
 function publicEvidence(bundle) {
-  return { id: bundle.id, projectId: bundle.projectId, testRunId: bundle.testRunId, state: bundle.state, totalSize: bundle.totalSize, items: bundle.items.map(({ id, relativePath, size, sha256 }) => ({ id, relativePath, size, sha256 })) };
+  return { id: bundle.id, projectId: bundle.projectId, testRunId: bundle.testRunId, state: bundle.state, totalSize: bundle.totalSize, manifestSha256: bundle.manifestSha256, createdAt: bundle.createdAt, updatedAt: bundle.updatedAt, items: bundle.items.map(({ id, relativePath, size, sha256 }) => ({ id, relativePath, size, sha256 })) };
 }
 function publicProject(project) {
   const { artifactRoot, evidenceBundles, ...safe } = project;
@@ -341,10 +341,19 @@ async function api(req, res, url, body) {
   if (parts[1] === 'projects' && parts[2] && parts[3] === 'test-runs' && parts[4] && parts[5] === 'evidence' && parts[6] === 'finalize' && m('POST')) {
     const c = store.getProject(parts[2]);
     if (!c) return fail(res, 404, '项目不存在');
+    const run = c.testruns?.find((item) => item.id === parts[4]);
+    if (!run) return fail(res, 404, '测试运行不存在');
+    const existing = c.evidenceBundles?.find((item) => item.testRunId === run.id && item.state === 'ready');
+    if (!existing && body.expectedRunRevision !== (run.revision || 1)) return fail(res, 409, '测试运行版本已变化，请重新加载');
     try {
       const bundle = await finalizeEvidence(c, parts[4]);
-      store.touch(c); store.persist();
-      return bundle.createdAt === bundle.updatedAt ? created(res, { evidence: publicEvidence(bundle) }) : ok(res, { evidence: publicEvidence(bundle) });
+      if (!existing) {
+        run.evidenceRefs = [...new Set([...(run.evidenceRefs || []), bundle.id])];
+        store.touch(c); store.persist();
+        broadcast('quality.evidence.updated', { projectId: c.id, entityId: bundle.id, revision: 1, updatedAt: bundle.updatedAt });
+        return created(res, { evidence: publicEvidence(bundle) });
+      }
+      return ok(res, { evidence: publicEvidence(bundle) });
     } catch (error) { return fail(res, 400, error.message); }
   }
 
@@ -354,16 +363,15 @@ async function api(req, res, url, body) {
     return ok(res, { evidence: (c.evidenceBundles || []).map(publicEvidence) });
   }
 
-  if (parts[1] === 'projects' && parts[2] && parts[3] === 'evidence' && parts[4] && ((parts[5] === 'download') || (parts[5] === 'items' && parts[7] === 'download')) && m('GET')) {
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'evidence' && parts[4] && parts[5] === 'items' && parts[7] === 'download' && m('GET')) {
     const c = store.getProject(parts[2]);
     const bundle = c && resolveEvidence(c, parts[4]);
     if (!bundle) return fail(res, 404, '证据包不存在');
-    const itemId = parts[5] === 'items' ? parts[6] : '';
-    const relativePath = url.searchParams.get('path') || '';
-    const item = bundle.items.find((entry) => itemId ? entry.id === itemId : entry.relativePath === relativePath);
-    const resolvedPath = item?.relativePath || relativePath;
+    const itemId = parts[6];
+    const item = bundle.items.find((entry) => entry.id === itemId);
+    const resolvedPath = item?.relativePath || '';
     if (!item || path.isAbsolute(resolvedPath) || resolvedPath.split(/[\\/]/).includes('..')) return fail(res, 400, '证据文件路径无效');
-    if (!(await verifyEvidence({ ...bundle, items: [item] })).ok) return fail(res, 409, '证据完整性校验失败');
+    if (!(await verifyEvidence(bundle)).ok) return fail(res, 409, '证据完整性校验失败');
     const file = path.join(bundle.root, resolvedPath);
     if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return fail(res, 404, '证据文件不存在');
     res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': String(item.size), 'Content-Disposition': `attachment; filename="${path.basename(resolvedPath).replace(/[^a-zA-Z0-9._-]/g, '_')}"` });
@@ -371,10 +379,19 @@ async function api(req, res, url, body) {
     return true;
   }
 
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'evidence' && parts[4] && parts[5] === 'download') return fail(res, 404, '接口不存在');
+
   if (parts[1] === 'projects' && parts[2] && parts[3] === 'test-runs' && parts[4] && parts[5] === 'compare' && m('POST')) {
     const c = store.getProject(parts[2]);
     if (!c) return fail(res, 404, '项目不存在');
     try { return ok(res, { comparison: compareRuns(c, parts[4], body.otherRunId) }); }
+    catch (error) { return fail(res, 400, error.message); }
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'test-runs' && parts[4] && parts[5] === 'compare' && parts[6] && m('GET')) {
+    const c = store.getProject(parts[2]);
+    if (!c) return fail(res, 404, '项目不存在');
+    try { return ok(res, { comparison: compareRuns(c, parts[4], parts[6]) }); }
     catch (error) { return fail(res, 400, error.message); }
   }
 
@@ -392,7 +409,7 @@ async function api(req, res, url, body) {
     if (!analysis) return fail(res, 404, '故障分析不存在');
     if (body.expectedRevision !== analysis.version) return fail(res, 409, '故障分析版本已变化，请重新加载');
     try { const defect = promoteConfirmedDefect(c, parts[4], body); store.touch(c); store.persist(); return created(res, { defect }); }
-    catch (error) { return fail(res, 400, error.message); }
+    catch (error) { return fail(res, /已升级|已创建/.test(error.message) ? 409 : 400, error.message); }
   }
 
   if (parts[1] === 'projects' && parts[2] && parts[3] === 'regression-sets' && !parts[4]) {

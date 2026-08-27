@@ -23,7 +23,7 @@ test('项目详情可以创建质量任务并在刷新后保留', async ({ page 
   await page.locator('#tabs button[data-tab="qualityTasks"]').click();
   await expect(page.getByText('质量门禁')).toBeVisible();
   await expect(page.getByText('通过', { exact: true })).toBeVisible();
-  await expect(page.getByText('质量资产')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '质量证据' })).toBeVisible();
   const assets = page.locator('.quality-asset-list');
   await expect(assets.getByText('证据包', { exact: true })).toBeVisible();
   await expect(assets.getByText('故障分析', { exact: true })).toBeVisible();

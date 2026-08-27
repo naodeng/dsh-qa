@@ -35,12 +35,14 @@ test('cleanup failure is retryable and records attempt details', async () => {
   assert.equal(result.lastError, 'busy');
 });
 
-test('cleanup worker processes pending jobs immediately and can stop', async () => {
+test('cleanup worker skips live projects, removes successful jobs, persists changes, and can stop', async () => {
   const root = tempDir();
-  const jobs = [{ id: 'job-1', artifactRoot: root, status: 'queued', attempts: 0 }];
-  const worker = startArtifactCleanupWorker({ jobs, intervalMs: 60_000, batchSize: 1 });
+  const jobs = [{ id: 'job-live', projectId: 'live', artifactRoot: tempDir(), status: 'queued', attempts: 0 }, { id: 'job-1', projectId: 'deleted', artifactRoot: root, status: 'queued', attempts: 0 }];
+  let persisted = 0;
+  const worker = startArtifactCleanupWorker({ jobs, intervalMs: 60_000, batchSize: 2, projectExists: (id) => id === 'live', onChange: () => { persisted += 1; } });
   await new Promise((resolve) => setTimeout(resolve, 10));
-  assert.equal(jobs[0].status, 'completed');
+  assert.deepEqual(jobs.map((job) => job.id), ['job-live']);
+  assert.equal(persisted, 1);
   worker.stop();
 });
 
