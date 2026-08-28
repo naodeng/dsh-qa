@@ -22,4 +22,5 @@ test('links planned cases to one quality task and versions reviewed plans', () =
   const next = createTestPlanVersion(project, plan.id, { testcaseIds: [existing.id, generated.id] });
   assert.equal(plan.status, 'superseded');
   assert.equal(next.status, 'draft');
+  assert.throws(() => reviewTestPlan(project, plan.id, '再次评审'), /superseded|当前版本|已废弃/);
 });

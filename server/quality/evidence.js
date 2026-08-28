@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { uid, now } from '../store.js';
 
-const TERMINAL = new Set(['passed', 'failed', 'cancelled', 'environment-error']);
+const TERMINAL = new Set(['passed', 'failed', 'cancelled', 'timed-out', 'environment-error']);
 const MAX_FILE = 100 * 1024 * 1024;
 const MAX_BUNDLE = 500 * 1024 * 1024;
 const MAX_PROJECT = 5 * 1024 * 1024 * 1024;

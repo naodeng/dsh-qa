@@ -11,11 +11,25 @@ function validate(project, fields) {
   const cwdRelative = String(fields.cwdRelative || '.');
   const cwd = path.resolve(project.workspacePath || '.', cwdRelative);
   const root = path.resolve(project.workspacePath || '.');
+  let realRoot = root;
+  let realCwd = cwd;
+  try { realRoot = fs.realpathSync.native(root); realCwd = fs.realpathSync.native(cwd); }
+  catch { if (cwd !== root && !cwd.startsWith(root + path.sep)) throw new Error('cwd 必须位于项目工作区'); }
+  if (realCwd !== realRoot && !realCwd.startsWith(realRoot + path.sep)) throw new Error('cwd 必须位于项目工作区');
   if (cwd !== root && !cwd.startsWith(root + path.sep)) throw new Error('cwd 必须位于项目工作区');
   if (!Array.isArray(fields.targetFiles) || !fields.targetFiles.length || fields.targetFiles.some((file) => typeof file !== 'string' || /[*?\[\]]/.test(file) || path.isAbsolute(file))) throw new Error('targetFiles 必须是精确文件');
   for (const file of fields.targetFiles) {
+    if (file.includes('\0') || path.basename(file).startsWith('-')) throw new Error('目标文件不能是非法路径或选项');
     const target = path.resolve(cwd, file);
     if (target !== root && !target.startsWith(root + path.sep)) throw new Error('目标文件必须位于项目工作区');
+    try {
+      const stat = fs.statSync(target);
+      if (!stat.isFile()) throw new Error('目标文件必须是普通文件');
+      const realTarget = fs.realpathSync.native(target);
+      if (realTarget !== realRoot && !realTarget.startsWith(realRoot + path.sep)) throw new Error('目标文件必须位于项目工作区');
+    } catch (error) {
+      if (error.message.includes('工作区') || error.message.includes('普通文件')) throw error;
+    }
   }
   if (!NETWORK_INTENTS.has(fields.networkIntent || 'none')) throw new Error('无效 networkIntent');
   const timeoutMs = fields.timeoutMs ?? 120000;
@@ -61,8 +75,18 @@ export function resolveExecutionCommand(project, profileVersion, testcaseIds = [
   const targets = testcaseIds.length ? project.testcases.filter((testcase) => testcaseIds.includes(testcase.id)).map((testcase) => testcase.target).filter(Boolean) : profileVersion.targetFiles;
   if (!targets.length) throw new Error('没有可执行的目标文件');
   if (targets.some((target) => /[*?\[\]]/.test(target) || path.isAbsolute(target))) throw new Error('目标文件必须是精确相对路径');
+  if (targets.some((target) => target.includes('\0') || path.basename(target).startsWith('-'))) throw new Error('目标文件不能是非法路径或选项');
+  const root = fs.realpathSync.native(path.resolve(project.workspacePath));
+  for (const target of targets) {
+    const full = path.resolve(project.workspacePath, target);
+    if (fs.existsSync(full)) {
+      const real = fs.realpathSync.native(full);
+      if (real !== root && !real.startsWith(root + path.sep) || !fs.statSync(real).isFile()) throw new Error('目标文件必须位于项目工作区');
+    }
+  }
   if (profileVersion.executor === 'node-test') return [process.execPath, '--test', ...targets];
   const playwright = path.join(project.workspacePath, 'node_modules', '.bin', 'playwright');
   if (!fs.existsSync(playwright)) throw new Error('项目工作区未找到 Playwright');
+  if (!fs.realpathSync.native(playwright).startsWith(root + path.sep)) throw new Error('Playwright 必须位于项目工作区');
   return [playwright, 'test', ...targets];
 }

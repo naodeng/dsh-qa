@@ -34,9 +34,18 @@ export function createTestPlan(project, qualityTaskId, testcaseIds = []) {
 
 export function getTestPlan(project, id) { return project.testPlans?.find((plan) => plan.id === id) || null; }
 
+export function isCurrentTestPlan(project, plan) {
+  if (!plan) return false;
+  if (!plan.qualityTaskId) return true;
+  const versions = (project.testPlans || []).filter((item) => item.qualityTaskId === plan.qualityTaskId);
+  const currentVersion = Math.max(...versions.map((item) => Number(item.version || 0)));
+  return Number(plan.version || 0) === currentVersion;
+}
+
 export function reviewTestPlan(project, planId, actorLabel) {
   const plan = getTestPlan(project, planId);
   if (!plan) throw new Error('测试计划不存在');
+  if (plan.status === 'superseded' || !isCurrentTestPlan(project, plan)) throw new Error('已废弃的测试计划不是当前版本，不能重新评审');
   if (!String(actorLabel || '').trim()) throw new Error('需要确认人');
   plan.status = 'reviewed'; plan.reviewedBy = String(actorLabel).trim(); plan.reviewedAt = now(); plan.updatedAt = now();
   return plan;

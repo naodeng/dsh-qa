@@ -1,4 +1,4 @@
-const TERMINAL = new Set(['passed', 'failed', 'cancelled', 'environment-error']);
+const TERMINAL = new Set(['passed', 'failed', 'cancelled', 'timed-out', 'environment-error']);
 
 export function evaluateQualityGate(project) {
   const blockers = [];

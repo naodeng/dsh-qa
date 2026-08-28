@@ -8,7 +8,9 @@ import { makeProject, makeTestCase } from '../helpers/quality-fixtures.js';
 const runnerDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-runner-data-'));
 process.env.QA_DATA_DIR = runnerDataDir;
 const { createExecutionProfile, createExecutionProfileVersion, disableExecutionProfile } = await import('../../server/quality/execution-profile.js');
-const { cancelRun, createRunPreview, startRun, recoverInterruptedRuns } = await import('../../server/quality/test-runner.js');
+const runner = await import('../../server/quality/test-runner.js');
+const { cancelRun, createRunPreview, startRun, recoverInterruptedRuns } = runner;
+const { finalizeEvidence } = await import('../../server/quality/evidence.js');
 const store = await import('../../server/store.js');
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -65,6 +67,18 @@ test('creates previews only for the current reviewed plan', () => {
   assert.throws(() => createRunPreview(project, 'plan_superseded', profile.id), /reviewed|评审/);
 });
 
+test('independently rejects a reviewed plan when a newer plan version exists', () => {
+  const project = makeProject({ workspacePath: process.cwd() });
+  const profile = createExecutionProfile(project, { name: 'unit', executor: 'node-test', cwdRelative: '.', targetFiles: ['test/fixtures/runner/pass.fixture.mjs'], networkIntent: 'none' });
+  project.testPlans.push(
+    { id: 'plan_old_reviewed', qualityTaskId: 'task_current', version: 1, testcaseIds: [], status: 'reviewed' },
+    { id: 'plan_new_reviewed', qualityTaskId: 'task_current', version: 2, testcaseIds: [], status: 'reviewed' },
+  );
+
+  assert.throws(() => createRunPreview(project, 'plan_old_reviewed', profile.id), /当前.*版本|superseded/);
+  assert.doesNotThrow(() => createRunPreview(project, 'plan_new_reviewed', profile.id));
+});
+
 test('invalidates preview authorization after profile version changes or disablement', async () => {
   const project = makeProject({ workspacePath: process.cwd() });
   const plan = { id: 'plan_current', version: 1, testcaseIds: [], status: 'reviewed' };
@@ -118,12 +132,50 @@ test('does not let callers mutate the stored preview authorization', async () =>
   assert.equal(run.command.at(-1), 'test/fixtures/runner/pass.fixture.mjs');
 });
 
-test('cancels queued runs and rejects cancellation after completion', () => {
+test('marks missing, changed, and URL-mismatched preview tokens with a stable stale code', async () => {
+  const project = makeProject({ workspacePath: process.cwd() });
+  const plan = { id: 'plan_stale_code', version: 1, testcaseIds: [], status: 'reviewed' };
+  project.testPlans.push(plan);
+  const profile = createExecutionProfile(project, { name: 'stale', executor: 'node-test', cwdRelative: '.', targetFiles: ['test/fixtures/runner/pass.fixture.mjs'], networkIntent: 'none' });
+  const missing = await startRun(project, 'missing-token').catch((error) => error);
+  assert.equal(missing.code, 'QUALITY_RUN_PREVIEW_STALE');
+
+  const mismatched = createRunPreview(project, plan.id, profile.id);
+  const mismatchError = await startRun(project, mismatched.previewToken, { planId: 'different-plan' }).catch((error) => error);
+  assert.equal(mismatchError.code, 'QUALITY_RUN_PREVIEW_STALE');
+  assert.equal(project.testruns.length, 0);
+
+  const changed = createRunPreview(project, plan.id, profile.id);
+  createExecutionProfileVersion(project, profile.id, { timeoutMs: 60_000 });
+  const changedError = await startRun(project, changed.previewToken, { planId: plan.id }).catch((error) => error);
+  assert.equal(changedError.code, 'QUALITY_RUN_PREVIEW_STALE');
+  assert.equal(project.testruns.length, 0);
+});
+
+test('limits active previews per project and removes expired previews before enforcing the limit', () => {
+  const project = makeProject({ workspacePath: process.cwd() });
+  const plan = { id: 'plan_preview_limit', version: 1, testcaseIds: [], status: 'reviewed' };
+  project.testPlans.push(plan);
+  const profile = createExecutionProfile(project, { name: 'limit', executor: 'node-test', cwdRelative: '.', targetFiles: ['test/fixtures/runner/pass.fixture.mjs'], networkIntent: 'none' });
+  const originalNow = Date.now;
+  let clock = 1_000_000;
+  Date.now = () => clock;
+  try {
+    for (let index = 0; index < 20; index += 1) createRunPreview(project, plan.id, profile.id);
+    assert.throws(() => createRunPreview(project, plan.id, profile.id), /预览.*上限|过多/);
+    clock += 5 * 60 * 1000 + 1;
+    assert.doesNotThrow(() => createRunPreview(project, plan.id, profile.id));
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
+test('cancels queued runs and rejects cancellation after completion', async () => {
   const project = makeProject({ testruns: [{ id: 'queued_1', revision: 1, status: 'queued' }, { id: 'passed_1', revision: 2, status: 'passed' }] });
-  const cancelled = cancelRun(project, 'queued_1', 1);
+  const cancelled = await cancelRun(project, 'queued_1', 1);
   assert.equal(cancelled.status, 'cancelled');
   assert.equal(cancelled.revision, 2);
-  assert.throws(() => cancelRun(project, 'passed_1', 2), /无法取消/);
+  await assert.rejects(async () => cancelRun(project, 'passed_1', 2), /无法取消/);
 });
 
 test('queued cancellation prevents deferred execution from starting', async () => {
@@ -136,7 +188,7 @@ test('queued cancellation prevents deferred execution from starting', async () =
   const profile = createExecutionProfile(project, { name: 'queued', executor: 'node-test', cwdRelative: '.', targetFiles: ['queued.test.mjs'], networkIntent: 'none' });
   const run = await startRun(project, createRunPreview(project, plan.id, profile.id).previewToken, { defer: true });
 
-  cancelRun(project, run.id, run.revision);
+  await cancelRun(project, run.id, run.revision);
   await wait(250);
 
   assert.equal(run.status, 'cancelled');
@@ -159,11 +211,32 @@ test('running cancellation preserves cancelled and terminates the process group'
   const run = await startRun(project, createRunPreview(project, plan.id, profile.id).previewToken, { defer: true });
   await waitFor(() => run.status === 'running');
 
-  cancelRun(project, run.id, run.revision);
+  await cancelRun(project, run.id, run.revision);
   await wait(750);
 
   assert.equal(run.status, 'cancelled');
   assert.equal(fs.existsSync(orphanMarker), false);
+});
+
+test('publishes running cancellation only after close and process log persistence', async () => {
+  const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-runner-cancel-finalize-'));
+  const artifactRoot = path.join(workspacePath, 'artifacts');
+  fs.writeFileSync(path.join(workspacePath, 'cancel-finalize.test.mjs'), `import test from 'node:test'; test('wait', async () => { await new Promise((resolve) => setTimeout(resolve, 2_000)); });`);
+  const project = makeProject({ workspacePath, artifactRoot });
+  const plan = { id: 'plan_cancel_finalize', version: 1, testcaseIds: [], status: 'reviewed' };
+  project.testPlans.push(plan);
+  const profile = createExecutionProfile(project, { name: 'cancel-finalize', executor: 'node-test', cwdRelative: '.', targetFiles: ['cancel-finalize.test.mjs'], networkIntent: 'none', timeoutMs: 10_000 });
+  const run = await startRun(project, createRunPreview(project, plan.id, profile.id).previewToken, { defer: true });
+  await waitFor(() => run.status === 'running');
+
+  const cancellation = cancelRun(project, run.id, run.revision);
+  assert.equal(run.status, 'running');
+  await assert.rejects(() => finalizeEvidence(project, run.id), /终态/);
+  const cancelled = await cancellation;
+
+  assert.equal(cancelled.status, 'cancelled');
+  assert.equal(fs.existsSync(path.join(run.artifactDir, 'process.log')), true);
+  assert.equal((await finalizeEvidence(project, run.id)).state, 'ready');
 });
 
 test('timeout remains timed-out after the child closes', async () => {
@@ -179,6 +252,51 @@ test('timeout remains timed-out after the child closes', async () => {
   assert.equal(run.status, 'timed-out');
 });
 
+test('timeout force-kills descendants that ignore SIGTERM and resolves within a bound', async () => {
+  const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-runner-timeout-force-'));
+  const orphanMarker = path.join(workspacePath, 'timeout-orphan.txt');
+  const childCode = `process.on('SIGTERM', () => {}); setTimeout(() => require('node:fs').writeFileSync(${JSON.stringify(orphanMarker)}, 'orphan'), 1600); setTimeout(() => {}, 5000);`;
+  fs.writeFileSync(path.join(workspacePath, 'timeout-force.test.mjs'), `
+    import { spawn } from 'node:child_process';
+    import test from 'node:test';
+    spawn(process.execPath, ['-e', ${JSON.stringify(childCode)}]);
+    test('wait', async () => { await new Promise((resolve) => setTimeout(resolve, 5_000)); });
+  `);
+  const project = makeProject({ workspacePath });
+  const plan = { id: 'plan_timeout_force', version: 1, testcaseIds: [], status: 'reviewed' };
+  project.testPlans.push(plan);
+  const profile = createExecutionProfile(project, { name: 'timeout-force', executor: 'node-test', cwdRelative: '.', targetFiles: ['timeout-force.test.mjs'], networkIntent: 'none', timeoutMs: 1_000 });
+  const startedAt = Date.now();
+
+  const run = await startRun(project, createRunPreview(project, plan.id, profile.id).previewToken);
+  const elapsed = Date.now() - startedAt;
+  await wait(900);
+
+  assert.equal(run.status, 'timed-out');
+  assert.equal(elapsed < 3_000, true);
+  assert.equal(fs.existsSync(orphanMarker), false);
+});
+
+test('uses taskkill tree flags on Windows and a safe direct-child fallback', () => {
+  assert.equal(typeof runner.terminateProcessTree, 'function');
+  const calls = [];
+  const childSignals = [];
+  const child = { pid: 4242, kill: (signal) => childSignals.push(signal) };
+  const runTaskkill = (command, args) => { calls.push([command, args]); return { status: 0 }; };
+
+  runner.terminateProcessTree(child, { platform: 'win32', runTaskkill });
+  runner.terminateProcessTree(child, { platform: 'win32', force: true, runTaskkill });
+
+  assert.deepEqual(calls, [
+    ['taskkill', ['/PID', '4242', '/T']],
+    ['taskkill', ['/PID', '4242', '/T', '/F']],
+  ]);
+  assert.deepEqual(childSignals, []);
+
+  runner.terminateProcessTree(child, { platform: 'win32', force: true, runTaskkill: () => ({ status: 1 }) });
+  assert.deepEqual(childSignals, ['SIGKILL']);
+});
+
 test('child process receives only the minimal allowed environment', async () => {
   const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-runner-env-'));
   fs.writeFileSync(path.join(workspacePath, 'env.test.mjs'), `import test from 'node:test'; import assert from 'node:assert/strict'; test('secret is absent', () => assert.equal(process.env.DSH_QA_TEST_SECRET, undefined));`);
@@ -191,6 +309,20 @@ test('child process receives only the minimal allowed environment', async () => 
   const run = await startRun(project, createRunPreview(project, plan.id, profile.id).previewToken);
 
   assert.equal(run.status, 'passed');
+});
+
+test('bounds process logs by UTF-8 bytes instead of JavaScript characters', async () => {
+  const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-runner-log-bytes-'));
+  fs.writeFileSync(path.join(workspacePath, 'log-bytes.test.mjs'), `import test from 'node:test'; console.log('测'.repeat(500_000)); test('pass', () => {});`);
+  const project = makeProject({ workspacePath });
+  const plan = { id: 'plan_log_bytes', version: 1, testcaseIds: [], status: 'reviewed' };
+  project.testPlans.push(plan);
+  const profile = createExecutionProfile(project, { name: 'log-bytes', executor: 'node-test', cwdRelative: '.', targetFiles: ['log-bytes.test.mjs'], networkIntent: 'none' });
+
+  const run = await startRun(project, createRunPreview(project, plan.id, profile.id).previewToken);
+
+  assert.equal(run.status, 'passed');
+  assert.equal(fs.statSync(path.join(run.artifactDir, 'process.log')).size <= 1024 * 1024, true);
 });
 
 test('persists terminal status after the process log is written', async () => {

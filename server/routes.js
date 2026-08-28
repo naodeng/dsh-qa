@@ -331,8 +331,12 @@ async function api(req, res, url, body) {
   if (parts[1] === 'projects' && parts[2] && parts[3] === 'test-plans' && parts[4] && parts[5] === 'runs' && m('POST')) {
     const c = store.getProject(parts[2]);
     if (!c) return fail(res, 404, '项目不存在');
-    try { const run = await startRun(c, body.previewToken, { defer: true }); return accepted(res, { run: { id: run.id, status: run.status, mode: run.mode, resultTrust: run.resultTrust } }); }
-    catch (error) { return fail(res, 400, error.message); }
+    try {
+      const run = await startRun(c, body.previewToken, { defer: true, planId: parts[4] });
+      return accepted(res, { run: { id: run.id, status: run.status, revision: run.revision, mode: run.mode, resultTrust: run.resultTrust } });
+    } catch (error) {
+      return fail(res, error.code === 'QUALITY_RUN_PREVIEW_STALE' ? 409 : 400, error.message, error.code);
+    }
   }
 
   if (parts[1] === 'projects' && parts[2] && parts[3] === 'test-runs' && parts[4] && parts[5] === 'cancel' && m('POST')) {
@@ -342,7 +346,7 @@ async function api(req, res, url, body) {
     if (!run) return fail(res, 404, '测试运行不存在');
     if (body.expectedRevision !== (run.revision || 1)) return fail(res, 409, '测试运行版本已变化，请重新加载', 'QUALITY_REVISION_CONFLICT');
     try {
-      const cancelled = cancelRun(c, parts[4], body.expectedRevision);
+      const cancelled = await cancelRun(c, parts[4], body.expectedRevision);
       return ok(res, { run: { id: cancelled.id, status: cancelled.status, revision: cancelled.revision } });
     } catch (error) {
       return fail(res, error.code === 'QUALITY_REVISION_CONFLICT' ? 409 : 400, error.message, error.code);

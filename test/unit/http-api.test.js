@@ -210,7 +210,48 @@ test('execution API creates profiles and returns a run preview', async () => {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ previewToken: preview.previewToken }),
   });
   assert.equal(runResponse.status, 202);
-  assert.equal((await runResponse.json()).run.status, 'queued');
+  assert.deepEqual((await runResponse.json()).run, {
+    id: current.testruns[0].id, status: 'queued', revision: 1, mode: 'local', resultTrust: 'controlled-local',
+  });
+});
+
+test('run API rejects stale previews and tokens issued for a different URL plan', async () => {
+  const project = await (await fetch(`${base}/api/projects`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '运行预览失效 API 项目', createWorkspace: false }),
+  })).json();
+  const projectId = project.project.id;
+  const current = store.getProject(projectId);
+  current.testPlans.push(
+    { id: 'plan_preview_a', version: 1, testcaseIds: [], status: 'reviewed' },
+    { id: 'plan_preview_b', version: 1, testcaseIds: [], status: 'reviewed' },
+  );
+  const profile = (await (await fetch(`${base}/api/projects/${projectId}/execution-profiles`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'unit', executor: 'node-test', cwdRelative: '.', targetFiles: ['test/fixtures/runner/pass.fixture.mjs'], networkIntent: 'none' }),
+  })).json()).profile;
+  const preview = (await (await fetch(`${base}/api/projects/${projectId}/test-plans/plan_preview_a/run-preview`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ profileId: profile.id }),
+  })).json()).preview;
+
+  const wrongPlan = await fetch(`${base}/api/projects/${projectId}/test-plans/plan_preview_b/runs`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ previewToken: preview.previewToken }),
+  });
+  assert.equal(wrongPlan.status, 409);
+  assert.equal((await wrongPlan.json()).code, 'QUALITY_RUN_PREVIEW_STALE');
+  assert.equal(current.testruns.length, 0);
+
+  const stalePreview = (await (await fetch(`${base}/api/projects/${projectId}/test-plans/plan_preview_a/run-preview`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ profileId: profile.id }),
+  })).json()).preview;
+  await fetch(`${base}/api/projects/${projectId}/execution-profiles/${profile.id}/versions`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 1, timeoutMs: 60_000 }),
+  });
+  const stale = await fetch(`${base}/api/projects/${projectId}/test-plans/plan_preview_a/runs`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ previewToken: stalePreview.previewToken }),
+  });
+  assert.equal(stale.status, 409);
+  assert.equal((await stale.json()).code, 'QUALITY_RUN_PREVIEW_STALE');
+  assert.equal(current.testruns.length, 0);
 });
 
 test('execution API versions and disables profiles with revision checks', async () => {
