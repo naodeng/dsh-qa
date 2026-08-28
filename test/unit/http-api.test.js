@@ -318,6 +318,28 @@ test('quality APIs expose gate state and regression assets', async () => {
   assert.equal((await gate.json()).gate.status, 'passed');
 });
 
+test('quality HTTP API keeps task, regression, and gate contracts available', async () => {
+  const project = await (await fetch(`${base}/api/projects`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '质量路由委托回归项目', createWorkspace: false }),
+  })).json();
+  const projectId = project.project.id;
+  const taskResponse = await fetch(`${base}/api/projects/${projectId}/quality-tasks`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '路由委托任务' }),
+  });
+  assert.equal(taskResponse.status, 201);
+  assert.equal((await taskResponse.json()).task.title, '路由委托任务');
+
+  const listResponse = await fetch(`${base}/api/projects/${projectId}/quality-tasks`);
+  assert.equal(listResponse.status, 200);
+  assert.equal((await listResponse.json()).tasks.length, 1);
+
+  const gateResponse = await fetch(`${base}/api/projects/${projectId}/quality-gate`);
+  assert.equal(gateResponse.status, 200);
+  assert.equal((await gateResponse.json()).gate.status, 'passed');
+});
+
 test('failure analysis API requires confirmation before defect promotion', async () => {
   const project = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '故障分析 API 项目', createWorkspace: false }) })).json();
   const projectId = project.project.id;
