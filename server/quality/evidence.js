@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { uid, now } from '../store.js';
@@ -26,14 +27,25 @@ async function filesUnder(root, current = root, output = []) {
 }
 
 async function digestFile(full) {
-  const before = await fs.stat(full);
+  const before = await fs.lstat(full);
+  if (!before.isFile()) throw new Error('证据文件必须是普通文件');
   if (before.nlink > 1) throw new Error('证据文件不允许是硬链接');
   if (before.size > MAX_FILE) throw new Error('单个证据文件超过 100MiB');
+  const handle = await fs.open(full, fsSync.constants.O_RDONLY | fsSync.constants.O_NOFOLLOW);
   const hash = crypto.createHash('sha256');
-  for await (const chunk of (await import('node:fs')).createReadStream(full)) hash.update(chunk);
-  const after = await fs.stat(full);
-  if (before.size !== after.size || before.mtimeMs !== after.mtimeMs) throw new Error('证据文件在校验期间发生变化');
-  return { size: after.size, sha256: hash.digest('hex') };
+  try {
+    const opened = await handle.stat();
+    if (!opened.isFile() || opened.nlink > 1 || opened.dev !== before.dev || opened.ino !== before.ino || opened.size !== before.size || opened.mtimeMs !== before.mtimeMs) throw new Error('证据文件在打开时发生变化');
+    for await (const chunk of handle.createReadStream({ autoClose: false })) hash.update(chunk);
+    const after = await handle.stat();
+    if (opened.size !== after.size || opened.mtimeMs !== after.mtimeMs || opened.dev !== after.dev || opened.ino !== after.ino) throw new Error('证据文件在校验期间发生变化');
+    return { size: after.size, sha256: hash.digest('hex') };
+  } finally { await handle.close(); }
+}
+
+export function recalculateArtifactUsage(project) {
+  project.artifactUsageBytes = (project.evidenceBundles || []).filter((bundle) => bundle.state === 'ready').reduce((total, bundle) => total + Number(bundle.totalSize || 0), 0);
+  return project.artifactUsageBytes;
 }
 
 function canonicalManifest(bundle) {
@@ -133,20 +145,30 @@ export async function recoverEvidenceFinalization(projects) {
     for (const entry of entries) {
       if (!entry.isDirectory() || ready.has(entry.name)) continue;
       const candidateRoot = path.join(root, entry.name);
-      if (entry.name.endsWith('.tmp') || entry.name.includes('.finalizing-')) {
+      if (entry.name.endsWith('.tmp')) {
         await fs.rm(candidateRoot, { recursive: true, force: true });
         continue;
       }
       try {
         const manifest = JSON.parse(await fs.readFile(path.join(candidateRoot, 'manifest.json'), 'utf8'));
         const recovered = { ...manifest, root: candidateRoot, manifestSha256: manifestDigest(manifest), createdAt: manifest.createdAt || now(), updatedAt: now() };
-        if (manifest.id !== entry.name || manifest.projectId !== project.id || !(await verifyEvidence(recovered)).ok) throw new Error('invalid manifest');
+        const expectedDirectory = entry.name.includes('.finalizing-') ? entry.name.slice(0, entry.name.indexOf('.finalizing-')) : entry.name;
+        if (manifest.id !== expectedDirectory || manifest.projectId !== project.id || !(await verifyEvidence(recovered)).ok) throw new Error('invalid manifest');
+        if (entry.name.includes('.finalizing-')) {
+          const finalRoot = path.join(root, manifest.id);
+          if (await fs.stat(finalRoot).catch(() => null)) throw new Error('final evidence already exists');
+          await fs.rename(candidateRoot, finalRoot);
+          recovered.root = finalRoot;
+        }
         project.evidenceBundles.push(recovered);
       } catch {
-        await fs.rm(candidateRoot, { recursive: true, force: true });
+        const quarantine = path.join(root, 'quarantine');
+        await fs.mkdir(quarantine, { recursive: true });
+        await fs.rename(candidateRoot, path.join(quarantine, entry.name)).catch(() => fs.rm(candidateRoot, { recursive: true, force: true }));
       }
     }
     project.evidenceBundles = (project.evidenceBundles || []).filter((bundle) => bundle.state === 'ready');
+    recalculateArtifactUsage(project);
   }
   return projects;
 }

@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { uid, now } from '../store.js';
+import { recalculateArtifactUsage } from './evidence.js';
 
 const inside = (root, target) => {
   const rel = path.relative(path.resolve(root), path.resolve(target));
@@ -68,6 +69,12 @@ export async function runArtifactCleanup(project, jobId) {
     if (!inside(root, bundleRoot)) { job.status = 'failed'; throw new Error('清理目标不在受控产物目录'); }
     await fs.rm(bundleRoot, { recursive: true, force: false });
     job.deleted.push(bundle.id);
+  }
+  if (job.deleted.length) {
+    const removed = new Set(job.deleted);
+    project.evidenceBundles = (project.evidenceBundles || []).filter((bundle) => !removed.has(bundle.id));
+    for (const run of project.testruns || []) if (Array.isArray(run.evidenceRefs)) run.evidenceRefs = run.evidenceRefs.filter((id) => !removed.has(id));
+    recalculateArtifactUsage(project);
   }
   job.status = 'completed'; job.completedAt = now();
   return job;

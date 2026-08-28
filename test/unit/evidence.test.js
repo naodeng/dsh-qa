@@ -79,6 +79,23 @@ test('recovery publishes a verified final directory after a store-flush crash', 
   await recoverEvidenceFinalization([project]);
   assert.equal(project.evidenceBundles[0].id, 'ev-recover');
   assert.equal((await verifyEvidence(project.evidenceBundles[0])).ok, true);
+  assert.equal(project.artifactUsageBytes, 6);
+});
+
+test('recovery promotes a valid finalizing bundle and quarantines an invalid one', async () => {
+  const artifactRoot = tempDir();
+  const evidenceRoot = path.join(artifactRoot, 'evidence');
+  const finalizing = path.join(evidenceRoot, 'ev-final.finalizing-1');
+  fs.mkdirSync(finalizing, { recursive: true });
+  fs.writeFileSync(path.join(finalizing, 'process.log'), 'passed');
+  const sha256 = await import('node:crypto').then(({ createHash }) => createHash('sha256').update('passed').digest('hex'));
+  fs.writeFileSync(path.join(finalizing, 'manifest.json'), JSON.stringify({ id: 'ev-final', projectId: 'project-1', testRunId: 'run-final', state: 'ready', items: [{ id: 'item-final', relativePath: 'process.log', size: 6, sha256 }], totalSize: 6 }));
+  fs.mkdirSync(path.join(evidenceRoot, 'ev-bad.finalizing-1'));
+  const project = makeProject({ id: 'project-1', artifactRoot, evidenceBundles: [] });
+  await recoverEvidenceFinalization([project]);
+  assert.equal(project.evidenceBundles[0].id, 'ev-final');
+  assert.equal(fs.existsSync(path.join(evidenceRoot, 'ev-final')), true);
+  assert.equal(fs.existsSync(path.join(evidenceRoot, 'quarantine', 'ev-bad.finalizing-1')), true);
 });
 
 test('rejects symlinks, hard links, and files over the per-file quota', async () => {
