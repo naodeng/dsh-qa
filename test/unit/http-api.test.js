@@ -240,6 +240,28 @@ test('plan API reviews versions and cancels a queued run', async () => {
   assert.equal((await next.json()).plan.version, 2);
 });
 
+test('run cancellation requires the current revision and returns a stable conflict code', async () => {
+  const project = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '取消运行 API 项目', createWorkspace: false }) })).json();
+  const projectId = project.project.id;
+  const current = store.getProject(projectId);
+  current.testruns.push({ id: 'run_cancel_api', projectId, revision: 2, status: 'queued', mode: 'local', resultTrust: 'controlled-local' });
+  const endpoint = `${base}/api/projects/${projectId}/test-runs/run_cancel_api/cancel`;
+
+  for (const body of [{}, { expectedRevision: 1 }]) {
+    const response = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const payload = await response.json();
+    assert.equal(response.status, 409);
+    assert.equal(payload.code, 'QUALITY_REVISION_CONFLICT');
+    assert.equal(current.testruns[0].status, 'queued');
+    assert.equal(current.testruns[0].revision, 2);
+  }
+
+  const cancelled = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 2 }) });
+  const payload = await cancelled.json();
+  assert.equal(cancelled.status, 200);
+  assert.deepEqual(payload.run, { id: 'run_cancel_api', status: 'cancelled', revision: 3 });
+});
+
 test('quality APIs expose gate state and regression assets', async () => {
   const project = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '质量门禁 API 项目', createWorkspace: false }) })).json();
   const projectId = project.project.id;

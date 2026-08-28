@@ -34,11 +34,19 @@ export function createExecutionProfile(project, fields = {}) {
 export function createExecutionProfileVersion(project, id, fields = {}) {
   const profile = project.executionProfiles?.find((item) => item.id === id);
   if (!profile) throw new Error('执行配置不存在');
-  const next = validate(project, { ...profile, ...fields });
+  const next = validate(project, { ...currentExecutionProfileVersion(profile), ...fields });
   const version = (profile.currentVersion || profile.version) + 1;
   profile.versions.push({ version, ...next, createdAt: now() });
   profile.currentVersion = version;
   return { id: profile.id, version, ...next, disabled: profile.disabled };
+}
+
+export function currentExecutionProfileVersion(profile) {
+  if (!profile) throw new Error('执行配置不存在');
+  const version = profile.currentVersion || profile.version;
+  const snapshot = profile.versions?.find((item) => item.version === version);
+  if (!snapshot) throw new Error('执行配置当前版本不存在');
+  return { id: profile.id, version, ...Object.fromEntries(VERSION_FIELDS.map((field) => [field, snapshot[field]])), disabled: Boolean(profile.disabled) };
 }
 
 export function disableExecutionProfile(project, id) {

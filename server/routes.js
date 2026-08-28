@@ -98,7 +98,7 @@ function publicProject(project) {
   return safe;
 }
 function accepted(res, obj) { json(res, 202, { ok: true, ...obj }); }
-function fail(res, code, error) { json(res, code, { ok: false, error }); }
+function fail(res, code, error, stableCode) { json(res, code, { ok: false, error, ...(stableCode ? { code: stableCode } : {}) }); }
 
 function parseSkillFile(file, lang, categoryId, groupId) {
   const source = fs.readFileSync(file, 'utf8');
@@ -338,8 +338,15 @@ async function api(req, res, url, body) {
   if (parts[1] === 'projects' && parts[2] && parts[3] === 'test-runs' && parts[4] && parts[5] === 'cancel' && m('POST')) {
     const c = store.getProject(parts[2]);
     if (!c) return fail(res, 404, '项目不存在');
-    try { const run = cancelRun(c, parts[4]); return ok(res, { run: { id: run.id, status: run.status } }); }
-    catch (error) { return fail(res, 400, error.message); }
+    const run = c.testruns?.find((item) => item.id === parts[4]);
+    if (!run) return fail(res, 404, '测试运行不存在');
+    if (body.expectedRevision !== (run.revision || 1)) return fail(res, 409, '测试运行版本已变化，请重新加载', 'QUALITY_REVISION_CONFLICT');
+    try {
+      const cancelled = cancelRun(c, parts[4], body.expectedRevision);
+      return ok(res, { run: { id: cancelled.id, status: cancelled.status, revision: cancelled.revision } });
+    } catch (error) {
+      return fail(res, error.code === 'QUALITY_REVISION_CONFLICT' ? 409 : 400, error.message, error.code);
+    }
   }
 
   if (parts[1] === 'projects' && parts[2] && parts[3] === 'test-runs' && parts[4] && parts[5] === 'evidence' && parts[6] === 'finalize' && m('POST')) {
