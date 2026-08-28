@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { makeProject } from '../helpers/quality-fixtures.js';
-import { captureSource } from '../../server/quality/source.js';
+import { captureSource, captureSources } from '../../server/quality/source.js';
 
 test('captures requirements and bounded UTF-8 workspace files', async () => {
   const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-source-'));
@@ -18,6 +18,14 @@ test('captures requirements and bounded UTF-8 workspace files', async () => {
   await assert.rejects(() => captureSource(project, { type: 'workspace-file', ref: '../secret' }), /越界/);
   fs.writeFileSync(path.join(workspacePath, 'binary.bin'), Buffer.from([0x61, 0x00, 0x62]));
   await assert.rejects(() => captureSource(project, { type: 'workspace-file', ref: 'binary.bin' }), /UTF-8|二进制/);
+});
+
+test('rejects requirements whose UTF-8 JSON snapshot exceeds 1 MiB', async () => {
+  const requirement = { id: 'r', text: 'a'.repeat(1_048_583) };
+  assert.equal(Buffer.byteLength(JSON.stringify(requirement), 'utf8'), 1_048_603);
+  const project = makeProject({ requirements: [requirement] });
+
+  await assert.rejects(() => captureSources(project, [{ type: 'requirement', ref: requirement.id }]), /1 MiB/);
 });
 
 test('captures only an allowed Git revision', async () => {

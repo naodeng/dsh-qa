@@ -69,7 +69,7 @@ export async function captureSource(project, descriptor = {}) {
   if (type === 'requirement') {
     const item = (project.requirements || []).find((requirement) => requirement.id === descriptor.ref);
     if (!item) throw new Error('需求不存在');
-    const content = JSON.stringify(item);
+    const content = boundedText(Buffer.from(JSON.stringify(item), 'utf8'));
     return { type, ref: descriptor.ref, digest: digest(content), content };
   }
   if (type === 'workspace-file') {
