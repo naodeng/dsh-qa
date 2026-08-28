@@ -347,7 +347,7 @@
     $('#nav-alert-count').classList.toggle('hidden', !alertCount);
   }
   function renderDashboardCases() {
-    const cards = sortedCards().filter((card) => card.status !== 'closed').slice(0, 6);
+    const cards = sortedCards().filter((card) => card.status !== 'closed').slice(0, 5);
     $('#dashboard-cases').innerHTML = cards.length ? cards.map((card) => {
       const column = columnOf(card);
       const risk = card.counts.milestoneOverdue
