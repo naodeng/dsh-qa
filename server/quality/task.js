@@ -7,19 +7,35 @@ export function normalizeQualityProject(project) {
   return project;
 }
 
-export function createQualityTask(project, fields = {}) {
+function capturedSources(sources) {
+  if (!Array.isArray(sources)) throw new TypeError('质量任务来源必须是数组');
+  return sources.map((source) => {
+    if (!source || typeof source !== 'object'
+      || typeof source.type !== 'string'
+      || typeof source.ref !== 'string'
+      || !/^[a-f0-9]{64}$/.test(source.digest)
+      || !Number.isSafeInteger(source.byteSize) || source.byteSize < 0
+      || typeof source.snapshot !== 'string'
+      || typeof source.capturedAt !== 'string') {
+      throw new TypeError('质量任务来源必须已采集');
+    }
+    return { type: source.type, ref: source.ref, digest: source.digest, byteSize: source.byteSize, snapshot: source.snapshot, capturedAt: source.capturedAt };
+  });
+}
+
+export function createQualityTask(project, { title, sources = [] } = {}) {
   normalizeQualityProject(project);
   const task = {
     id: uid('qt'),
     projectId: project.id,
-    title: String(fields.title || '未命名质量任务'),
+    title: String(title || '未命名质量任务'),
     version: 1,
     stage: 'intake',
-    sources: Array.isArray(fields.sources) ? fields.sources : [],
-    acceptanceCriteria: Array.isArray(fields.acceptanceCriteria) ? fields.acceptanceCriteria : [],
-    risks: Array.isArray(fields.risks) ? fields.risks : [],
-    testScope: Array.isArray(fields.testScope) ? fields.testScope : [],
-    decisions: Array.isArray(fields.decisions) ? fields.decisions : [],
+    sources: capturedSources(sources),
+    acceptanceCriteria: [],
+    risks: [],
+    testScope: [],
+    decisions: [],
     createdAt: now(),
     updatedAt: now(),
   };

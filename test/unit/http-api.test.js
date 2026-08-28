@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -107,6 +108,59 @@ test('quality task API creates, lists, and enforces revision conflicts', async (
   });
   assert.equal(conflict.status, 409);
   assert.match((await conflict.json()).error, /版本|revision/i);
+});
+
+test('quality task API rejects six 1 MiB sources above the project capture limit', async () => {
+  const project = await (await fetch(`${base}/api/projects`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '来源总量 API 项目' }),
+  })).json();
+  const current = store.getProject(project.project.id);
+  const sources = Array.from({ length: 6 }, (_, index) => {
+    const ref = `source-${index}.md`;
+    fs.writeFileSync(path.join(current.workspacePath, ref), Buffer.alloc(1024 * 1024, 0x61));
+    return { type: 'workspace-file', ref };
+  });
+
+  const response = await fetch(`${base}/api/projects/${current.id}/quality-tasks`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '超限来源', sources }),
+  });
+
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /5 MiB/);
+  assert.equal(current.qualityTasks.length, 0);
+});
+
+test('quality task API replaces client supplied source metadata with server capture', async () => {
+  const project = await (await fetch(`${base}/api/projects`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '来源采集 API 项目' }),
+  })).json();
+  const current = store.getProject(project.project.id);
+  const ref = 'trusted-source.md';
+  const snapshot = '# 服务端采集的来源';
+  fs.writeFileSync(path.join(current.workspacePath, ref), snapshot);
+
+  const response = await fetch(`${base}/api/projects/${current.id}/quality-tasks`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      title: '来源采集',
+      sources: [{ type: 'workspace-file', ref, digest: 'forged-digest', snapshot: 'forged snapshot', byteSize: 1 }],
+    }),
+  });
+
+  assert.equal(response.status, 201);
+  const source = (await response.json()).task.sources[0];
+  assert.deepEqual(source, {
+    type: 'workspace-file',
+    ref,
+    digest: crypto.createHash('sha256').update(snapshot).digest('hex'),
+    byteSize: Buffer.byteLength(snapshot),
+    snapshot,
+    capturedAt: source.capturedAt,
+  });
+  assert.match(source.capturedAt, /^\d{4}-\d{2}-\d{2}T/);
 });
 
 test('manual analysis rejects host fields and records manual origin', async () => {

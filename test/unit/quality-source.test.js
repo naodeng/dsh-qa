@@ -36,3 +36,16 @@ test('captures only an allowed Git revision', async () => {
   const diff = await captureSource(project, { type: 'git-diff', ref: 'HEAD~1..HEAD' });
   assert.equal(diff.digest.length, 64);
 });
+
+test('rejects workspace symlink escapes and missing or non-file source targets', async () => {
+  const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-source-boundary-'));
+  const outsidePath = path.join(os.tmpdir(), `dsh-source-outside-${Date.now()}.md`);
+  fs.writeFileSync(outsidePath, 'outside workspace');
+  fs.symlinkSync(outsidePath, path.join(workspacePath, 'outside-link.md'));
+  fs.mkdirSync(path.join(workspacePath, 'directory.md'));
+  const project = makeProject({ workspacePath });
+
+  await assert.rejects(() => captureSource(project, { type: 'workspace-file', ref: 'outside-link.md' }), /越界/);
+  await assert.rejects(() => captureSource(project, { type: 'workspace-file', ref: 'missing.md' }), /不存在/);
+  await assert.rejects(() => captureSource(project, { type: 'workspace-file', ref: 'directory.md' }), /普通文件/);
+});

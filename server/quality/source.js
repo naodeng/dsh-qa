@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 const MAX_BYTES = 1024 * 1024;
+const MAX_TOTAL_BYTES = 5 * 1024 * 1024;
 const REVISION_PART = '(?:HEAD(?:~[0-9]+)?|[0-9a-f]{40})';
 const REVISION = new RegExp(`^(?:${REVISION_PART}|${REVISION_PART}\\.\\.${REVISION_PART}|${REVISION_PART}\\.\\.\\.${REVISION_PART})$`);
 
@@ -27,6 +28,38 @@ function safePath(root, ref) {
   return target;
 }
 
+function within(root, target) {
+  const relative = path.relative(root, target);
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
+}
+
+async function workspaceFile(root, ref) {
+  const lexicalTarget = safePath(root, ref);
+  let resolvedRoot;
+  let resolvedTarget;
+  try {
+    [resolvedRoot, resolvedTarget] = await Promise.all([fs.realpath(root), fs.realpath(lexicalTarget)]);
+  } catch (error) {
+    if (error.code === 'ENOENT') throw new Error('来源文件不存在');
+    throw error;
+  }
+  if (!within(resolvedRoot, resolvedTarget)) throw new Error('来源路径越界');
+  const stat = await fs.lstat(resolvedTarget);
+  if (!stat.isFile()) throw new Error('来源必须是普通文件');
+  return resolvedTarget;
+}
+
+async function readBoundedText(filename) {
+  const handle = await fs.open(filename, 'r');
+  try {
+    const buffer = Buffer.alloc(MAX_BYTES + 1);
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+    return boundedText(buffer.subarray(0, bytesRead));
+  } finally {
+    await handle.close();
+  }
+}
+
 function validateRevision(ref) {
   if (typeof ref !== 'string' || !REVISION.test(ref)) throw new Error('非法 Git revision');
 }
@@ -40,8 +73,8 @@ export async function captureSource(project, descriptor = {}) {
     return { type, ref: descriptor.ref, digest: digest(content), content };
   }
   if (type === 'workspace-file') {
-    const filename = safePath(project.workspacePath, descriptor.ref);
-    const content = boundedText(await fs.readFile(filename));
+    const filename = await workspaceFile(project.workspacePath, descriptor.ref);
+    const content = await readBoundedText(filename);
     return { type, ref: descriptor.ref, digest: digest(content), content };
   }
   if (type === 'git-diff') {
@@ -57,4 +90,25 @@ export async function captureSource(project, descriptor = {}) {
     }
   }
   throw new Error('不支持的来源类型');
+}
+
+export async function captureSources(project, descriptors = []) {
+  if (!Array.isArray(descriptors)) throw new Error('来源必须是数组');
+  const sources = [];
+  let totalBytes = 0;
+  for (const descriptor of descriptors) {
+    const captured = await captureSource(project, descriptor);
+    const byteSize = Buffer.byteLength(captured.content, 'utf8');
+    totalBytes += byteSize;
+    if (totalBytes > MAX_TOTAL_BYTES) throw new Error('来源总量超过 5 MiB');
+    sources.push({
+      type: captured.type,
+      ref: captured.ref,
+      digest: captured.digest,
+      byteSize,
+      snapshot: captured.content,
+      capturedAt: new Date().toISOString(),
+    });
+  }
+  return sources;
 }

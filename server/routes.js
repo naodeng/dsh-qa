@@ -8,6 +8,7 @@ import * as store from './store.js';
 import { sseHandler, broadcast } from './sse.js';
 import { getBoard, projectCard, computeStats, KANBAN_COLUMNS } from './board.js';
 import { createQualityTask, getQualityTask, listQualityTasks, normalizeQualityProject } from './quality/task.js';
+import { captureSources } from './quality/source.js';
 import { createExecutionProfile, createExecutionProfileVersion, disableExecutionProfile } from './quality/execution-profile.js';
 import { cancelRun, createRunPreview, startRun } from './quality/test-runner.js';
 import { createTestPlanVersion, getTestPlan, reviewTestPlan } from './quality/test-plan.js';
@@ -239,9 +240,12 @@ async function api(req, res, url, body) {
     if (m('GET')) { return ok(res, { tasks: listQualityTasks(c) }); }
     if (m('POST')) {
       if (!String(body.title || '').trim()) return fail(res, 400, '质量任务标题不能为空');
-      const task = createQualityTask(c, body);
-      store.touch(c); store.persist(); emitProject(c.id);
-      return created(res, { task });
+      try {
+        const sources = await captureSources(c, body.sources || []);
+        const task = createQualityTask(c, { title: body.title, sources });
+        store.touch(c); store.persist(); emitProject(c.id);
+        return created(res, { task });
+      } catch (error) { return fail(res, 400, error.message); }
     }
   }
 
