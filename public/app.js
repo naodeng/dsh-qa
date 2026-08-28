@@ -304,6 +304,12 @@
     switchView('project-detail');
     await refreshProjectDetail(id);
   }
+  function updateProjectDetailBackLabel() {
+    const labels = currentLang() === 'en'
+      ? { dashboard: '← Back to dashboard', board: '← Back to project kanban', assistant: '← Back to DSH QA chat' }
+      : { dashboard: '← 返回测试首页', board: '← 返回项目看板', assistant: '← 返回 DSH 测试对话' };
+    $('#btn-project-detail-back').textContent = labels[state.detailReturnView] || labels.board;
+  }
 
   // ---------- dashboard ----------
   function renderMetrics() {
@@ -353,11 +359,11 @@
         <div class="case-main"><b>${esc(card.title)}</b><span>${esc(card.projectKey || card.typeLabel || t('case.table.project'))}</span></div>
         <span class="stage-pill" style="--cc:${column?.color || '#64748b'}">${esc(column?.title || card.status)}</span>
         <span class="risk-badges">${risk}<span class="risk-badge">${t('case.table.risk').split(' / ')[1] || 'Cases'} ${card.counts.testcases}</span></span>
-        <span class="last-active">${fmtTime(card.lastActivityAt)}<button class="row-detail-link" data-project-detail type="button">${currentLang() === 'en' ? 'Details' : '详情'}</button></span>
+        <span class="last-active">${fmtTime(card.lastActivityAt)}<button class="row-detail-link" data-project-preview type="button">${currentLang() === 'en' ? 'Quick preview' : '快速预览'}</button></span>
       </div>`;
     }).join('') : emptyHtml(t('caseList.empty'));
-    $$('.case-overview-row', $('#dashboard-cases')).forEach((el) => el.addEventListener('click', () => openProject(el.dataset.projectId)));
-    $$('[data-project-detail]', $('#dashboard-cases')).forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); openProjectDetail(button.closest('[data-project-id]').dataset.projectId, 'dashboard'); }));
+    $$('.case-overview-row', $('#dashboard-cases')).forEach((el) => el.addEventListener('click', () => openProjectDetail(el.dataset.projectId, 'dashboard')));
+    $$('[data-project-preview]', $('#dashboard-cases')).forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); openDrawer(button.closest('[data-project-id]').dataset.projectId); }));
   }
   function renderAiSummary() {
     const cards = sortedCards();
@@ -534,7 +540,7 @@
     const mats = (card.latestMaterials || []).slice(0, 2).map((m) => `<div class="card-mat">${FEED_ICON[m.type] || '记'} · ${esc(m.label)}</div>`).join('');
     return `<div class="card-top"><div class="card-title">${esc(card.title)}</div>${card.aiActive ? '<span class="ai-chip">AI</span>' : ''}</div>
       <div class="card-meta">${esc(card.projectKey || t('case.table.project'))} · ${esc(KIND_CN[card.kind] || card.typeLabel)}</div>
-      <div class="card-badges"><span class="badge">${currentLang() === 'en' ? 'Req' : '需'} ${counts.requirements}</span><span class="badge ${counts.milestoneOverdue ? 'danger' : counts.milestoneSoon ? 'warn' : ''}">${currentLang() === 'en' ? 'MS' : '里'} ${counts.milestones}</span><span class="badge">${currentLang() === 'en' ? 'TC' : '例'} ${counts.testcases}</span><span class="badge ${counts.defectsOpen ? 'danger' : ''}">${currentLang() === 'en' ? 'Bug' : '缺'} ${counts.defects}</span><span class="badge doc">${currentLang() === 'en' ? 'Rpt' : '报'} ${counts.reports}</span>${counts.pendingGates ? `<span class="badge gate">${currentLang() === 'en' ? 'G' : '审'} ${counts.pendingGates}</span>` : ''}</div>${mats ? `<div class="card-mats">${mats}</div>` : ''}<div class="card-foot">${fmtTime(card.lastActivityAt)}<button class="card-detail-link" type="button" data-card-detail>${currentLang() === 'en' ? 'Full details' : '完整详情'}</button></div>`;
+      <div class="card-badges"><span class="badge">${currentLang() === 'en' ? 'Req' : '需'} ${counts.requirements}</span><span class="badge ${counts.milestoneOverdue ? 'danger' : counts.milestoneSoon ? 'warn' : ''}">${currentLang() === 'en' ? 'MS' : '里'} ${counts.milestones}</span><span class="badge">${currentLang() === 'en' ? 'TC' : '例'} ${counts.testcases}</span><span class="badge ${counts.defectsOpen ? 'danger' : ''}">${currentLang() === 'en' ? 'Bug' : '缺'} ${counts.defects}</span><span class="badge doc">${currentLang() === 'en' ? 'Rpt' : '报'} ${counts.reports}</span>${counts.pendingGates ? `<span class="badge gate">${currentLang() === 'en' ? 'G' : '审'} ${counts.pendingGates}</span>` : ''}</div>${mats ? `<div class="card-mats">${mats}</div>` : ''}<div class="card-foot">${fmtTime(card.lastActivityAt)}<button class="card-detail-link" type="button" data-card-preview>${currentLang() === 'en' ? 'Quick preview' : '快速预览'}</button></div>`;
   }
   function makeCardEl(card) {
     const el = document.createElement('article');
@@ -545,8 +551,8 @@
     el.innerHTML = cardHtml(card);
     el.addEventListener('dragstart', (event) => { state.justDragged = true; el.classList.add('dragging'); event.dataTransfer.setData('text/projectid', card.id); setTimeout(() => { state.justDragged = false; }, 300); });
     el.addEventListener('dragend', () => el.classList.remove('dragging'));
-    $('[data-card-detail]', el).addEventListener('click', (event) => { event.stopPropagation(); openProjectDetail(card.id, 'board'); });
-    el.addEventListener('click', () => { if (!state.justDragged) openDrawer(card.id); });
+    $('[data-card-preview]', el).addEventListener('click', (event) => { event.stopPropagation(); openDrawer(card.id); });
+    el.addEventListener('click', () => { if (!state.justDragged) openProjectDetail(card.id, 'board'); });
     return el;
   }
   function appendCardEl(card) {
@@ -979,6 +985,7 @@
     try {
       const { project: p } = await api(`api/projects/${id}`);
       state.detailProject = p;
+      updateProjectDetailBackLabel();
       $('#project-detail-meta').textContent = `${p.title} · ${p.projectKey || (currentLang() === 'en' ? 'Unnumbered' : '未编号')} · ${columnOf(p)?.title || p.status}`;
       $('#btn-project-detail-folder').textContent = p.workspacePath ? (currentLang() === 'en' ? 'Open project files' : '打开项目文件') : (currentLang() === 'en' ? 'Create project files' : '创建项目文件');
       const stageIndex = Math.max(0, state.columns.findIndex((column) => column.id === p.status));

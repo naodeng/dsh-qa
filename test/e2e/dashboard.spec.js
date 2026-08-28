@@ -23,6 +23,16 @@ test.describe('首页', () => {
     await page.locator('#nc-cancel').click();
   });
 
+  test('首页在办项目主体进入完整详情，快速预览按钮打开抽屉', async ({ page }) => {
+    await page.goto('/');
+    const row = page.locator('#dashboard-cases .case-overview-row').first();
+    await row.click();
+    await expect(page.locator('#view-project-detail')).toBeVisible();
+    await page.getByRole('button', { name: '返回测试首页' }).click();
+    await page.locator('#dashboard-cases .case-overview-row').first().getByRole('button', { name: '快速预览' }).click();
+    await expect(page.locator('#drawer')).toBeVisible();
+  });
+
   test('首页可以切换主题并暴露基础可访问性属性', async ({ page }) => {
     await page.goto('/');
     const initialTheme = await page.locator('body').getAttribute('data-theme');

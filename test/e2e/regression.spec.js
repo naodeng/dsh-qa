@@ -9,7 +9,7 @@ test('质量证据与回归工作台提供空状态、创建流程和双语界�
   await page.locator('#nc-workspace').uncheck();
   await page.getByRole('button', { name: '创建项目' }).click();
   await page.getByRole('button', { name: '项目看板' }).click();
-  await page.locator('.card').filter({ hasText: projectTitle }).getByRole('button', { name: '完整详情' }).click();
+  await page.locator('.card').filter({ hasText: projectTitle }).click();
   await page.locator('#project-detail-tabs button[data-detail-tab="qualityTasks"]').click();
 
   await expect(page.getByRole('heading', { name: '质量证据' })).toBeVisible();

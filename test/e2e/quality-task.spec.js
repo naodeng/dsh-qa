@@ -8,7 +8,7 @@ test('项目详情可以创建质量任务并在刷新后保留', async ({ page 
   await page.locator('#nc-workspace').uncheck();
   await page.getByRole('button', { name: '创建项目' }).click();
   await page.getByRole('button', { name: '项目看板' }).click();
-  await page.locator('.card').filter({ hasText: projectTitle }).getByRole('button', { name: '完整详情' }).click();
+  await page.locator('.card').filter({ hasText: projectTitle }).click();
   await page.locator('#project-detail-tabs button[data-detail-tab="qualityTasks"]').click();
   await page.getByRole('button', { name: '新建质量任务' }).click();
   await page.getByLabel('任务名称').fill('支付回调风险');
@@ -17,7 +17,7 @@ test('项目详情可以创建质量任务并在刷新后保留', async ({ page 
   await expect(page.getByText('结果来源：人工录入')).toBeVisible();
   await page.reload();
   await page.getByRole('button', { name: '项目看板' }).click();
-  await page.locator('.card').filter({ hasText: projectTitle }).getByRole('button', { name: '完整详情' }).click();
+  await page.locator('.card').filter({ hasText: projectTitle }).click();
   await page.locator('#project-detail-tabs button[data-detail-tab="qualityTasks"]').click();
   await expect(page.getByText('质量门禁')).toBeVisible();
   await expect(page.getByText('通过', { exact: true })).toBeVisible();
