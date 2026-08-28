@@ -1056,7 +1056,9 @@ body[data-theme="dashboard"] .ai-orb {
     margin-top: auto;
   }
   body[data-theme="dashboard"] .dashboard-grid > .ai-control-panel {
-    justify-content: space-between;
+    height: auto;
+    align-self: start;
+    justify-content: flex-start;
   }
   body[data-theme="dashboard"] .dashboard-page .metric-card small,
   body[data-theme="dashboard"] .dashboard-page .metric-card em,

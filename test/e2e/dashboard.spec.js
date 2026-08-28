@@ -33,6 +33,17 @@ test.describe('首页', () => {
     await expect(page.locator('#drawer')).toBeVisible();
   });
 
+  test('右侧 DSH 辅助卡保持紧凑，不随在办项目列表拉伸', async ({ page }) => {
+    await page.goto('/');
+    const projectPanel = await page.locator('.case-overview-panel').boundingBox();
+    const assistantPanel = await page.locator('.ai-control-panel').boundingBox();
+
+    expect(projectPanel).not.toBeNull();
+    expect(assistantPanel).not.toBeNull();
+    expect(assistantPanel.height).toBeLessThan(320);
+    expect(assistantPanel.height).toBeLessThan(projectPanel.height - 40);
+  });
+
   test('首页可以切换主题并暴露基础可访问性属性', async ({ page }) => {
     await page.goto('/');
     const initialTheme = await page.locator('body').getAttribute('data-theme');
