@@ -1032,7 +1032,7 @@
       gateCard.querySelector('.detail-card-head')?.append(actions);
       const delivery = document.createElement('section');
       delivery.className = 'detail-card';
-      delivery.innerHTML = `<div class="detail-card-head"><div><span>DELIVERY</span><h3>${q('交付报告', 'Delivery report')}</h3></div></div><div class="li-sub" id="gate-report">${q('评估后可查看可追溯交付依据。', 'Evaluate to view traceable delivery evidence.')}</div><div class="detail-card-head"><div><span>TREND</span><h3>${q('门禁趋势', 'Gate trends')}</h3></div></div><div class="li-sub" id="gate-trend">${q('暂无门禁趋势。', 'No gate trend yet.')}</div>`;
+      delivery.innerHTML = `<div class="detail-card-head"><div><span>DELIVERY</span><h3>${q('交付报告', 'Delivery report')}</h3></div><button class="btn sm" id="gate-exception" type="button">${q('添加门禁例外', 'Add gate exception')}</button></div><div class="li-sub" id="gate-report">${q('评估后可查看可追溯交付依据。', 'Evaluate to view traceable delivery evidence.')}</div><div class="detail-card-head"><div><span>TREND</span><h3>${q('门禁趋势', 'Gate trends')}</h3></div></div><div class="li-sub" id="gate-trend">${q('暂无门禁趋势。', 'No gate trend yet.')}</div>`;
       gateCard.after(delivery);
     }
     const assetHead = $('.quality-assets .detail-card-head', body);
@@ -1102,9 +1102,9 @@
     $('#gate-evaluate', body)?.addEventListener('click', async () => {
       const task = tasks[0];
       if (!task) return toast(q('请先创建质量任务', 'Create a quality task first'), 'err');
-      try { const result = await api(`api/projects/${p.id}/quality-tasks/${task.id}/gates/evaluate`, { method: 'POST', body: {} }); toast(`${q('门禁结论', 'Gate verdict')}：${result.gate.verdict}`, result.gate.verdict === 'BLOCK' ? 'err' : 'ok'); renderQualityTasks(body, state.projects.find((item) => item.id === p.id) || p); } catch (error) { toast(error.message, 'err'); }
+      try { const result = await api(`api/projects/${p.id}/quality-tasks/${task.id}/gates/evaluate`, { method: 'POST', body: {} }); const [report, trend] = await Promise.all([api(`api/projects/${p.id}/quality-tasks/${task.id}/reports`), api(`api/projects/${p.id}/quality-tasks/${task.id}/gate-trends`)]); $('#gate-report', body).textContent = `${report.report.verdict} · ${report.report.checks.map((check) => check.explanation).join('；')}`; $('#gate-trend', body).textContent = trend.trend.series.map((point) => point.verdict).join(' → '); toast(`${q('门禁结论', 'Gate verdict')}：${result.gate.verdict}`, result.gate.verdict === 'BLOCK' ? 'err' : 'ok'); } catch (error) { toast(error.message, 'err'); }
     });
-    api(`api/projects/${p.id}/quality-gate`).then(({ gate }) => { const card = $('#quality-gate-summary', body); if (!card) return; card.innerHTML = `<div class="detail-card-head"><div><span>QUALITY GATE</span><h3>质量门禁</h3></div><span class="badge ${gate.status === 'blocked' ? 'danger' : ''}">${gate.status === 'blocked' ? '阻断' : '通过'}</span><button class="btn primary sm" id="gate-evaluate" type="button">${q('评估质量门禁', 'Evaluate quality gate')}</button></div><div class="li-sub">${gate.blockers.length ? `阻断原因：${gate.blockers.map(esc).join('、')}` : '当前检查项均已满足。'}</div>`; card.querySelector('#gate-evaluate')?.addEventListener('click', async () => { const task = tasks[0]; if (!task) return toast(q('请先创建质量任务', 'Create a quality task first'), 'err'); try { const result = await api(`api/projects/${p.id}/quality-tasks/${task.id}/gates/evaluate`, { method: 'POST', body: {} }); toast(`${q('门禁结论', 'Gate verdict')}：${result.gate.verdict}`, result.gate.verdict === 'BLOCK' ? 'err' : 'ok'); } catch (error) { toast(error.message, 'err'); } }); }).catch(() => {});
+    api(`api/projects/${p.id}/quality-gate`).then(({ gate }) => { const card = $('#quality-gate-summary', body); if (!card) return; card.innerHTML = `<div class="detail-card-head"><div><span>QUALITY GATE</span><h3>质量门禁</h3></div><span class="badge ${gate.status === 'blocked' ? 'danger' : ''}">${gate.status === 'blocked' ? '阻断' : '通过'}</span><button class="btn primary sm" id="gate-evaluate" type="button">${q('评估质量门禁', 'Evaluate quality gate')}</button></div><div class="li-sub">${gate.blockers.length ? `阻断原因：${gate.blockers.map(esc).join('、')}` : '当前检查项均已满足。'}</div>`; card.querySelector('#gate-evaluate')?.addEventListener('click', async () => { const task = tasks[0]; if (!task) return toast(q('请先创建质量任务', 'Create a quality task first'), 'err'); try { const result = await api(`api/projects/${p.id}/quality-tasks/${task.id}/gates/evaluate`, { method: 'POST', body: {} }); const [report, trend] = await Promise.all([api(`api/projects/${p.id}/quality-tasks/${task.id}/reports`), api(`api/projects/${p.id}/quality-tasks/${task.id}/gate-trends`)]); $('#gate-report', body).textContent = `${report.report.verdict} · ${report.report.checks.map((check) => check.explanation).join('；')}`; $('#gate-trend', body).textContent = trend.trend.series.map((point) => point.verdict).join(' → '); toast(`${q('门禁结论', 'Gate verdict')}：${result.gate.verdict}`, result.gate.verdict === 'BLOCK' ? 'err' : 'ok'); } catch (error) { toast(error.message, 'err'); } }); }).catch(() => {});
   }
   function renderOverview(body, p) {
     const options = state.columns.map((column) => `<option value="${column.id}" ${p.status === column.id ? 'selected' : ''}>${esc(column.title)}</option>`).join('');
@@ -1478,6 +1478,11 @@
       const seen = state.evidenceRevisions.get(update.entityId) || 0;
       if (Number(update.revision || 0) <= seen) return;
       state.evidenceRevisions.set(update.entityId, Number(update.revision));
+      if (state.drawerProject?.id === update.projectId) refreshDrawer(update.projectId).catch(() => {});
+      if (state.detailProject?.id === update.projectId) refreshProjectDetail(update.projectId).catch(() => {});
+    });
+    events.addEventListener('quality.gate.updated', (event) => {
+      const update = JSON.parse(event.data);
       if (state.drawerProject?.id === update.projectId) refreshDrawer(update.projectId).catch(() => {});
       if (state.detailProject?.id === update.projectId) refreshProjectDetail(update.projectId).catch(() => {});
     });
