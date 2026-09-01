@@ -23,7 +23,7 @@
 
 **Interfaces:** Produces `makeProject`, `makeQualityTask`, `makeTestCase`, `makeTestRun`, `makeEvidenceBundle`, `makeGate` for all four version plans.
 
-- [ ] **Step 1: Write the fixture contract test**
+- [x] **Step 1: Write the fixture contract test**
 
 ```js
 import test from 'node:test';
@@ -40,8 +40,8 @@ test('quality fixtures return isolated project-owned entities', () => {
 });
 ```
 
-- [ ] **Step 2: Verify failure** — Run `node --test test/helpers/quality-fixtures.test.js`; Expected: module-not-found.
-- [ ] **Step 3: Implement the fixture module and test discovery** — Add the fixture module below. Implement `scripts/run-unit-tests.js` to recursively collect and sort only `test/unit/**/*.test.js` and `test/helpers/**/*.test.js`, then invoke `process.execPath` with `['--test', '--test-concurrency=1', ...files]` via `spawnSync` without a shell and propagate its exit status. Change `test:unit` to `node scripts/run-unit-tests.js`. Do not use bare `node --test`, because Node discovery may also traverse `test/e2e` or intentional runner inputs.
+- [x] **Step 2: Verify failure** — Run `node --test test/helpers/quality-fixtures.test.js`; Expected: module-not-found.
+- [x] **Step 3: Implement the fixture module and test discovery** — Add the fixture module below. Implement `scripts/run-unit-tests.js` to recursively collect and sort only `test/unit/**/*.test.js` and `test/helpers/**/*.test.js`, then invoke `process.execPath` with `['--test', '--test-concurrency=1', ...files]` via `spawnSync` without a shell and propagate its exit status. Change `test:unit` to `node scripts/run-unit-tests.js`. Do not use bare `node --test`, because Node discovery may also traverse `test/e2e` or intentional runner inputs.
 
 ```js
 let sequence = 0;
@@ -73,8 +73,8 @@ const result = spawnSync(process.execPath, ['--test', '--test-concurrency=1', ..
 process.exit(result.status ?? 1);
 ```
 
-- [ ] **Step 4: Verify pass** — Run the focused command and `npm run test:unit`; Expected: fixture contract and all existing unit/API tests PASS, output includes `quality-fixtures.test.js`, and excludes `test/e2e` plus `test/fixtures/runner`.
-- [ ] **Step 5: Commit** — Commit `test: add quality domain fixtures` with only the two helper files.
+- [x] **Step 4: Verify pass** — Run the focused command and `npm run test:unit`; Expected: fixture contract and all existing unit/API tests PASS, output includes `quality-fixtures.test.js`, and excludes `test/e2e` plus `test/fixtures/runner`.
+- [x] **Step 5: Commit** — Commit `test: add quality domain fixtures` with only the two helper files.
 
 ### Task 0A: Versioned store migration foundation
 
@@ -82,11 +82,11 @@ process.exit(result.status ?? 1);
 
 **Interfaces:** Produces `CURRENT_SCHEMA_VERSION`, `migrateDb(rawDb)` and load-time all-or-nothing migration; later iterations append one ordered migration step rather than adding scattered load-time mutations.
 
-- [ ] **Step 1: Write failing tests** — Load a copy of a real pre-0.2 fixture, assert unknown fields survive and `qualityTasks/qualityAudit` are initialized, a second migration is deep-equal to the first, malformed non-object roots fail without changing the source fixture, and migrated data survives `flush()` plus module reload. Later version plans extend this same fixture matrix with their own arrays.
-- [ ] **Step 2: Verify failure** — Run `node --test test/unit/migrations.test.js`; Expected: module missing.
-- [ ] **Step 3: Implement** ordered pure migrations on a cloned object, update `schemaVersion` only after each successful step, replace in-memory db only after the full chain succeeds, and preserve the original JSON file on failure.
-- [ ] **Step 4: Verify pass** — Re-run the focused test; Expected: migration, idempotence, unknown-field preservation and restart scenarios PASS.
-- [ ] **Step 5: Commit** — Commit `feat: add versioned store migrations`.
+- [x] **Step 1: Write failing tests** — Load a copy of a real pre-0.2 fixture, assert unknown fields survive and `qualityTasks/qualityAudit` are initialized, a second migration is deep-equal to the first, malformed non-object roots fail without changing the source fixture, and migrated data survives `flush()` plus module reload. Later version plans extend this same fixture matrix with their own arrays.
+- [x] **Step 2: Verify failure** — Run `node --test test/unit/migrations.test.js`; Expected: module missing.
+- [x] **Step 3: Implement** ordered pure migrations on a cloned object, update `schemaVersion` only after each successful step, replace in-memory db only after the full chain succeeds, and preserve the original JSON file on failure.
+- [x] **Step 4: Verify pass** — Re-run the focused test; Expected: migration, idempotence, unknown-field preservation and restart scenarios PASS.
+- [x] **Step 5: Commit** — Commit `feat: add versioned store migrations`.
 
 ### Task 1: 项目归一化与质量任务模型
 
@@ -94,7 +94,7 @@ process.exit(result.status ?? 1);
 
 **Interfaces:** Produces `normalizeQualityProject(project)`, `createQualityTask(project, fields)`, `getQualityTask(project, id)`, `listQualityTasks(project)`, `recomputeStage(task)`; QualityTask includes `acceptanceCriteria[]`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```js
 const legacy = makeProject(); delete legacy.qualityTasks;
@@ -106,10 +106,10 @@ assert.deepEqual(task.acceptanceCriteria, []);
 task.risks = [{ severity: 'high', assessmentStatus: 'confirmed', dispositionStatus: 'open' }];
 assert.equal(recomputeStage(task), 'confirmation');
 ```
-- [ ] 运行 `node --test test/unit/quality-task.test.js`；预期因模块不存在失败。
-- [ ] 在 `normalizeProject()` 增加 `qualityTasks ||= []`，实现四个导出函数和风险双状态校验。
-- [ ] 重跑同一命令；预期全部通过。
-- [ ] 运行 `git diff --check`，仅暂存本任务文件，提交 `feat: add project quality task model`。
+- [x] 运行 `node --test test/unit/quality-task.test.js`；预期因模块不存在失败。
+- [x] 在 `normalizeProject()` 增加 `qualityTasks ||= []`，实现四个导出函数和风险双状态校验。
+- [x] 重跑同一命令；预期全部通过。
+- [x] 运行 `git diff --check`，仅暂存本任务文件，提交 `feat: add project quality task model`。
 
 ### Task 2: 受控来源快照
 
@@ -117,7 +117,7 @@ assert.equal(recomputeStage(task), 'confirmation');
 
 **Interfaces:** Consumes `project.requirements`, `project.workspacePath`; Produces `captureSource(project, descriptor)`。
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```js
 const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-source-'));
@@ -144,10 +144,10 @@ await assert.rejects(() => captureSource(makeProject({ workspacePath: gitWorkspa
 await assert.rejects(() => captureSource(makeProject({ workspacePath: gitWorkspaceDir }), { type: 'git-diff', ref: 'HEAD@{1}' }), /revision/);
 assert.equal((await captureSource(makeProject({ workspacePath: gitWorkspaceDir }), { type: 'git-diff', ref: 'HEAD~1..HEAD' })).digest.length, 64);
 ```
-- [ ] 运行 `node --test test/unit/quality-source.test.js`；预期因函数缺失失败。
-- [ ] 使用 realpath 边界校验和 `execFile('git', fixedArgs)` 实现来源捕获，不使用 shell 字符串；revision 只接受 `HEAD`、`HEAD~N`、40 位 commit 及受限双点/三点组合，明确拒绝 `-` 开头值、reflog/colon/whitespace，并把所有路径放在 `--` 后。文件和 Git stdout 都以 1 MiB 硬上限读取，校验 UTF-8/NUL，并在追加任务来源前检查 5 MiB 总量；超限不保存截断快照。
-- [ ] 重跑测试；预期全部通过且越界返回稳定错误码。
-- [ ] 仅提交本任务文件，提交信息 `feat: capture controlled quality sources`。
+- [x] 运行 `node --test test/unit/quality-source.test.js`；预期因函数缺失失败。
+- [x] 使用 realpath 边界校验和 `execFile('git', fixedArgs)` 实现来源捕获，不使用 shell 字符串；revision 只接受 `HEAD`、`HEAD~N`、40 位 commit 及受限双点/三点组合，明确拒绝 `-` 开头值、reflog/colon/whitespace，并把所有路径放在 `--` 后。文件和 Git stdout 都以 1 MiB 硬上限读取，校验 UTF-8/NUL，并在追加任务来源前检查 5 MiB 总量；超限不保存截断快照。
+- [x] 重跑测试；预期全部通过且越界返回稳定错误码。
+- [x] 仅提交本任务文件，提交信息 `feat: capture controlled quality sources`。
 
 ### Task 3: 项目嵌套 API 与修订冲突
 
@@ -155,7 +155,7 @@ assert.equal((await captureSource(makeProject({ workspacePath: gitWorkspaceDir }
 
 **Interfaces:** Produces quality-tasks 列表/创建/详情、analysis-requests、manual-analyses、decisions API。
 
-- [ ] **Step 1: Write the failing API tests**
+- [x] **Step 1: Write the failing API tests**
 
 ```js
 const created = await fetch(`${base}/api/projects/${project.id}/quality-tasks`, {
@@ -182,10 +182,10 @@ const manualTask = (await manual.json()).task;
 assert.equal(manualTask.analysisOrigin, 'manual');
 assert.equal(manualTask.analysisRuns.at(-1).dshSessionId ?? '', '');
 ```
-- [ ] 运行 `node --test test/unit/http-api.test.js`；预期新路由 404。
-- [ ] 添加 `created()`/`accepted()` 响应助手和嵌套路由，保持 `ok()` 为 200；body 不能覆盖 path projectId；manual analysis 强制 origin=manual，出现 origin、dshSessionId、stage 等派生/宿主字段时返回 400；decision 和所有其他修改使用 `expectedRevision` 并追加记录。
-- [ ] 重跑 HTTP 测试；预期新旧 API 全部通过。
-- [ ] 提交 `feat: add quality task APIs`。
+- [x] 运行 `node --test test/unit/http-api.test.js`；预期新路由 404。
+- [x] 添加 `created()`/`accepted()` 响应助手和嵌套路由，保持 `ok()` 为 200；body 不能覆盖 path projectId；manual analysis 强制 origin=manual，出现 origin、dshSessionId、stage 等派生/宿主字段时返回 400；decision 和所有其他修改使用 `expectedRevision` 并追加记录。
+- [x] 重跑 HTTP 测试；预期新旧 API 全部通过。
+- [x] 提交 `feat: add quality task APIs`。
 
 ### Task 4: DSH 分析工具与 SSE
 
@@ -193,7 +193,7 @@ assert.equal(manualTask.analysisRuns.at(-1).dshSessionId ?? '', '');
 
 **Interfaces:** Produces `commitQualityMutation`, `appendDeniedAudit`, 四个 `qa_quality_*` 工具和 revisioned `quality.task.updated`。
 
-- [ ] **Step 1: Write the failing tool tests**
+- [x] **Step 1: Write the failing tool tests**
 
 ```js
 const store = await import('../../server/store.js');
@@ -213,10 +213,10 @@ assert.equal('sourceSnapshot' in events.at(-1), false);
 assert.equal(project.qualityAudit.at(-1).toRevision, task.version);
 assert.equal(JSON.stringify(project.qualityAudit).includes('签名有效'), false);
 ```
-- [ ] 运行相关 unit 测试；预期工具未定义失败。
-- [ ] 实现共享 mutation wrapper、工具 schema、expectedRevision/分析结果校验、稳定错误码、审计保存和最小 SSE 广播；HTTP 和工具适配层不得直接修改质量数组。由宿主注入 projectId/dshSessionId，工具 schema 不接受这两个字段。
-- [ ] 运行 `node --test test/unit/quality-analysis.test.js test/unit/http-api.test.js`；预期通过。
-- [ ] 提交 `feat: connect DSH quality analysis tools`。
+- [x] 运行相关 unit 测试；预期工具未定义失败。
+- [x] 实现共享 mutation wrapper、工具 schema、expectedRevision/分析结果校验、稳定错误码、审计保存和最小 SSE 广播；HTTP 和工具适配层不得直接修改质量数组。由宿主注入 projectId/dshSessionId，工具 schema 不接受这两个字段。
+- [x] 运行 `node --test test/unit/quality-analysis.test.js test/unit/http-api.test.js`；预期通过。
+- [x] 提交 `feat: connect DSH quality analysis tools`。
 
 ### Task 5: 双语项目详情 UI
 
@@ -224,7 +224,7 @@ assert.equal(JSON.stringify(project.qualityAudit).includes('签名有效'), fals
 
 **Interfaces:** Consumes Task 3 API、Task 4 SSE。
 
-- [ ] **Step 1: Write the failing E2E**
+- [x] **Step 1: Write the failing E2E**
 
 ```js
 await page.getByRole('button', { name: '新建质量任务' }).click();
@@ -239,7 +239,7 @@ await expect(page.getByText('实现关注项')).toBeVisible();
 await page.reload();
 await expect(page.getByText('支付回调风险')).toBeVisible();
 ```
-- [ ] 运行 `npm run test:e2e -- test/e2e/quality-task.spec.js`；预期找不到质量任务 UI。
-- [ ] 在项目详情增加任务、验收标准、风险、测试范围和决策时间线，以及 QA/开发/产品项目展示视角和加载、空、错误、只读状态；视角仅筛选同一任务数据。
-- [ ] 重跑该 E2E；预期通过。
-- [ ] 运行 `npm test` 和 `git diff --check`；预期全量通过，提交 `feat: add quality task workbench UI`。
+- [x] 运行 `npm run test:e2e -- test/e2e/quality-task.spec.js`；预期找不到质量任务 UI。
+- [x] 在项目详情增加任务、验收标准、风险、测试范围和决策时间线，以及 QA/开发/产品项目展示视角和加载、空、错误、只读状态；视角仅筛选同一任务数据。
+- [x] 重跑该 E2E；预期通过。
+- [x] 运行 `npm test` 和 `git diff --check`；预期全量通过，提交 `feat: add quality task workbench UI`。

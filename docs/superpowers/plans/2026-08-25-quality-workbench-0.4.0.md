@@ -23,7 +23,7 @@
 
 **Interfaces:** Produces `finalizeEvidence(project, runId)`, `recoverEvidenceFinalization(projects)`, `resolveEvidence(project, evidenceId)`, `verifyEvidence(bundle)`.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```js
 const project = makeProject({ artifactRoot: controlledArtifactRoot });
@@ -42,9 +42,9 @@ fs.appendFileSync(path.join(bundle.root, bundle.items[0].relativePath), 'tampere
 assert.equal((await verifyEvidence(bundle)).ok, false);
 ```
 
-- [ ] **Step 2: Verify failure** — Run `node --test test/unit/evidence.test.js`; Expected: missing module failure.
-- [ ] **Step 3: Add lifecycle and recovery tests** — Reject non-terminal runs, symlinks/special files/hard links and files changed during hashing; run two concurrent finalize calls and assert one bundle ID; simulate crashes before manifest rename, before final directory rename and before store flush; assert restart recovery never exposes partial evidence.
-- [ ] **Step 4: Implement** controlled staging/finalizing/final directory renames, regular-file and race checks, size quotas, item SHA-256, canonical manifest hashing, idempotent/concurrent finalize and startup recovery. Only ready+verified bundles are resolvable.
+- [x] **Step 2: Verify failure** — Run `node --test test/unit/evidence.test.js`; Expected: missing module failure.
+- [x] **Step 3: Add lifecycle and recovery tests** — Reject non-terminal runs, symlinks/special files/hard links and files changed during hashing; run two concurrent finalize calls and assert one bundle ID; simulate crashes before manifest rename, before final directory rename and before store flush; assert restart recovery never exposes partial evidence.
+- [x] **Step 4: Implement** controlled staging/finalizing/final directory renames, regular-file and race checks, size quotas, item SHA-256, canonical manifest hashing, idempotent/concurrent finalize and startup recovery. Only ready+verified bundles are resolvable.
 
 最低实现结构：manifest 只能枚举稳定的 regular files，规范化后先写 `manifest.json.tmp`，目录和存储记录按状态机提交。
 
@@ -61,8 +61,8 @@ export async function finalizeEvidence(project, runId) {
   return persistReadyEvidenceAndFlush(project, bundle, finalRoot);
 }
 ```
-- [ ] **Step 5: Verify pass** — Run the same command; Expected: path, quota, hash, idempotence, concurrency, crash recovery and tamper tests PASS.
-- [ ] **Step 6: Commit** — Commit `feat: add verified evidence bundles`.
+- [x] **Step 5: Verify pass** — Run the same command; Expected: path, quota, hash, idempotence, concurrency, crash recovery and tamper tests PASS.
+- [x] **Step 6: Commit** — Commit `feat: add verified evidence bundles`.
 
 ### Task 2: Retention and project deletion
 
@@ -70,7 +70,7 @@ export async function finalizeEvidence(project, runId) {
 
 **Interfaces:** Produces `enqueueProjectArtifactCleanup(project)`, `planArtifactCleanup(db, now)`, `executeArtifactCleanup(job, deps = { rm: fs.promises.rm })`, `startArtifactCleanupWorker({ intervalMs, batchSize })`; store adds top-level `artifactCleanupJobs`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```js
 const projectWithArtifacts = createProject({ title: '待删除项目' });
@@ -88,10 +88,10 @@ const result = await executeArtifactCleanup(job, { rm: async () => { throw new E
 assert.equal(result.status, 'retryable');
 assert.equal(listArtifactCleanupJobs()[0].attempts, 1);
 ```
-- [ ] **Step 2: Verify failure** — Run `node --test test/unit/evidence-retention.test.js`; Expected: missing exports.
-- [ ] **Step 3: Implement** the `0.4.0` migration for project evidence/failure/regression arrays and top-level `artifactCleanupJobs`. During deletion, enqueue the explicit controlled artifact root and splice the Project in memory, then call one synchronous `flush()` so both changes land in one atomic JSON rename; never call delayed `persist()` between them or derive targets from request input. The worker ignores jobs whose project still exists, retains failed jobs with attempts/lastError and removes successful jobs. Start one unref'd worker after service initialization, immediately resume pending jobs, then process bounded batches of expired bundles and orphan staging; expose a stop hook for tests and server shutdown.
-- [ ] **Step 4: Verify pass** — Run the same command; Expected: six scenarios PASS.
-- [ ] **Step 5: Commit** — Commit `feat: manage evidence retention`.
+- [x] **Step 2: Verify failure** — Run `node --test test/unit/evidence-retention.test.js`; Expected: missing exports.
+- [x] **Step 3: Implement** the `0.4.0` migration for project evidence/failure/regression arrays and top-level `artifactCleanupJobs`. During deletion, enqueue the explicit controlled artifact root and splice the Project in memory, then call one synchronous `flush()` so both changes land in one atomic JSON rename; never call delayed `persist()` between them or derive targets from request input. The worker ignores jobs whose project still exists, retains failed jobs with attempts/lastError and removes successful jobs. Start one unref'd worker after service initialization, immediately resume pending jobs, then process bounded batches of expired bundles and orphan staging; expose a stop hook for tests and server shutdown.
+- [x] **Step 4: Verify pass** — Run the same command; Expected: six scenarios PASS.
+- [x] **Step 5: Commit** — Commit `feat: manage evidence retention`.
 
 ### Task 3: Failure analysis and regression set
 
@@ -99,7 +99,7 @@ assert.equal(listArtifactCleanupJobs()[0].attempts, 1);
 
 **Interfaces:** Produces `saveFailureAnalysis(project, runId, input)`, `promoteFailureAnalysisToDefect(project, analysisId, confirmation)`, `compareRuns(project, beforeRunId, afterRunId)`, `calculateRegressionSet(project, qualityTaskId, inputDigest)`, `excludeRegressionCase(set, caseId, reason, actorLabel)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```js
 const project = makeProject();
@@ -124,11 +124,11 @@ const caseId = testcase.id;
 set.items.push({ testcaseId: caseId, included: true });
 assert.throws(() => excludeRegressionCase(set, caseId, '', '张测试'), /理由/);
 ```
-- [ ] **Step 2: Verify failure** — Run `node --test test/unit/regression.test.js`; Expected: missing module failure.
-- [ ] **Step 3: Add run-comparison tests** — Build two terminal runs for the same TestPlan; assert `failed→passed=fixed`, `passed→failed=new-failure`, cross-project/cross-plan comparisons fail, and both evidence references are retained.
-- [ ] **Step 4: Implement** stable sorting and digesting of risk/change/defect inputs; extract the existing defect creation primitive so the tool and promotion path both write `project.defects`; require explicit human confirmation, reject duplicate promotion, and compare only persisted terminal runs without reparsing logs.
-- [ ] **Step 5: Verify pass** — Run `node --test test/unit/regression.test.js test/unit/run-comparison.test.js`; Expected: deterministic, promotion, comparison and audit tests PASS.
-- [ ] **Step 6: Commit** — Commit `feat: add failure analysis and regression sets`.
+- [x] **Step 2: Verify failure** — Run `node --test test/unit/regression.test.js`; Expected: missing module failure.
+- [x] **Step 3: Add run-comparison tests** — Build two terminal runs for the same TestPlan; assert `failed→passed=fixed`, `passed→failed=new-failure`, cross-project/cross-plan comparisons fail, and both evidence references are retained.
+- [x] **Step 4: Implement** stable sorting and digesting of risk/change/defect inputs; extract the existing defect creation primitive so the tool and promotion path both write `project.defects`; require explicit human confirmation, reject duplicate promotion, and compare only persisted terminal runs without reparsing logs.
+- [x] **Step 5: Verify pass** — Run `node --test test/unit/regression.test.js test/unit/run-comparison.test.js`; Expected: deterministic, promotion, comparison and audit tests PASS.
+- [x] **Step 6: Commit** — Commit `feat: add failure analysis and regression sets`.
 
 ### Task 4: Evidence API and download safety
 
@@ -136,7 +136,7 @@ assert.throws(() => excludeRegressionCase(set, caseId, '', '张测试'), /理由
 
 **Interfaces:** Produces finalize/list/download/failure-analysis/promote-defect/run-comparison/regression APIs from the technical design.
 
-- [ ] **Step 1: Write the failing API tests**
+- [x] **Step 1: Write the failing API tests**
 
 ```js
 const evidenceBase = `${base}/api/projects/${projectId}/evidence`;
@@ -161,16 +161,16 @@ assert.equal((await fetch(`${base}/api/projects/${projectId}/failure-analyses/${
 })).status, 409);
 assert.equal((await fetch(`${base}/api/projects/${projectId}/test-runs/${beforeRunId}/compare/${afterRunId}`)).status, 200);
 ```
-- [ ] **Step 2: Verify failure** — Run `node --test test/unit/http-api.test.js`; Expected: new endpoints return 404.
-- [ ] **Step 3: Implement** first successful finalize as 201 and idempotent repeat as 200; require `expectedRunRevision` when claiming new staging, while an already-ready idempotent lookup may return 200 without reclaiming it. Finalizing/integrity-failed evidence returns 409 and is never downloadable. Use ID lookup only; return attachment for trace and unapproved MIME types; serialize only IDs, relative filenames, MIME, size and digests—never absolute artifact roots. Promotion and RegressionSet mutations require target `expectedRevision`; promotion also requires `{ actorLabel, confirmed: true }`, duplicate promotion returns 409, and comparison rejects foreign or non-terminal runs.
-- [ ] **Step 4: Verify pass** — Re-run API tests; Expected: old and new tests PASS.
-- [ ] **Step 5: Commit** — Commit `feat: expose safe evidence APIs`.
+- [x] **Step 2: Verify failure** — Run `node --test test/unit/http-api.test.js`; Expected: new endpoints return 404.
+- [x] **Step 3: Implement** first successful finalize as 201 and idempotent repeat as 200; require `expectedRunRevision` when claiming new staging, while an already-ready idempotent lookup may return 200 without reclaiming it. Finalizing/integrity-failed evidence returns 409 and is never downloadable. Use ID lookup only; return attachment for trace and unapproved MIME types; serialize only IDs, relative filenames, MIME, size and digests—never absolute artifact roots. Promotion and RegressionSet mutations require target `expectedRevision`; promotion also requires `{ actorLabel, confirmed: true }`, duplicate promotion returns 409, and comparison rejects foreign or non-terminal runs.
+- [x] **Step 4: Verify pass** — Re-run API tests; Expected: old and new tests PASS.
+- [x] **Step 5: Commit** — Commit `feat: expose safe evidence APIs`.
 
 ### Task 5: Bilingual evidence and regression UI
 
 **Files:** Modify `server/sse.js`, `public/index.html`, `public/app.js`, `public/style.css`, `public/i18n.js`; Create `test/e2e/regression.spec.js`。
 
-- [ ] **Step 1: Write the failing E2E**
+- [x] **Step 1: Write the failing E2E**
 
 ```js
 await expect(page.getByRole('heading', { name: '质量证据' })).toBeVisible();
@@ -181,7 +181,7 @@ await expect(page.getByText('修复前后对比')).toBeVisible();
 await page.getByRole('button', { name: '排除回归项' }).click();
 await expect(page.getByText('请填写排除理由')).toBeVisible();
 ```
-- [ ] **Step 2: Verify failure** — Run `npm run test:e2e -- test/e2e/regression.spec.js`; Expected: evidence UI absent.
-- [ ] **Step 3: Implement UI and `quality.evidence.updated`** with loading, empty, expired, integrity-failed and download states.
-- [ ] **Step 4: Verify release** — Run focused E2E, `npm test`, and `git diff --check`; Expected: all exit 0.
-- [ ] **Step 5: Commit** — Commit `feat: add evidence and regression workbench`.
+- [x] **Step 2: Verify failure** — Run `npm run test:e2e -- test/e2e/regression.spec.js`; Expected: evidence UI absent.
+- [x] **Step 3: Implement UI and `quality.evidence.updated`** with loading, empty, expired, integrity-failed and download states.
+- [x] **Step 4: Verify release** — Run focused E2E, `npm test`, and `git diff --check`; Expected: all exit 0.
+- [x] **Step 5: Commit** — Commit `feat: add evidence and regression workbench`.

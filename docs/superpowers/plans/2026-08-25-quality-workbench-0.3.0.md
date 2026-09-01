@@ -24,7 +24,7 @@
 
 **Interfaces:** Produces `createTestRun(project, fields) -> TestRun`, `normalizeTestRun(run) -> TestRun`, `normalizeTestRunProject(project) -> Project`；`testrun_import` 写 `mode: 'imported'`。
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```js
 const legacy = makeProject();
@@ -39,10 +39,10 @@ assert.equal(project.testruns[0].id, run.id);
 assert.equal(project.materials[0].type, 'run');
 ```
 
-- [ ] **Step 2: Verify failure** — Run `node --test test/unit/test-run.test.js`; Expected: FAIL with module-not-found or missing `testruns`.
-- [ ] **Step 3: Implement** — Append the `0.3.0` step to `server/migrations.js` for `testPlans/testruns/executionProfiles` and testcase association defaults; implement enum validation and modify `testrun_import` to create the TestRun before adding its compatibility material entry. Extend migration tests with pre-0.3 restart and idempotence fixtures.
-- [ ] **Step 4: Verify pass** — Run `node --test test/unit/test-run.test.js`; Expected: all tests PASS.
-- [ ] **Step 5: Commit** — Stage only the four task files and commit `feat: add persistent test run records`.
+- [x] **Step 2: Verify failure** — Run `node --test test/unit/test-run.test.js`; Expected: FAIL with module-not-found or missing `testruns`.
+- [x] **Step 3: Implement** — Append the `0.3.0` step to `server/migrations.js` for `testPlans/testruns/executionProfiles` and testcase association defaults; implement enum validation and modify `testrun_import` to create the TestRun before adding its compatibility material entry. Extend migration tests with pre-0.3 restart and idempotence fixtures.
+- [x] **Step 4: Verify pass** — Run `node --test test/unit/test-run.test.js`; Expected: all tests PASS.
+- [x] **Step 5: Commit** — Stage only the four task files and commit `feat: add persistent test run records`.
 
 ### Task 2: TestPlan references existing cases
 
@@ -50,7 +50,7 @@ assert.equal(project.materials[0].type, 'run');
 
 **Interfaces:** Consumes `project.testcases`, `project.qualityTasks`; Produces `createPlannedTestCase(project, qualityTaskId, fields)`, `createTestPlan(project, qualityTaskId, testcaseIds)`, `reviewTestPlan(project, planId, actorLabel)`, `createTestPlanVersion(project, planId, fields)` and `getTestPlan(project, id)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```js
 const project = makeProject();
@@ -73,10 +73,10 @@ assert.equal(plan.status, 'superseded');
 assert.equal(next.status, 'draft');
 ```
 
-- [ ] **Step 2: Verify failure** — Run `node --test test/unit/test-plan.test.js`; Expected: FAIL because module is missing.
-- [ ] **Step 3: Implement** — Add `testPlans ||= []`; extract/reuse the existing testcase creation primitive for generated cases; validate task/risk/case ownership; append `qualityTaskId/sourceRiskIds/automationRef/planIds` to the same `project.testcases` records; require an actor label for review; create a new draft TestPlan version and supersede the old version when scope or cases change.
-- [ ] **Step 4: Verify pass** — Run the same command; Expected: PASS.
-- [ ] **Step 5: Commit** — Commit `feat: link quality tasks to test plans` with only task files staged.
+- [x] **Step 2: Verify failure** — Run `node --test test/unit/test-plan.test.js`; Expected: FAIL because module is missing.
+- [x] **Step 3: Implement** — Add `testPlans ||= []`; extract/reuse the existing testcase creation primitive for generated cases; validate task/risk/case ownership; append `qualityTaskId/sourceRiskIds/automationRef/planIds` to the same `project.testcases` records; require an actor label for review; create a new draft TestPlan version and supersede the old version when scope or cases change.
+- [x] **Step 4: Verify pass** — Run the same command; Expected: PASS.
+- [x] **Step 5: Commit** — Commit `feat: link quality tasks to test plans` with only task files staged.
 
 ### Task 3: Execution profile validation
 
@@ -84,7 +84,7 @@ assert.equal(next.status, 'draft');
 
 **Interfaces:** Produces `createExecutionProfile(project, fields)`, `createExecutionProfileVersion(project, id, fields)`, `disableExecutionProfile(project, id)`, `resolveExecutionCommand(project, profileVersion, testcaseIds)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```js
 const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-profile-'));
@@ -97,8 +97,8 @@ const v2 = createExecutionProfileVersion(project, v1.id, { timeoutMs: 120000 });
 assert.equal(v2.version, 2);
 assert.equal(v1.version, 1);
 ```
-- [ ] **Step 2: Verify failure** — Run `node --test test/unit/execution-profile.test.js`; Expected: FAIL because exports are missing.
-- [ ] **Step 3: Implement** workspace containment, executor enum, exact target-file validation, network-intent declaration, immutable versions, disable behavior, timeout `1_000..1_800_000`, and server-generated command arrays. Resolve only the workspace-local Playwright binary; never call `npx` or download dependencies.
+- [x] **Step 2: Verify failure** — Run `node --test test/unit/execution-profile.test.js`; Expected: FAIL because exports are missing.
+- [x] **Step 3: Implement** workspace containment, executor enum, exact target-file validation, network-intent declaration, immutable versions, disable behavior, timeout `1_000..1_800_000`, and server-generated command arrays. Resolve only the workspace-local Playwright binary; never call `npx` or download dependencies.
 
 最低实现结构：profile 记录保存不可变 `versions[]`；`createExecutionProfileVersion` 复制上一版本后只接受白名单字段；`resolveExecutionCommand` 仅从 executor 和已验证 target 生成 argv 数组。
 
@@ -110,8 +110,8 @@ export function resolveExecutionCommand(project, profileVersion, testcaseIds) {
   throw qualityError('QUALITY_EXECUTOR_UNSUPPORTED', '不支持的执行器');
 }
 ```
-- [ ] **Step 4: Verify pass** — Run the same command; Expected: PASS with six scenarios.
-- [ ] **Step 5: Commit** — Commit `feat: validate test execution profiles`.
+- [x] **Step 4: Verify pass** — Run the same command; Expected: PASS with six scenarios.
+- [x] **Step 5: Commit** — Commit `feat: validate test execution profiles`.
 
 ### Task 4: Test runner lifecycle
 
@@ -119,7 +119,7 @@ export function resolveExecutionCommand(project, profileVersion, testcaseIds) {
 
 **Interfaces:** Consumes Task 1 TestRun and Task 3 resolved command; Produces `createRunPreview(project, planId, profileId)`, `startRun(project, previewToken)`, `cancelRun(project, runId)`, `recoverInterruptedRuns(projects)`, `prepareArtifactStaging(projectId, runId)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```js
 const project = makeProject();
@@ -143,8 +143,8 @@ await assert.rejects(() => startRun(project, passPreview.previewToken), /预览�
 const projectWithRunning = makeProject({ testruns: [makeTestRun({ status: 'running' })] });
 assert.equal(recoverInterruptedRuns([projectWithRunning])[0].status, 'environment-error');
 ```
-- [ ] **Step 2: Verify failure** — Run `node --test test/unit/test-runner.test.js`; Expected: FAIL because runner is missing.
-- [ ] **Step 3: Implement** artifact staging creation, `process.log`, Node TAP output, Playwright output/report paths, process-group launch, bounded stdout/stderr, persisted provenance/transitions, timeout/cancellation cleanup, and startup conversion of queued/running to environment-error.
+- [x] **Step 2: Verify failure** — Run `node --test test/unit/test-runner.test.js`; Expected: FAIL because runner is missing.
+- [x] **Step 3: Implement** artifact staging creation, `process.log`, Node TAP output, Playwright output/report paths, process-group launch, bounded stdout/stderr, persisted provenance/transitions, timeout/cancellation cleanup, and startup conversion of queued/running to environment-error.
 
 最低实现结构：先持久化 queued TestRun，再建立受控 staging，最后启动进程；任何启动错误都写入终态，不能遗留 running。
 
@@ -158,8 +158,8 @@ export async function startRun(project, previewToken) {
   return executeAndFinalize(project, run);
 }
 ```
-- [ ] **Step 4: Verify pass** — Run the same command; Expected: all lifecycle tests PASS and no child process remains.
-- [ ] **Step 5: Commit** — Commit `feat: execute controlled local test runs`.
+- [x] **Step 4: Verify pass** — Run the same command; Expected: all lifecycle tests PASS and no child process remains.
+- [x] **Step 5: Commit** — Commit `feat: execute controlled local test runs`.
 
 ### Task 5: API, SSE and bilingual UI
 
@@ -167,7 +167,7 @@ export async function startRun(project, previewToken) {
 
 **Interfaces:** Produces execution-profile CRUD/version/disable API, planned-testcase/test-plan review/version/runs/cancel API and `quality.test-run.updated`.
 
-- [ ] **Step 1: Write the failing API tests**
+- [x] **Step 1: Write the failing API tests**
 
 ```js
 const profileResponse = await fetch(`${base}/api/projects/${projectId}/execution-profiles`, {
@@ -184,10 +184,10 @@ const runResponse = await fetch(`${base}/api/projects/${projectId}/test-plans/${
 });
 assert.equal(runResponse.status, 202);
 ```
-- [ ] **Step 2: Verify API failure** — Run `node --test test/unit/http-api.test.js`; Expected: new routes return 404.
-- [ ] **Step 3: Implement API and SSE** using existing `ok()` for 200, `created()` for 201 and `accepted()` for 202, retaining `{ ok, error, code? }` responses. Plan review/version, profile version/disable and run cancel require the target entity's `expectedRevision`; stale values return 409 without mutation or SSE. TestRun serialization must omit internal `artifactDir`, raw preview-token records and absolute `QA_DATA_DIR` paths.
-- [ ] **Step 4: Verify API pass** — Re-run the API suite; Expected: old and new tests PASS.
-- [ ] **Step 5: Write the failing E2E**
+- [x] **Step 2: Verify API failure** — Run `node --test test/unit/http-api.test.js`; Expected: new routes return 404.
+- [x] **Step 3: Implement API and SSE** using existing `ok()` for 200, `created()` for 201 and `accepted()` for 202, retaining `{ ok, error, code? }` responses. Plan review/version, profile version/disable and run cancel require the target entity's `expectedRevision`; stale values return 409 without mutation or SSE. TestRun serialization must omit internal `artifactDir`, raw preview-token records and absolute `QA_DATA_DIR` paths.
+- [x] **Step 4: Verify API pass** — Re-run the API suite; Expected: old and new tests PASS.
+- [x] **Step 5: Write the failing E2E**
 
 ```js
 await page.getByRole('button', { name: '新建执行配置' }).click();
@@ -202,7 +202,7 @@ await expect(page.getByText('未启用操作系统级文件与网络隔离')).to
 await page.getByRole('button', { name: '确认执行' }).click();
 await expect(page.getByText('仅摘要导入 · 不作为通过证据')).toBeVisible();
 ```
-- [ ] **Step 6: Verify E2E failure** — Run `npm run test:e2e -- test/e2e/test-execution.spec.js`; Expected: execution UI is absent.
-- [ ] **Step 7: Implement UI** for profile create/version/disable, server-generated run preview and explicit confirmation, plus run loading, empty, unknown, running, failed, cancelled and environment-error states. Preview becomes invalid after profile/plan changes or expiry and must be refreshed.
-- [ ] **Step 8: Verify release** — Run the focused E2E, `npm test`, and `git diff --check`; Expected: all exit 0.
-- [ ] **Step 9: Commit** — Commit `feat: add test execution workbench` with scoped files.
+- [x] **Step 6: Verify E2E failure** — Run `npm run test:e2e -- test/e2e/test-execution.spec.js`; Expected: execution UI is absent.
+- [x] **Step 7: Implement UI** for profile create/version/disable, server-generated run preview and explicit confirmation, plus run loading, empty, unknown, running, failed, cancelled and environment-error states. Preview becomes invalid after profile/plan changes or expiry and must be refreshed.
+- [x] **Step 8: Verify release** — Run the focused E2E, `npm test`, and `git diff --check`; Expected: all exit 0.
+- [x] **Step 9: Commit** — Commit `feat: add test execution workbench` with scoped files.
