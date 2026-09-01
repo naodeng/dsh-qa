@@ -22,14 +22,11 @@ function validate(project, fields) {
     if (file.includes('\0') || path.basename(file).startsWith('-')) throw new Error('目标文件不能是非法路径或选项');
     const target = path.resolve(cwd, file);
     if (target !== root && !target.startsWith(root + path.sep)) throw new Error('目标文件必须位于项目工作区');
-    try {
-      const stat = fs.statSync(target);
-      if (!stat.isFile()) throw new Error('目标文件必须是普通文件');
-      const realTarget = fs.realpathSync.native(target);
-      if (realTarget !== realRoot && !realTarget.startsWith(realRoot + path.sep)) throw new Error('目标文件必须位于项目工作区');
-    } catch (error) {
-      if (error.message.includes('工作区') || error.message.includes('普通文件')) throw error;
-    }
+    if (!fs.existsSync(target)) throw new Error('目标文件不存在');
+    const stat = fs.statSync(target);
+    if (!stat.isFile()) throw new Error('目标文件必须是普通文件');
+    const realTarget = fs.realpathSync.native(target);
+    if (realTarget !== realRoot && !realTarget.startsWith(realRoot + path.sep)) throw new Error('目标文件必须位于项目工作区');
   }
   if (!NETWORK_INTENTS.has(fields.networkIntent || 'none')) throw new Error('无效 networkIntent');
   const timeoutMs = fields.timeoutMs ?? 120000;
@@ -79,10 +76,9 @@ export function resolveExecutionCommand(project, profileVersion, testcaseIds = [
   const root = fs.realpathSync.native(path.resolve(project.workspacePath));
   for (const target of targets) {
     const full = path.resolve(project.workspacePath, target);
-    if (fs.existsSync(full)) {
-      const real = fs.realpathSync.native(full);
-      if (real !== root && !real.startsWith(root + path.sep) || !fs.statSync(real).isFile()) throw new Error('目标文件必须位于项目工作区');
-    }
+    if (!fs.existsSync(full)) throw new Error('目标文件不存在');
+    const real = fs.realpathSync.native(full);
+    if (real !== root && !real.startsWith(root + path.sep) || !fs.statSync(real).isFile()) throw new Error('目标文件必须位于项目工作区');
   }
   if (profileVersion.executor === 'node-test') return [process.execPath, '--test', ...targets];
   const playwright = path.join(project.workspacePath, 'node_modules', '.bin', 'playwright');

@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import * as store from './store.js';
 import { broadcast } from './sse.js';
 import { projectCard, computeStats, KANBAN_COLUMNS } from './board.js';
-import { createAnalysisRequest, saveAnalysis } from './quality/analysis.js';
+import { createAnalysisRequest, saveAnalysis, commitQualityMutation } from './quality/analysis.js';
 import { createTestRun } from './quality/test-run.js';
 
 export const TOOL_CN = {
@@ -103,6 +103,8 @@ export const TOOL_DEFS = [
   { type: 'function', function: { name: 'qa_quality_analysis_save', description: '保存与当前来源和版本匹配的质量分析结果', parameters: { type: 'object', required: ['analysisRequestId', 'expectedRevision', 'sourceDigests'], properties: {
       analysisRequestId: { type: 'string' }, expectedRevision: { type: 'integer' }, sourceDigests: { type: 'array', items: { type: 'string' } },
       acceptanceCriteria: { type: 'array', items: { type: 'object' } }, risks: { type: 'array', items: { type: 'object' } }, testScope: { type: 'array', items: { type: 'object' } }, analysisVersion: { type: 'string' } }, additionalProperties: false } } },
+  { type: 'function', function: { name: 'qa_quality_risk_decide', description: '追加当前质量任务的一条人工风险决定', parameters: { type: 'object', required: ['taskId', 'expectedRevision', 'riskId', 'action', 'actorLabel'], properties: { taskId: { type: 'string' }, expectedRevision: { type: 'integer' }, riskId: { type: 'string' }, action: { type: 'string', enum: ['confirm', 'dismiss', 'mitigate', 'accept', 'close'] }, actorLabel: { type: 'string' }, reason: { type: 'string' } }, additionalProperties: false } } },
+  { type: 'function', function: { name: 'qa_quality_test_scope_suggest', description: '更新当前质量任务的建议测试范围', parameters: { type: 'object', required: ['taskId', 'expectedRevision', 'testScope'], properties: { taskId: { type: 'string' }, expectedRevision: { type: 'integer' }, testScope: { type: 'array', items: { type: 'object' } } }, additionalProperties: false } } },
 ];
 
 // ---------- 事件发射 ----------
@@ -301,6 +303,34 @@ export async function executeTool(projectId, name, args = {}) {
       const result = await saveAnalysis({ ...args, origin: 'agent' }, p);
       if (!result.ok) return result;
       return result;
+    }
+
+    case 'qa_quality_risk_decide': {
+      const task = p.qualityTasks?.find((item) => item.id === args.taskId && item.projectId === p.id);
+      const risk = task?.risks?.find((item) => item.id === args.riskId);
+      if (!task || !risk) return { ok: false, error: '质量任务或风险不存在' };
+      if (task.version !== args.expectedRevision) return { ok: false, code: 'QUALITY_REVISION_CONFLICT' };
+      if (!['confirm', 'dismiss', 'mitigate', 'accept', 'close'].includes(args.action)) return { ok: false, error: '风险决定无效' };
+      if (!str(args.actorLabel).trim()) return { ok: false, error: '需要确认人' };
+      const updated = commitQualityMutation(p, task.id, args.expectedRevision, (target) => {
+        const targetRisk = target.risks.find((item) => item.id === args.riskId);
+        if (args.action === 'confirm') targetRisk.assessmentStatus = 'confirmed';
+        if (args.action === 'dismiss') targetRisk.assessmentStatus = 'dismissed';
+        if (args.action === 'mitigate') targetRisk.dispositionStatus = 'mitigated';
+        if (args.action === 'accept') targetRisk.dispositionStatus = 'accepted';
+        if (args.action === 'close') targetRisk.dispositionStatus = 'closed';
+        target.decisions ||= [];
+        target.decisions.push({ riskId: targetRisk.id, action: args.action, actorLabel: str(args.actorLabel).trim(), reason: str(args.reason), createdAt: store.now() });
+      }, { action: 'risk-decide', source: 'dsh-tool', actorLabel: str(args.actorLabel).trim() });
+      return { ok: true, task: updated };
+    }
+
+    case 'qa_quality_test_scope_suggest': {
+      const task = p.qualityTasks?.find((item) => item.id === args.taskId && item.projectId === p.id);
+      if (!task) return { ok: false, error: '质量任务不存在' };
+      if (task.version !== args.expectedRevision) return { ok: false, code: 'QUALITY_REVISION_CONFLICT' };
+      const updated = commitQualityMutation(p, task.id, args.expectedRevision, (target) => { target.testScope = Array.isArray(args.testScope) ? args.testScope : []; }, { action: 'test-scope-suggest', source: 'dsh-tool' });
+      return { ok: true, task: updated };
     }
 
     default:

@@ -24,4 +24,13 @@ test('quality tools stay project-scoped and create analysis requests', async () 
   const analysisTool = TOOL_DEFS.find((item) => item.function.name === 'qa_quality_analysis_save');
   assert.equal('projectId' in analysisTool.function.parameters.properties, false);
   assert.equal('dshSessionId' in analysisTool.function.parameters.properties, false);
+  const decideTool = TOOL_DEFS.find((item) => item.function.name === 'qa_quality_risk_decide');
+  const scopeTool = TOOL_DEFS.find((item) => item.function.name === 'qa_quality_test_scope_suggest');
+  assert.ok(decideTool);
+  assert.ok(scopeTool);
+  first.qualityTasks[0].risks.push({ id: 'risk_tool', assessmentStatus: 'candidate', dispositionStatus: 'open' });
+  const decided = await executeTool(first.id, 'qa_quality_risk_decide', { taskId: 'qt_tool', expectedRevision: 1, riskId: 'risk_tool', action: 'confirm', actorLabel: 'QA' });
+  assert.equal(decided.ok, true);
+  const scoped = await executeTool(first.id, 'qa_quality_test_scope_suggest', { taskId: 'qt_tool', expectedRevision: 2, testScope: [{ area: '支付', priority: 'focused', reason: '风险' }] });
+  assert.equal(scoped.ok, true);
 });

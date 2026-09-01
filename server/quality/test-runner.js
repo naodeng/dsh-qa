@@ -13,12 +13,15 @@ const MAX_ACTIVE_PREVIEWS = 20;
 const previews = new WeakMap();
 const activeProcesses = new Map();
 const activeExecutions = new Map();
+const reservedRunSlots = new Map();
 const terminationRequests = new Map();
 const deferredStarts = new Map();
 const TERMINAL_STATUSES = new Set(['passed', 'failed', 'cancelled', 'timed-out', 'environment-error']);
 const ALLOWED_ENV = ['PATH', 'HOME', 'USERPROFILE', 'TMPDIR', 'TEMP', 'TMP', 'SystemRoot', 'WINDIR', 'COMSPEC', 'PATHEXT', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ'];
 const FORCE_KILL_GRACE_MS = 200;
 const FORCE_SETTLE_MS = 300;
+const MAX_RUNNING_PER_PROJECT = 1;
+const MAX_RUNNING_GLOBAL = 2;
 
 const digest = (value) => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
@@ -90,6 +93,13 @@ function updateRun(run, status, error) {
   run.revision = (run.revision || 1) + 1;
   run.updatedAt = now();
   if (error) run.error = error;
+}
+
+function reserveRunSlot(projectId, runId) {
+  const projectCount = [...reservedRunSlots.values()].filter((id) => id === projectId).length;
+  if (projectCount >= MAX_RUNNING_PER_PROJECT) throw new Error('当前项目已有测试运行，不能并发执行');
+  if (reservedRunSlots.size >= MAX_RUNNING_GLOBAL) throw new Error('测试运行并发数已达上限');
+  reservedRunSlots.set(runId, projectId);
 }
 
 export function terminateProcessTree(child, { force = false, platform = process.platform, killGroup = process.kill, runTaskkill = spawnSync } = {}) {
@@ -187,7 +197,7 @@ function execute(project, run, command, cwd, timeoutMs) {
       finish(code);
     });
   });
-  const tracked = execution.finally(() => activeExecutions.delete(run.id));
+  const tracked = execution.finally(() => { activeExecutions.delete(run.id); reservedRunSlots.delete(run.id); });
   activeExecutions.set(run.id, tracked);
   return tracked;
 }
@@ -206,6 +216,7 @@ export async function cancelRun(project, runId, expectedRevision) {
     deferredStarts.delete(runId);
     try { await fs.writeFile(path.join(run.artifactDir, 'process.log'), '运行在启动前取消\n'); } catch { /* staging may belong to a legacy run */ }
     updateRun(run, 'cancelled');
+    reservedRunSlots.delete(runId);
     persist();
     broadcast('quality.test-run.updated', { projectId: project.id, runId, status: run.status });
     return run;
@@ -222,8 +233,16 @@ export async function startRun(project, previewToken, { defer = false, planId } 
   const preview = consumePreview(project, previewToken, planId);
   const profile = project.executionProfiles.find((item) => item.id === preview.profileId);
   const run = createTestRun(project, { mode: 'local', executor: currentExecutionProfileVersion(profile).executor, summary: '', provenance: { planId: preview.planId, testPlanVersion: preview.planVersion, profileId: profile.id, profileVersion: preview.profileVersion, sourceDigest: preview.sourceDigest } });
-  run.command = [...preview.argv];
-  run.artifactDir = await prepareArtifactStaging(project, run.id);
+  try { reserveRunSlot(project.id, run.id); }
+  catch (error) { project.testruns.pop(); throw error; }
+  try {
+    run.command = [...preview.argv];
+    run.artifactDir = await prepareArtifactStaging(project, run.id);
+  } catch (error) {
+    reservedRunSlots.delete(run.id);
+    project.testruns.pop();
+    throw error;
+  }
   persist();
   if (defer) {
     const deferred = setTimeout(async () => {

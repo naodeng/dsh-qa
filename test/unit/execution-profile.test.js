@@ -10,10 +10,13 @@ const { createExecutionProfile, createExecutionProfileVersion, resolveExecutionC
 
 test('validates execution profiles and keeps immutable versions', () => {
   const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-profile-'));
+  fs.mkdirSync(path.join(workspacePath, 'test/unit'), { recursive: true });
+  fs.writeFileSync(path.join(workspacePath, 'test/unit/store.test.js'), '');
   const project = makeProject({ workspacePath });
   assert.throws(() => createExecutionProfile(project, { executor: 'shell', cwdRelative: '.' }), /executor/);
   assert.throws(() => createExecutionProfile(project, { executor: 'node-test', cwdRelative: '../outside' }), /工作区/);
   assert.throws(() => createExecutionProfile(project, { executor: 'node-test', cwdRelative: '.', targetFiles: ['test/unit/*.test.js'] }), /精确文件/);
+  assert.throws(() => createExecutionProfile(project, { executor: 'node-test', cwdRelative: '.', targetFiles: ['test/unit/missing.test.js'] }), /不存在/);
   const v1 = createExecutionProfile(project, { name: 'unit', executor: 'node-test', cwdRelative: '.', targetFiles: ['test/unit/store.test.js'], networkIntent: 'none' });
   const v2 = createExecutionProfileVersion(project, v1.id, { timeoutMs: 120000 });
   assert.equal(v2.version, 2);
@@ -24,7 +27,7 @@ test('validates execution profiles and keeps immutable versions', () => {
 });
 
 test('uses the current immutable profile version for execution settings', () => {
-  const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-profile-current-'));
+  const workspacePath = process.cwd();
   const project = makeProject({ workspacePath });
   const profile = createExecutionProfile(project, {
     name: 'v1', executor: 'node-test', cwdRelative: '.', targetFiles: ['test/fixtures/runner/fail.fixture.mjs'], networkIntent: 'none', timeoutMs: 10_000,
@@ -43,7 +46,7 @@ test('uses the current immutable profile version for execution settings', () => 
 });
 
 test('bases each new profile version on the current version', () => {
-  const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-profile-chain-'));
+  const workspacePath = process.cwd();
   const project = makeProject({ workspacePath });
   const profile = createExecutionProfile(project, {
     name: 'v1', executor: 'node-test', cwdRelative: '.', targetFiles: ['test/fixtures/runner/fail.fixture.mjs'], networkIntent: 'none', timeoutMs: 10_000,

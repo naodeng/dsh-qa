@@ -102,6 +102,11 @@ test('quality task API creates, lists, and enforces revision conflicts', async (
   const listed = await fetch(`${base}/api/projects/${projectId}/quality-tasks`);
   assert.equal(listed.status, 200);
   assert.equal((await listed.json()).tasks[0].id, task.id);
+  const detail = await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}`);
+  assert.equal(detail.status, 200);
+  assert.equal((await detail.json()).task.id, task.id);
+  const analysisRequest = await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/analysis-requests`, { method: 'POST' });
+  assert.equal(analysisRequest.status, 202);
   const conflict = await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/decisions`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ expectedRevision: 0, action: 'confirm' }),
@@ -110,6 +115,15 @@ test('quality task API creates, lists, and enforces revision conflicts', async (
   const conflictPayload = await conflict.json();
   assert.match(conflictPayload.error, /版本|revision/i);
   assert.equal(conflictPayload.code, 'QUALITY_REVISION_CONFLICT');
+});
+
+test('project details never expose execution paths or argv', async () => {
+  const project = store.createProject({ title: '脱敏项目' });
+  project.testruns.push({ id: 'run_secret', artifactDir: '/private/secret/run', command: ['node', '--test', 'secret.test.js'], status: 'passed' });
+  const response = await fetch(`${base}/api/projects/${project.id}`);
+  const payload = await response.json();
+  assert.equal('artifactDir' in payload.project.testruns[0], false);
+  assert.equal('command' in payload.project.testruns[0], false);
 });
 
 test('quality task API rejects six 1 MiB sources above the project capture limit', async () => {
@@ -181,12 +195,25 @@ test('manual analysis rejects host fields and records manual origin', async () =
   assert.equal(forged.status, 400);
   const manual = await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/manual-analyses`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ expectedRevision: 1, actorLabel: '张测试', acceptanceCriteria: [], risks: [], testScope: [] }),
+    body: JSON.stringify({ expectedRevision: 1, actorLabel: '张测试', sourceDigests: [], acceptanceCriteria: [], risks: [], testScope: [] }),
   });
   assert.equal(manual.status, 201);
   const saved = (await manual.json()).task;
   assert.equal(saved.analysisOrigin, 'manual');
   assert.equal(saved.analysisRuns.at(-1).dshSessionId, '');
+  const audit = store.getProject(projectId).qualityAudit.at(-1);
+  assert.deepEqual({ action: audit.action, source: audit.source, actorLabel: audit.actorLabel, result: audit.result }, { action: 'manual-analysis-save', source: 'http', actorLabel: '张测试', result: 'success' });
+
+  const missingConfirmation = await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/manual-analyses`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: saved.version, sourceDigests: [], risks: [] }),
+  });
+  assert.equal(missingConfirmation.status, 400);
+  const unknownField = await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/manual-analyses`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: saved.version, actorLabel: '张测试', sourceDigests: [], risks: [], ignored: true }),
+  });
+  assert.equal(unknownField.status, 400);
 });
 
 test('execution API creates profiles and returns a run preview', async () => {

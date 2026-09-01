@@ -16,11 +16,12 @@ export function createAnalysisRequest(project, taskId) {
 
 export function appendDeniedAudit(project, task, reason) {
   project.qualityAudit ||= [];
-  project.qualityAudit.push({ id: uid('audit'), taskId: task.id, fromRevision: task.version, toRevision: task.version, reason, at: now() });
+  const createdAt = now();
+  project.qualityAudit.push({ id: uid('audit'), entityType: 'quality-task', entityId: task.id, taskId: task.id, action: 'mutation-denied', source: 'dsh-tool', actorLabel: '', dshSessionId: '', fromRevision: task.version, toRevision: task.version, result: 'denied', errorCode: reason, reason, createdAt, at: createdAt });
   return project.qualityAudit.at(-1);
 }
 
-export function commitQualityMutation(project, taskId, expectedRevision, mutation) {
+export function commitQualityMutation(project, taskId, expectedRevision, mutation, metadata = {}) {
   const task = taskFor(project, taskId);
   if (!task || task.version !== expectedRevision) return null;
   const fromRevision = task.version;
@@ -28,10 +29,11 @@ export function commitQualityMutation(project, taskId, expectedRevision, mutatio
   task.version += 1;
   task.updatedAt = now();
   project.qualityAudit ||= [];
-  project.qualityAudit.push({ id: uid('audit'), taskId, fromRevision, toRevision: task.version, at: now() });
+  const createdAt = now();
+  project.qualityAudit.push({ id: uid('audit'), entityType: 'quality-task', entityId: taskId, taskId, action: metadata.action || 'update', source: metadata.source || 'dsh-tool', actorLabel: metadata.actorLabel || '', dshSessionId: '', fromRevision, toRevision: task.version, result: 'success', errorCode: '', createdAt, at: createdAt });
   touch(project);
   persist();
-  broadcast('quality.task.updated', { projectId: project.id, taskId, revision: task.version });
+  broadcast('quality.task.updated', { projectId: project.id, entityId: taskId, revision: task.version, updatedAt: task.updatedAt });
   return task;
 }
 

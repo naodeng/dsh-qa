@@ -83,6 +83,7 @@ function created(res, obj) { json(res, 201, { ok: true, ...obj }); }
 function publicProject(project) {
   const { artifactRoot, evidenceBundles, ...safe } = project;
   safe.evidenceBundles = (evidenceBundles || []).map(publicEvidence);
+  safe.testruns = (project.testruns || []).map(({ artifactDir, command, ...run }) => run);
   return safe;
 }
 function accepted(res, obj) { json(res, 202, { ok: true, ...obj }); }

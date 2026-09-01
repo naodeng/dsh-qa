@@ -170,6 +170,18 @@ test('limits active previews per project and removes expired previews before enf
   }
 });
 
+test('limits queued or running local runs to one per project and two globally', async () => {
+  const project = makeProject({ workspacePath: process.cwd() });
+  const plan = { id: 'plan_run_limit', version: 1, testcaseIds: [], status: 'reviewed' };
+  project.testPlans.push(plan);
+  const profile = createExecutionProfile(project, { name: 'limit', executor: 'node-test', cwdRelative: '.', targetFiles: ['test/fixtures/runner/pass.fixture.mjs'], networkIntent: 'none' });
+  const first = createRunPreview(project, plan.id, profile.id);
+  await startRun(project, first.previewToken, { defer: true, planId: plan.id });
+  const second = createRunPreview(project, plan.id, profile.id);
+  await assert.rejects(() => startRun(project, second.previewToken, { defer: true, planId: plan.id }), /并发|运行/);
+  await cancelRun(project, project.testruns[0].id, project.testruns[0].revision);
+});
+
 test('cancels queued runs and rejects cancellation after completion', async () => {
   const project = makeProject({ testruns: [{ id: 'queued_1', revision: 1, status: 'queued' }, { id: 'passed_1', revision: 2, status: 'passed' }] });
   const cancelled = await cancelRun(project, 'queued_1', 1);
