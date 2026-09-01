@@ -1034,6 +1034,21 @@
       delivery.className = 'detail-card';
       delivery.innerHTML = `<div class="detail-card-head"><div><span>DELIVERY</span><h3>${q('交付报告', 'Delivery report')}</h3></div><button class="btn sm" id="gate-exception" type="button">${q('添加门禁例外', 'Add gate exception')}</button></div><div class="li-sub" id="gate-report">${q('评估后可查看可追溯交付依据。', 'Evaluate to view traceable delivery evidence.')}</div><div class="detail-card-head"><div><span>TREND</span><h3>${q('门禁趋势', 'Gate trends')}</h3></div></div><div class="li-sub" id="gate-trend">${q('暂无门禁趋势。', 'No gate trend yet.')}</div>`;
       gateCard.after(delivery);
+      $('#gate-exception', delivery).addEventListener('click', async () => {
+        try {
+          const latest = await api(`api/projects/${p.id}`);
+          const gate = (latest.project.gates || []).filter((item) => item.kind === 'computed').at(-1);
+          const check = gate?.checks?.find((item) => item.status === 'failed' && item.waivable);
+          if (!gate || !check) return toast(q('当前没有可豁免的门禁检查项', 'No waivable gate check is available'), 'err');
+          const actorLabel = prompt(q('责任人', 'Owner'));
+          const reason = prompt(q('例外理由', 'Exception reason'));
+          const expiresAt = prompt(q('到期时间（ISO 格式）', 'Expiry time (ISO format)'));
+          if (!actorLabel?.trim() || !reason?.trim() || !expiresAt?.trim()) return;
+          await api(`api/projects/${p.id}/gates/${gate.id}/exceptions`, { method: 'POST', body: { expectedRevision: gate.revision, checkKey: check.key, actorLabel: actorLabel.trim(), reason: reason.trim(), expiresAt: expiresAt.trim() } });
+          toast(q('门禁例外已记录', 'Gate exception recorded'), 'ok');
+          await refreshAfterMutation(p.id);
+        } catch (error) { toast(error.message, 'err'); }
+      });
     }
     const assetHead = $('.quality-assets .detail-card-head', body);
     if (assetHead) {
