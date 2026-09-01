@@ -39,6 +39,14 @@ Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
 - **Local project directory**: Creating a project can auto-generate an 8-level workspace: `01_需求与范围 / 02_测试计划 / 03_测试用例 / 04_测试数据与脚本 / 05_测试执行 / 06_缺陷 / 07_测试报告 / 08_发布与归档`; deleting a project record never deletes the folder
 - **Gate governance**: Requirements review / strategy review / case review / report review / release / closure are requested by the AI and approved manually by the test owner (aligned with the 8-stage AI quality-analysis workflow)
 
+### QA Control Workbench (0.2.0)
+
+- **Quality tasks and source snapshots**: Create a quality task for each test objective. The server captures and validates requirements, workspace files, or allowed Git revisions, then records summaries, digests, acceptance criteria, risks, test scope, and analysis decisions instead of trusting client-supplied paths or content.
+- **Test plans and controlled execution**: Maintain reviewed test plans and immutable execution-profile versions per quality task. A run preview token is issued only for the current reviewed plan, current profile version, and source digest before a controlled local run starts in a minimal environment.
+- **Evidence, analysis, and regression**: Archive terminal runs as integrity-checked evidence bundles; analyze failures, promote confirmed defects with human confirmation, compare runs from the same plan, and manage traceable deterministic regression sets with exclusions.
+- **Computed quality gates**: Calculate `PASS / WARN / BLOCK` from execution provenance, verified evidence, critical test results, and risk state. Delivery reports and trends remain available after refresh; controlled exceptions require an owner, reason, and expiry and apply only to eligible warnings.
+- **Direct project details**: The active-project list and kanban card body open the full project detail directly. The dashboard shows up to five active projects, while the kanban retains the complete project list.
+
 ### AI Collaboration
 
 - **Controllable AI modes**: Per project — full assistance, on-demand collaboration, or fully off; auto-extraction and dashboard reminders can be toggled independently
