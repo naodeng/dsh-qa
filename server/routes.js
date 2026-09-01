@@ -361,6 +361,7 @@ async function api(req, res, url, body) {
     const c = store.getProject(parts[2]);
     const g = c?.gates.find((x) => x.id === parts[4]);
     if (!g) return fail(res, 404, '门禁不存在');
+    if (g.kind === 'computed') return fail(res, 400, '计算门禁只能通过例外记录处理');
     if (!['approve', 'reject'].includes(body.decision)) return fail(res, 400, 'decision 必须是 approve 或 reject');
     if (g.status !== 'pending') return fail(res, 400, '该门禁已处理');
     g.status = body.decision === 'approve' ? 'approved' : 'rejected';

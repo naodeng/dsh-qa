@@ -11,7 +11,9 @@ import { compareRuns } from './run-comparison.js';
 import { saveFailureAnalysis, promoteConfirmedDefect } from './failure-analysis.js';
 import { createRegressionSet, excludeRegressionCase } from './regression.js';
 import { enqueueArtifactCleanup, runArtifactCleanup } from './evidence-retention.js';
-import { evaluateQualityGate } from './gate.js';
+import { applyGateExceptions, evaluateGate, evaluateQualityGate } from './gate.js';
+import { buildDeliveryReport } from './report.js';
+import { buildGateTrend } from './gate-trend.js';
 
 export function publicEvidence(bundle) {
   return { id: bundle.id, projectId: bundle.projectId, testRunId: bundle.testRunId, state: bundle.state, totalSize: bundle.totalSize, manifestSha256: bundle.manifestSha256, createdAt: bundle.createdAt, updatedAt: bundle.updatedAt, items: bundle.items.map(({ id, relativePath, size, sha256 }) => ({ id, relativePath, size, sha256 })) };
@@ -23,6 +25,27 @@ function revisionConflict(res, fail, message) {
 
 function onlyFields(body, fields) {
   return Object.keys(body || {}).every((field) => fields.includes(field));
+}
+
+function gateFacts(project, task) {
+  const runs = (project.testruns || []).filter((run) => run.provenance?.planId ? true : true);
+  const latestRun = runs.at(-1);
+  const profile = latestRun?.provenance?.profileId && (project.executionProfiles || []).find((item) => item.id === latestRun.provenance.profileId);
+  const plan = latestRun?.provenance?.planId && (project.testPlans || []).find((item) => item.id === latestRun.provenance.planId);
+  const regression = (project.regressionSets || []).filter((item) => item.qualityTaskId === task.id).at(-1);
+  return {
+    latestRun,
+    evidence: (project.evidenceBundles || []).filter((bundle) => bundle.testRunId === latestRun?.id),
+    risks: task.risks || [],
+    provenance: {
+      sourceDigests: (task.sources || []).map((source) => source.digest).sort(),
+      commit: task.commit ?? latestRun?.provenance?.commit ?? null,
+      testPlanVersion: plan?.version || latestRun?.provenance?.testPlanVersion || null,
+      regressionSetVersion: regression?.version || latestRun?.provenance?.regressionSetVersion || null,
+      profileId: profile?.id ?? latestRun?.provenance?.profileId ?? null,
+      profileVersion: profile?.currentVersion || latestRun?.provenance?.profileVersion || null,
+    },
+  };
 }
 
 export async function handleQualityRoutes({ req, res, url, body, store, broadcast, emitProject, ok, created, accepted, fail }) {
@@ -291,6 +314,54 @@ export async function handleQualityRoutes({ req, res, url, body, store, broadcas
     if (!c) return fail(res, 404, '项目不存在');
     if (!onlyFields(body, ['before'])) return fail(res, 400, '包含不允许的字段');
     return ok(res, { gate: evaluateQualityGate(c) });
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'quality-tasks' && parts[4] && parts[5] === 'gates' && parts[6] === 'evaluate' && m('POST')) {
+    const c = store.getProject(parts[2]);
+    const task = c && getQualityTask(c, parts[4]);
+    if (!task) return fail(res, 404, '质量任务不存在');
+    if (!onlyFields(body, [])) return fail(res, 400, '包含不允许的字段');
+    const result = evaluateGate(gateFacts(c, task), { version: 'gate-rules-v1', requireVerifiedEvidence: true, blockCriticalOpenRisk: true });
+    const gate = { id: store.uid('gate'), kind: 'computed', revision: 1, qualityTaskId: task.id, ...result, exceptions: [], calculatedAt: store.now() };
+    c.gates.push(gate); store.touch(c); store.persist();
+    broadcast('quality.gate.updated', { projectId: c.id, entityId: gate.id, revision: gate.revision, updatedAt: gate.calculatedAt });
+    emitProject(c.id);
+    return created(res, { gate });
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'gates' && parts[4] && !parts[5] && m('GET')) {
+    const c = store.getProject(parts[2]);
+    const gate = c?.gates?.find((item) => item.id === parts[4]);
+    if (!gate) return fail(res, 404, '门禁不存在');
+    return ok(res, { gate });
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'gates' && parts[4] && parts[5] === 'exceptions' && m('POST')) {
+    const c = store.getProject(parts[2]);
+    const gate = c?.gates?.find((item) => item.id === parts[4] && item.kind === 'computed');
+    if (!gate) return fail(res, 404, '计算门禁不存在');
+    if (!onlyFields(body, ['expectedRevision', 'checkKey', 'actorLabel', 'reason', 'expiresAt'])) return fail(res, 400, '包含不允许的字段');
+    if (body.expectedRevision !== gate.revision) return revisionConflict(res, fail, '门禁版本已变化，请重新加载');
+    const preview = applyGateExceptions(gate, [{ checkKey: body.checkKey, actorLabel: body.actorLabel, reason: body.reason, expiresAt: body.expiresAt }]);
+    if (!preview.checks.some((check) => check.checkKey === body.checkKey || check.key === body.checkKey && check.waived)) return fail(res, 400, '门禁例外无效或不可豁免');
+    gate.exceptions.push({ checkKey: body.checkKey, actorLabel: String(body.actorLabel).trim(), reason: String(body.reason).trim(), expiresAt: body.expiresAt, createdAt: store.now() });
+    gate.revision += 1; gate.checks = preview.checks; gate.verdict = preview.verdict; gate.updatedAt = store.now(); store.touch(c); store.persist();
+    broadcast('quality.gate.updated', { projectId: c.id, entityId: gate.id, revision: gate.revision, updatedAt: gate.updatedAt }); emitProject(c.id);
+    return created(res, { gate });
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'quality-tasks' && parts[4] && parts[5] === 'reports' && m('GET')) {
+    const c = store.getProject(parts[2]);
+    if (!c || !getQualityTask(c, parts[4])) return fail(res, 404, '质量任务不存在');
+    const gate = (c.gates || []).filter((item) => item.kind === 'computed' && item.qualityTaskId === parts[4]).at(-1);
+    if (!gate) return fail(res, 404, '尚未生成质量门禁');
+    try { return ok(res, { report: buildDeliveryReport(c, gate.id) }); } catch (error) { return fail(res, 400, error.message); }
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'quality-tasks' && parts[4] && parts[5] === 'gate-trends' && m('GET')) {
+    const c = store.getProject(parts[2]);
+    if (!c || !getQualityTask(c, parts[4])) return fail(res, 404, '质量任务不存在');
+    return ok(res, { trend: buildGateTrend(c, parts[4]) });
   }
 
   if (parts[1] === 'projects' && parts[2] && parts[3] === 'artifact-cleanup' && !parts[4] && m('POST')) {

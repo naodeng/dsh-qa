@@ -19,3 +19,12 @@ test('migration is idempotent and rejects malformed roots', () => {
   assert.throws(() => migrateDb(null), /根节点/);
   assert.throws(() => migrateDb([]), /根节点/);
 });
+
+test('migration normalizes existing approval gates without inventing computed results', () => {
+  const migrated = migrateDb({ schemaVersion: 2, projects: [{ id: 'project_gate', gates: [{ id: 'gate_legacy', status: 'pending', requestedAt: '2026-08-25T10:00:00.000Z' }] }], feed: [], artifactCleanupJobs: [] });
+  const gate = migrated.projects[0].gates[0];
+  assert.equal(gate.kind, 'approval');
+  assert.equal('verdict' in gate, false);
+  assert.equal('checks' in gate, false);
+  assert.equal(migrateDb(migrated).projects[0].gates[0].kind, 'approval');
+});

@@ -1,4 +1,6 @@
-export const CURRENT_SCHEMA_VERSION = 2;
+import { normalizeGate } from './quality/gate.js';
+
+export const CURRENT_SCHEMA_VERSION = 3;
 
 function clone(value) {
   return structuredClone(value);
@@ -30,6 +32,11 @@ export function migrateDb(rawDb) {
         project.artifactCleanupJobs ||= [];
       }
       version = 2;
+      db.schemaVersion = version;
+    }
+    if (version === 2) {
+      for (const project of db.projects) project.gates = (project.gates || []).map(normalizeGate);
+      version = 3;
       db.schemaVersion = version;
     }
   }

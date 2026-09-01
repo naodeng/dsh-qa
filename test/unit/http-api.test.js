@@ -126,6 +126,26 @@ test('project details never expose execution paths or argv', async () => {
   assert.equal('command' in payload.project.testruns[0], false);
 });
 
+test('computed gate API persists evaluations, protects revisions, and projects reports and trends', async () => {
+  const created = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '计算门禁 API 项目', createWorkspace: false }) })).json();
+  const projectId = created.project.id;
+  const task = (await (await fetch(`${base}/api/projects/${projectId}/quality-tasks`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '门禁任务' }) })).json()).task;
+  const project = store.getProject(projectId);
+  project.testruns.push({ id: 'run_gate_api', projectId, status: 'passed', resultTrust: 'controlled-local', provenance: {} });
+  project.evidenceBundles.push({ id: 'evidence_gate_api', testRunId: 'run_gate_api', state: 'ready', integrity: 'verified', provenance: {} });
+  const evaluated = await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/gates/evaluate`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+  assert.equal(evaluated.status, 201);
+  const gate = (await evaluated.json()).gate;
+  assert.equal(gate.kind, 'computed');
+  assert.equal(gate.verdict, 'PASS');
+  const detail = await fetch(`${base}/api/projects/${projectId}/gates/${gate.id}`);
+  assert.equal(detail.status, 200);
+  const rejected = await fetch(`${base}/api/projects/${projectId}/gates/${gate.id}/exceptions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 0, actorLabel: 'QA', reason: '范围外', expiresAt: '2026-08-26T00:00:00.000Z', checkKey: 'medium-coverage' }) });
+  assert.equal(rejected.status, 409);
+  assert.equal((await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/reports`)).status, 200);
+  assert.equal((await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/gate-trends`)).status, 200);
+});
+
 test('quality task API rejects six 1 MiB sources above the project capture limit', async () => {
   const project = await (await fetch(`${base}/api/projects`, {
     method: 'POST', headers: { 'content-type': 'application/json' },

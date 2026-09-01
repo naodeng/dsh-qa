@@ -4,6 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { DATA_PATH, CONV_DIR, DATA_DIR } from './config.js';
 import { migrateDb } from './migrations.js';
+import { normalizeGate } from './quality/gate.js';
 
 const DEFAULT_ASSISTANT = Object.freeze({
   enabled: true,
@@ -43,7 +44,7 @@ function normalizeProject(p) {
   p.reports ||= [];
   p.knowledge ||= [];
   p.minutes ||= [];
-  p.gates ||= [];
+  p.gates = (p.gates || []).map(normalizeGate);
   p.materials ||= [];
   p.history ||= [];
   p.members ||= [];

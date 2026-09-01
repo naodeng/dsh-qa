@@ -272,7 +272,7 @@ export async function executeTool(projectId, name, args = {}) {
     }
 
     case 'gate_request': {
-      const g = { id: store.uid('gate'), type: str(args.type), title: str(args.title), summary: str(args.summary), status: 'pending', requestedAt: store.now(), decidedAt: null, decision: null };
+      const g = { id: store.uid('gate'), kind: 'approval', type: str(args.type), title: str(args.title), summary: str(args.summary), status: 'pending', requestedAt: store.now(), decidedAt: null, decision: null };
       p.gates.push(g);
       store.touch(p); store.persist();
       afterChange(projectId, { type: 'gate', label: `AI 提交门禁待审批：${g.title}` });
