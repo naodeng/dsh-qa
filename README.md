@@ -8,7 +8,7 @@
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
 
-**dsh-qa** 是 DeepSeek Harness 的本地软件测试工作台插件：把测试项目的待办提醒、日历排期、项目概览和最近动态放在同一屏；测试项目/迭代的对话统一交给 DSH 原生会话，并自动使用你预设的「测试模式」（preset id: `qa`）。零 npm 依赖，数据完全本机。
+**dsh-qa** 是 DeepSeek Harness 的本地 QA 工作台：在一个项目空间中管理需求、测试用例、风险、执行、证据和交付决策。项目与迭代的对话复用 DSH 原生会话，并自动使用「测试模式」（preset id: `qa`）；业务数据保留在本机，运行时没有生产依赖。
 
 ```
 测试首页 → DSH 测试对话 → 项目看板 → 日历排期
@@ -20,6 +20,7 @@
 - [功能特性](#功能特性)
 - [安装（DSH 插件）](#安装dsh-插件)
 - [快速开始（不装插件体验）](#快速开始不装插件体验)
+- [质量工作流](#研发质量控制工作台020)
 - [独立运行模式](#独立运行模式)
 - [架构](#架构)
 - [AI 工具集](#ai-工具集)
@@ -35,7 +36,7 @@
 - **项目与迭代双形态**：顶层对象可选「测试项目」或「迭代」（迭代可挂靠父项目），两者均绑定独立 DSH 会话，筛选栏可分别查看
 - **测试首页与日历排期**：在办项目、临期/逾期里程碑、待审批门禁、未关闭缺陷、最近动态同屏呈现；日历支持年/月/日跳转、点击日期新增、按项目登记里程碑或日程并直接删除
 - **实时看板**：六列流水线（需求分析 → 用例设计 → 用例评审 → 执行中 → 缺陷回归 → 已发布），拖拽换列，SSE 实时推送，多窗口同步
-- **项目档案工作区**：宽屏项目详情，集中编辑名称、编号、产品、负责人、摘要和阶段；概览/需求/用例/缺陷/里程碑/报告/知识/纪要/门禁九个分区，并展示进度、AI 策略、成员、文件目录与阶段时间线
+- **项目档案工作区**：宽屏项目详情集中编辑名称、编号、产品、负责人、摘要和阶段；概览、质量任务、需求、用例、缺陷、里程碑、报告、知识、纪要和门禁 10 个分区，并展示进度、AI 策略、成员、文件目录与阶段时间线
 - **本地项目目录**：创建项目时可自动生成 `01_需求与范围 / 02_测试计划 / 03_测试用例 / 04_测试数据与脚本 / 05_测试执行 / 06_缺陷 / 07_测试报告 / 08_发布与归档` 八级工作目录；删除项目记录不会删除文件夹
 - **门禁治理**：需求评审/策略评审/用例评审/报告评审/发布/结项由 AI 提交申请，测试负责人人工审批（对齐 AI 研发质量分析 8 阶段工作流）
 
@@ -45,7 +46,13 @@
 - **测试计划与受控执行**：质量任务下维护可评审的测试计划和不可变执行配置版本；只允许基于当前已评审计划、当前配置版本和来源摘要生成预览令牌，再启动最小化环境中的本地受控测试运行
 - **证据、分析与回归**：终态运行可归档为带完整性校验的证据包；支持失败分析、人工确认后升级缺陷、同计划运行前后对比，以及可追溯、可排除的确定性回归集
 - **计算型质量门禁**：依据执行来源、已验证证据、关键测试结果和风险状态计算 `PASS / WARN / BLOCK`；可查看交付报告与趋势，仅允许对合格的警告项创建带责任人、原因和过期时间的受控例外
-- **项目详情直达**：首页在办项目和项目看板卡片主体直接进入完整项目详情；首页最多展示 5 个在办项目，全部项目仍可在项目看板查看
+- **项目详情直达**：首页在办项目和项目看板卡片主体可直接进入完整项目详情；首页最多展示 5 个在办项目，全部项目仍可在项目看板查看
+
+#### 质量交付流程参考
+
+![dsh-qa 质量交付流程：从可信来源、质量任务和受控执行，经证据与门禁，分流到 PASS 交付或 WARN/BLOCK 评审。](https://raw.githubusercontent.com/naodeng/dsh-qa/master/diagram/quality-workflow/dsh-qa-quality-workflow.svg)
+
+流程图描述的是质量控制边界：未形成终态运行或未验证证据时，先进入故障分析与回归并重新执行；门禁 `PASS` 才进入交付，`WARN / BLOCK` 需要评审。例外只能作用于可豁免的 `WARN` 检查项，不能把 `BLOCK` 变为通过。
 
 ### AI 协作能力
 
@@ -74,7 +81,7 @@ dsh plugin --profile web add dsh-qa
 dsh plugin --profile web add link:/path/to/dsh-qa
 ```
 
-安装后重启 `dsh web`（插件在宿主启动时加载），GUI 侧边栏会出现「质量工作台」入口：点击在会话区打开工作台，工具栏可「在标签页打开」。
+安装后重启 `dsh web`（插件在宿主启动时加载）。GUI 侧边栏会出现「质量工作台」入口；点击可在会话区打开，工具栏可在独立标签页打开。
 
 > **模型与 API**：工作台不维护第二套 API Key 或模型配置。每个测试项目绑定一个以项目文件夹为工作目录的 DSH 原生会话，并自动使用「测试模式」（preset id: `qa`）。模型列表、模型切换、技能、命令、工具和权限策略全部来自 DSH；新增服务商或模型请在 DSH 设置中配置。
 >
@@ -83,12 +90,13 @@ dsh plugin --profile web add link:/path/to/dsh-qa
 ## 快速开始（不装插件体验）
 
 ```bash
+# 需要 Node.js 18+
 git clone https://github.com/naodeng/dsh-qa.git
 cd dsh-qa
 npm start        # → http://127.0.0.1:8899
 ```
 
-首次启动会自动创建两个示例（一个测试项目 + 一个迭代），含需求、用例、缺陷、里程碑、报告和待审批门禁，可直接在首页/看板/日历里查看操作。项目管理功能完整可用；DSH 对话、模型、技能与命令需从 DSH 侧边栏打开插件后使用。
+首次启动会创建一个示例项目和一个示例迭代，包含需求、用例、缺陷、里程碑、报告和待审批门禁，可直接在首页、看板和日历中体验。独立模式可管理本地项目数据；DSH 对话、模型、技能和命令需从 DSH 侧边栏打开插件后使用。
 
 ## 独立运行模式
 
@@ -105,7 +113,7 @@ npm start          # 或双击 start.command
 lib/index.js      宿主半（cordis 插件）：进程内拉起工作台 + /api/dsh-qa 路由 + 系统提示播报
 lib/client.js     浏览器半：侧边栏入口（自愈 MutationObserver）+ 会话区 iframe（同源镜像）
 cordis.patch.yml  profile bundle 补丁（插入插件行）
-server/           工作台服务（零依赖：原生 http + SSE；项目、看板、日历与材料数据）
+server/           工作台服务（原生 http + SSE；项目、质量任务、执行、证据与门禁数据）
 public/           四视图前端（原生 JS，无构建步骤；相对路径，可挂任意前缀）
 ```
 
@@ -115,7 +123,7 @@ public/           四视图前端（原生 JS，无构建步骤；相对路径�
 
 ## AI 工具集
 
-工作台内置 18 个 QA 域工具，供 DSH 会话通过函数调用实时登记数据并上板：
+工作台内置 23 个 QA 域工具，供 DSH 会话通过函数调用实时登记数据并更新项目与质量任务：
 
 | 分组 | 工具 |
 | --- | --- |
@@ -124,10 +132,11 @@ public/           四视图前端（原生 JS，无构建步骤；相对路径�
 | 缺陷与里程碑 | `defect_add` `defect_status` `milestone_add` `event_add` |
 | 沉淀与报告 | `knowledge_save` `minutes_save` `report_draft` `report_draft_save` |
 | 门禁与导入 | `gate_request` `testrun_import` |
+| 质量任务 | `qa_quality_task_get` `qa_quality_analysis_request` `qa_quality_analysis_save` `qa_quality_risk_decide` `qa_quality_test_scope_suggest` |
 
-## 测试模式 preset（必需）
+## 测试模式 preset（插件模式）
 
-质量工作台的对话自动使用 DSH 的「测试模式」（preset id: `qa`）。首次使用前需要安装该 preset（与 dsh-law 需要「法律模式」同理）：
+插件模式下，质量工作台对话自动使用 DSH 的「测试模式」（preset id: `qa`）。首次使用 DSH 对话前安装该 preset；仅使用独立模式管理本地项目时无需安装。
 
 ```bash
 # 一键安装 qa preset 到 ~/.dsh/.agent-presets/qa
@@ -144,10 +153,10 @@ preset 基于 DSH 官方 `standard`（完整编码能力），persona 定制为 
 
 在 DSH 侧边栏打开工作台后，进入左侧 `QA Skill安装` Tab 即可浏览和安装技能。页面按当前界面语言展示 `skills/zh` 或 `skills/en`，目录卡片的名称、描述、适用场景和详情链接同步自 [软件测试技能库](https://inaodeng.com/zh-cn/qaskills/)，实际安装来源仍是本地 `awesome-qa-skills` 仓库。
 
-安装页的分类顺序与网站保持一致：测试类型（需求与策略、用例与评审、功能与兼容、接口与自动化、质量保障专项、缺陷、报告与审查）、测试工作流程、加强版。安装目标为 DeepSeek Harness 的 `~/.dsh/skills/`；安装完成后重启 `dsh web`，再在新的 DSH 会话中使用。
+安装页的分类顺序与网站保持一致：测试类型（需求与策略、用例与评审、功能与兼容、接口与自动化、质量保障专项、缺陷、报告与审查）、测试工作流程和加强版。安装目标为 DeepSeek Harness 的 `~/.dsh/skills/`；安装完成后重启 `dsh web`，再在新的 DSH 会话中使用。
 
 ```bash
-# 一键安装 awesome-qa-skills（92 个中英技能）到 DSH 技能目录
+# 一键安装当前仓库中的测试类型与测试工作流程技能到 DSH 技能目录
 scripts/install-qa-skills.sh                     # 默认中文全部技能
 scripts/install-qa-skills.sh --lang en           # 英文技能
 scripts/install-qa-skills.sh --skill test-case-writing   # 只装单个技能
@@ -161,9 +170,10 @@ scripts/install-qa-skills.sh --dry-run           # 预览不写入
 
 ## 开发与贡献
 
+- 环境：Node.js 18+；开发或运行测试前执行 `npm ci`
 - 运行：`npm start` 独立启动；`npm run dev` 监听重启
-- 测试：`npm test` 运行单元测试（node:test）与端到端测试（Playwright）；`npm run test:unit` / `npm run test:e2e` 可单独执行
-- 发布：`npm publish` → `dsh plugin add dsh-qa`；模型与密钥均由使用者自己的 DSH 配置管理
+- 测试：`npm test` 运行单元/API 测试（node:test）与 Chromium 端到端测试（Playwright）；`npm run test:unit` / `npm run test:e2e` 可单独执行
+- 发布：`npm publish` 后使用 `dsh plugin --profile web add dsh-qa` 安装；模型与密钥由使用者自己的 DSH 配置管理
 - 欢迎提交 Issue 与 PR（Conventional Commits）
 
 ## 许可证
@@ -177,4 +187,5 @@ scripts/install-qa-skills.sh --dry-run           # 预览不写入
 - **看不到技能或命令**：确认是从 DSH 侧边栏打开，而不是直接访问 8899 独立地址；首次进入某项目时会自动创建并绑定 DSH 会话
 - **Remote 显示“需要设置安全的远程入口”**：当前 DSH 版本明确禁止 `--host 0.0.0.0`；请在 DSH 设置的 Remote 插件项开启“自动公网隧道”，或配置自己的 `publicBaseUrl`，用完后在 Remote 面板停止配对
 - **端口冲突**：自动顺延 8899→8909；插件行可配置 `port`
+- **质量门禁显示 BLOCK**：这表示运行、证据或风险尚未满足交付规则；先查看交付报告中的检查项，修复问题或仅对可豁免警告创建带有效期的例外
 - **与 DSH 测试模式的关系**：测试业务数据仍由本插件保存；每个项目会话自动使用 `qa` preset，并可调用其中安装的测试工具和技能

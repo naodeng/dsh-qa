@@ -8,7 +8,7 @@
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
 
-**dsh-qa** is a local software testing workbench plugin for DeepSeek Harness: to-dos, calendar scheduling, project overviews, and recent activity on one screen. Conversations for each test project / iteration are handled by a native DSH session that automatically uses your configured **Test Mode** (preset id: `qa`). Zero npm dependencies — all data stays on your machine.
+**dsh-qa** is a local QA workbench for DeepSeek Harness. It keeps requirements, test cases, risks, execution, evidence, and delivery decisions in one project space. Project and iteration conversations reuse native DSH sessions with **Test Mode** (preset id: `qa`); business data stays local and the runtime has no production dependencies.
 
 ```
 Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
@@ -20,6 +20,7 @@ Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
 - [Features](#features)
 - [Installation (DSH plugin)](#installation-dsh-plugin)
 - [Quick Start (try without installing)](#quick-start-try-without-installing)
+- [QA Control Workbench](#qa-control-workbench-020)
 - [Standalone Mode](#standalone-mode)
 - [Architecture](#architecture)
 - [AI Toolset](#ai-toolset)
@@ -35,7 +36,7 @@ Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
 - **Project & iteration duality**: The top-level object can be a **test project** or an **iteration** (iterations can hang off a parent project); both bind their own DSH session, and the filter bar separates them
 - **Test dashboard & calendar**: Active projects, due-soon/overdue milestones, pending gates, open defects, and recent activity on one screen; calendar supports year/month/day jumps, click-a-date creation, project-scoped milestones or events, and direct deletion
 - **Real-time kanban**: Six-column pipeline (Requirements → Test Design → Case Review → In Execution → Defect Regression → Released), drag-and-drop columns, SSE real-time push, multi-window sync
-- **Project archive workspace**: Wide project detail for editing name, key, product, owner, summary, and stage; nine sections — Overview / Requirements / Test Cases / Defects / Milestones / Reports / Knowledge / Minutes / Gates — plus progress, AI strategy, members, file directory, and stage timeline
+- **Project archive workspace**: Wide project detail for editing name, key, product, owner, summary, and stage; ten sections — Overview / Quality Tasks / Requirements / Test Cases / Defects / Milestones / Reports / Knowledge / Minutes / Gates — plus progress, AI strategy, members, file directory, and stage timeline
 - **Local project directory**: Creating a project can auto-generate an 8-level workspace: `01_需求与范围 / 02_测试计划 / 03_测试用例 / 04_测试数据与脚本 / 05_测试执行 / 06_缺陷 / 07_测试报告 / 08_发布与归档`; deleting a project record never deletes the folder
 - **Gate governance**: Requirements review / strategy review / case review / report review / release / closure are requested by the AI and approved manually by the test owner (aligned with the 8-stage AI quality-analysis workflow)
 
@@ -46,6 +47,12 @@ Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
 - **Evidence, analysis, and regression**: Archive terminal runs as integrity-checked evidence bundles; analyze failures, promote confirmed defects with human confirmation, compare runs from the same plan, and manage traceable deterministic regression sets with exclusions.
 - **Computed quality gates**: Calculate `PASS / WARN / BLOCK` from execution provenance, verified evidence, critical test results, and risk state. Delivery reports and trends remain available after refresh; controlled exceptions require an owner, reason, and expiry and apply only to eligible warnings.
 - **Direct project details**: The active-project list and kanban card body open the full project detail directly. The dashboard shows up to five active projects, while the kanban retains the complete project list.
+
+#### Quality delivery workflow
+
+![dsh-qa quality delivery workflow: trusted sources, quality tasks, and controlled execution flow through evidence and gates to PASS delivery or WARN/BLOCK review.](https://raw.githubusercontent.com/naodeng/dsh-qa/master/diagram/quality-workflow/dsh-qa-quality-workflow.svg)
+
+The diagram makes the control boundary explicit: a run that is not terminal or lacks verified evidence enters failure analysis and regression before it runs again. Only a `PASS` gate reaches delivery; `WARN / BLOCK` requires review. An exception applies only to an eligible `WARN` check and can never turn `BLOCK` into a pass.
 
 ### AI Collaboration
 
@@ -74,7 +81,7 @@ dsh plugin --profile web add dsh-qa
 dsh plugin --profile web add link:/path/to/dsh-qa
 ```
 
-After installing, restart `dsh web` (plugins load when the host starts), and a **「质量工作台 / QA Workbench」** entry appears in the GUI sidebar: click to open the workbench in the conversation area, or use the toolbar to open it in a tab.
+After installing, restart `dsh web` (plugins load when the host starts). A **「质量工作台 / QA Workbench」** entry appears in the GUI sidebar; click to open the workbench in the conversation area or use the toolbar to open it in a tab.
 
 > **Models & API**: The workbench does not maintain a second set of API keys or model configs. Each test project binds a native DSH session whose working directory is the project folder, and automatically uses Test Mode (preset id: `qa`). Model list, model switching, skills, commands, tools, and permission policies all come from DSH; to add providers or models, configure them in DSH settings.
 >
@@ -83,12 +90,13 @@ After installing, restart `dsh web` (plugins load when the host starts), and a *
 ## Quick Start (try without installing)
 
 ```bash
+# Requires Node.js 18+
 git clone https://github.com/naodeng/dsh-qa.git
 cd dsh-qa
 npm start        # → http://127.0.0.1:8899
 ```
 
-On first launch, two sample workspaces are created (one test project + one iteration) with requirements, test cases, defects, milestones, reports, and a pending approval gate — explore them right away on the dashboard/kanban/calendar. Project management is fully functional standalone; DSH chat, models, skills, and commands require opening the plugin from the DSH sidebar.
+On first launch, one sample project and one sample iteration are created with requirements, test cases, defects, milestones, reports, and a pending approval gate. Explore them from the dashboard, kanban, and calendar. Standalone mode manages local project data; DSH chat, models, skills, and commands require opening the plugin from the DSH sidebar.
 
 ## Standalone Mode
 
@@ -105,7 +113,7 @@ The standalone address lets you view and manage test projects, the kanban, and t
 lib/index.js      Host half (cordis plugin): starts the workbench in-process + /api/dsh-qa routes + system-prompt announcement
 lib/client.js     Browser half: sidebar entry (self-healing MutationObserver) + conversation-area iframe (same-origin mirror)
 cordis.patch.yml  Profile bundle patch (inserts the plugin line)
-server/           Workbench service (zero deps: native http + SSE; projects, kanban, calendar, materials)
+server/           Workbench service (native http + SSE; projects, quality tasks, execution, evidence, and gates)
 public/           Four-view frontend (vanilla JS, no build step; relative paths, mountable under any prefix)
 ```
 
@@ -115,7 +123,7 @@ public/           Four-view frontend (vanilla JS, no build step; relative paths,
 
 ## AI Toolset
 
-The workbench ships 18 QA-domain tools that DSH sessions call via function calling to register data and update boards in real time:
+The workbench ships 23 QA-domain tools that DSH sessions call through function calling to update projects and quality tasks:
 
 | Group | Tools |
 | --- | --- |
@@ -124,10 +132,11 @@ The workbench ships 18 QA-domain tools that DSH sessions call via function calli
 | Defects & milestones | `defect_add` `defect_status` `milestone_add` `event_add` |
 | Notes & reports | `knowledge_save` `minutes_save` `report_draft` `report_draft_save` |
 | Gates & imports | `gate_request` `testrun_import` |
+| Quality tasks | `qa_quality_task_get` `qa_quality_analysis_request` `qa_quality_analysis_save` `qa_quality_risk_decide` `qa_quality_test_scope_suggest` |
 
-## Test Mode Preset (required)
+## Test Mode Preset (plugin mode)
 
-The workbench chat automatically uses DSH's **Test Mode** (preset id: `qa`). Before first use, install the preset (just as dsh-law requires its Legal Mode):
+In plugin mode, workbench chat automatically uses DSH's **Test Mode** (preset id: `qa`). Install the preset before first using DSH chat; standalone local-project management does not require it.
 
 ```bash
 # One-click install of the qa preset into ~/.dsh/.agent-presets/qa
@@ -147,7 +156,7 @@ Open the workbench from the DSH sidebar and select `QA Skill Installer` to brows
 The installer keeps the website's category order: Testing Types (Requirements & Strategy, Case Design & Review, Functional & Compatibility, API & Automation, Quality Specialties, Defects, Reports & Review), Testing Workflows, and Enhanced. Skills are installed into DeepSeek Harness at `~/.dsh/skills/`; restart `dsh web` after installation before using them in a new DSH session.
 
 ```bash
-# One-click install of awesome-qa-skills (92 zh+en skills) into the DSH skills directory
+# Install the current repository's testing-type and testing-workflow skills into the DSH skills directory
 scripts/install-qa-skills.sh                     # default: all Chinese skills
 scripts/install-qa-skills.sh --lang en           # English skills
 scripts/install-qa-skills.sh --skill test-case-writing   # install a single skill
@@ -161,9 +170,10 @@ After installing, restart `dsh web` and type `/` in the workbench chat to see th
 
 ## Development & Contributing
 
+- Environment: Node.js 18+; run `npm ci` before development or tests
 - Run: `npm start` for standalone; `npm run dev` for watch mode
-- Test: `npm test` runs unit tests (node:test) plus Playwright end-to-end tests; `npm run test:unit` / `npm run test:e2e` run each separately
-- Publish: `npm publish` → `dsh plugin add dsh-qa`; models and keys are managed by each user's own DSH configuration
+- Test: `npm test` runs unit/API tests (node:test) plus Chromium end-to-end tests (Playwright); `npm run test:unit` / `npm run test:e2e` run each separately
+- Publish: after `npm publish`, install with `dsh plugin --profile web add dsh-qa`; models and keys are managed by the user's DSH configuration
 - Issues and PRs welcome (Conventional Commits)
 
 ## License
@@ -177,4 +187,5 @@ After installing, restart `dsh web` and type `/` in the workbench chat to see th
 - **Can't see skills or commands**: make sure you opened the plugin from the DSH sidebar, not the standalone 8899 address; a DSH session is auto-created and bound on first entry into a project
 - **Remote says "secure remote entry required"**: current DSH versions forbid `--host 0.0.0.0`; enable the official "auto public tunnel" in DSH settings → Plugins → Remote, or configure your own trusted `publicBaseUrl`, and stop pairing in the Remote panel when done
 - **Port conflict**: automatically bumps 8899→8909; the plugin line can configure `port`
+- **Quality gate shows BLOCK**: a run, evidence item, or risk does not yet meet the delivery rules. Check the delivery-report checks first; fix the issue or create a time-bound exception only for an eligible warning.
 - **Relation to DSH Test Mode**: testing business data is stored by this plugin; each project session automatically uses the `qa` preset and can invoke the testing tools and skills installed there

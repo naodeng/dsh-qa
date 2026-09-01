@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 790" role="img" aria-labelledby="title desc">
+  <title id="title">dsh-qa quality delivery workflow</title>
+  <desc id="desc">A bilingual flowchart from validated sources and quality tasks through controlled execution and evidence to PASS, WARN, or BLOCK delivery decisions.</desc>
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#1e293b" stroke-width=".5"/></pattern>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0 0 10 3.5 0 7z" fill="#94a3b8"/></marker>
+    <marker id="arrow-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0 0 10 3.5 0 7z" fill="#34d399"/></marker>
+    <marker id="arrow-rose" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0 0 10 3.5 0 7z" fill="#fb7185"/></marker>
+    <style>
+      text { font-family: "JetBrains Mono", "Noto Sans SC", "PingFang SC", sans-serif; }
+      .title { fill: #f8fafc; font-size: 18px; font-weight: 700; }
+      .subtitle { fill: #94a3b8; font-size: 10px; }
+      .name { fill: #f8fafc; font-size: 12px; font-weight: 700; }
+      .detail { fill: #cbd5e1; font-size: 9px; }
+      .label { font-size: 9px; font-weight: 700; }
+      .arrow { fill: none; stroke: #94a3b8; stroke-width: 1.6; marker-end: url(#arrow); }
+      .good { fill: none; stroke: #34d399; stroke-width: 1.8; marker-end: url(#arrow-green); }
+      .alert { fill: none; stroke: #fb7185; stroke-width: 1.6; stroke-dasharray: 5 4; marker-end: url(#arrow-rose); }
+    </style>
+  </defs>
+  <rect width="960" height="790" fill="#0f172a"/>
+  <rect width="960" height="790" fill="url(#grid)"/>
+  <text class="title" x="36" y="38">dsh-qa · 质量交付工作流 / Quality delivery workflow</text>
+  <text class="subtitle" x="36" y="57">可信输入 → 受控执行 → 可追溯证据 → 人工可解释的交付决策</text>
+
+  <path class="good" d="M480 145V182"/>
+  <path class="good" d="M480 252V289"/>
+  <path class="good" d="M480 359V396"/>
+  <path class="good" d="M480 466V493"/>
+  <path class="good" d="M480 563V600"/>
+  <path class="good" d="M430 650H190V706"/>
+  <path class="alert" d="M530 530H745V600"/>
+  <path class="arrow" d="M530 650V690H795V706"/>
+  <path class="arrow" d="M680 635H250V420H350"/>
+
+  <rect x="330" y="85" width="300" height="60" rx="25" fill="#0f172a"/>
+  <rect x="330" y="85" width="300" height="60" rx="25" fill="rgba(59,130,246,.28)" stroke="#60a5fa" stroke-width="1.5"/>
+  <text class="name" x="480" y="111" text-anchor="middle">开始 / Start</text>
+  <text class="detail" x="480" y="128" text-anchor="middle">测试目标与可信来源</text>
+
+  <rect x="300" y="182" width="360" height="70" rx="7" fill="#0f172a"/>
+  <rect x="300" y="182" width="360" height="70" rx="7" fill="rgba(8,51,68,.42)" stroke="#22d3ee" stroke-width="1.5"/>
+  <text class="name" x="480" y="211" text-anchor="middle">来源采集与质量任务 / Capture &amp; quality task</text>
+  <text class="detail" x="480" y="231" text-anchor="middle">校验需求、工作区文件或允许的 Git 修订；记录风险与范围</text>
+
+  <rect x="300" y="289" width="360" height="70" rx="7" fill="#0f172a"/>
+  <rect x="300" y="289" width="360" height="70" rx="7" fill="rgba(6,78,59,.42)" stroke="#34d399" stroke-width="1.5"/>
+  <text class="name" x="480" y="318" text-anchor="middle">已评审计划与执行配置 / Reviewed plan &amp; profile</text>
+  <text class="detail" x="480" y="338" text-anchor="middle">当前版本、来源摘要与预览授权必须一致</text>
+
+  <rect x="300" y="396" width="360" height="70" rx="7" fill="#0f172a"/>
+  <rect x="300" y="396" width="360" height="70" rx="7" fill="rgba(6,78,59,.42)" stroke="#34d399" stroke-width="1.5"/>
+  <text class="name" x="480" y="425" text-anchor="middle">受控本地运行 / Controlled local run</text>
+  <text class="detail" x="480" y="445" text-anchor="middle">最小化环境、受限并发、终态持久化</text>
+
+  <g transform="translate(480 528)">
+    <polygon points="0,-35 50,0 0,35 -50,0" fill="#0f172a"/>
+    <polygon points="0,-35 50,0 0,35 -50,0" fill="rgba(120,53,15,.32)" stroke="#fbbf24" stroke-width="1.5"/>
+    <text class="name" x="0" y="-4" text-anchor="middle">终态运行且</text>
+    <text class="name" x="0" y="12" text-anchor="middle">证据已验证？</text>
+  </g>
+  <text class="label" x="492" y="585" fill="#34d399">是 / Yes</text>
+  <text class="label" x="628" y="521" fill="#fb7185">否 / No</text>
+
+  <rect x="300" y="600" width="360" height="50" rx="7" fill="#0f172a"/>
+  <rect x="300" y="600" width="360" height="50" rx="7" fill="rgba(76,29,149,.42)" stroke="#a78bfa" stroke-width="1.5"/>
+  <text class="name" x="480" y="622" text-anchor="middle">计算型质量门禁 / Computed quality gate</text>
+  <text class="detail" x="480" y="638" text-anchor="middle">运行来源、证据、关键结果与风险 → PASS / WARN / BLOCK</text>
+
+  <rect x="55" y="706" width="270" height="54" rx="25" fill="#0f172a"/>
+  <rect x="55" y="706" width="270" height="54" rx="25" fill="rgba(6,78,59,.42)" stroke="#34d399" stroke-width="1.5"/>
+  <text class="name" x="190" y="730" text-anchor="middle">PASS：交付 / Deliver</text>
+  <text class="detail" x="190" y="747" text-anchor="middle">报告与证据可追溯</text>
+
+  <rect x="680" y="600" width="265" height="70" rx="7" fill="#0f172a"/>
+  <rect x="680" y="600" width="265" height="70" rx="7" fill="rgba(136,19,55,.42)" stroke="#fb7185" stroke-width="1.5"/>
+  <text class="name" x="795" y="628" text-anchor="middle">故障分析与回归 / Analyze &amp; regress</text>
+  <text class="detail" x="795" y="648" text-anchor="middle">确认缺陷、选择回归集、修复后重新运行</text>
+
+  <rect x="665" y="706" width="260" height="54" rx="25" fill="#0f172a"/>
+  <rect x="665" y="706" width="260" height="54" rx="25" fill="rgba(120,53,15,.32)" stroke="#fbbf24" stroke-width="1.5"/>
+  <text class="name" x="795" y="730" text-anchor="middle">WARN / BLOCK：评审</text>
+  <text class="detail" x="795" y="747" text-anchor="middle">例外仅限可豁免 WARN，且仍保留 WARN</text>
+</svg>
