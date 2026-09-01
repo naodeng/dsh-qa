@@ -52,8 +52,8 @@
 
   const state = {
     view: 'dashboard', columns: [], cards: new Map(), feed: [], schedule: [], reminders: [], stats: {}, settings: {},
-    activeProjectId: null, activeProject: null, drawerProject: null, drawerTab: 'overview',
-    streams: new Map(), busy: new Set(), justDragged: false, search: '', caseFilter: 'all',
+    activeProjectId: null, activeProject: null, drawerProject: null, drawerTab: 'overview', detailProject: null, detailTab: 'overview', detailReturnView: 'board',
+    streams: new Map(), evidenceRevisions: new Map(), busy: new Set(), justDragged: false, search: '', caseFilter: 'all',
     dshEmbedded: location.pathname.startsWith('/api/dsh-qa/workbench'),
     theme: 'dashboard',
     layout: { ...DEFAULT_LAYOUT },
@@ -284,7 +284,7 @@
     finally { state.uninstallingSkill = ''; renderSkills(); }
   }
   function switchView(view) {
-    if (!['dashboard', 'assistant', 'board', 'calendar', 'skills'].includes(view)) return;
+    if (!['dashboard', 'assistant', 'board', 'calendar', 'skills', 'project-detail'].includes(view)) return;
     state.view = view;
     $$('.view').forEach((el) => el.classList.toggle('active', el.id === `view-${view}`));
     $$('.nav-item').forEach((el) => el.classList.toggle('active', el.dataset.view === view));
@@ -297,6 +297,18 @@
   async function openProject(id) {
     switchView('assistant');
     await loadChat(id, false);
+  }
+  async function openProjectDetail(id, returnView = state.view === 'project-detail' ? state.detailReturnView : state.view) {
+    state.detailReturnView = ['dashboard', 'board', 'assistant'].includes(returnView) ? returnView : 'board';
+    state.detailTab = 'overview';
+    switchView('project-detail');
+    await refreshProjectDetail(id);
+  }
+  function updateProjectDetailBackLabel() {
+    const labels = currentLang() === 'en'
+      ? { dashboard: '← Back to dashboard', board: '← Back to project kanban', assistant: '← Back to DSH QA chat' }
+      : { dashboard: '← 返回测试首页', board: '← 返回项目看板', assistant: '← 返回 DSH 测试对话' };
+    $('#btn-project-detail-back').textContent = labels[state.detailReturnView] || labels.board;
   }
 
   // ---------- dashboard ----------
@@ -335,7 +347,7 @@
     $('#nav-alert-count').classList.toggle('hidden', !alertCount);
   }
   function renderDashboardCases() {
-    const cards = sortedCards().filter((card) => card.status !== 'closed').slice(0, 6);
+    const cards = sortedCards().filter((card) => card.status !== 'closed').slice(0, 5);
     $('#dashboard-cases').innerHTML = cards.length ? cards.map((card) => {
       const column = columnOf(card);
       const risk = card.counts.milestoneOverdue
@@ -347,10 +359,11 @@
         <div class="case-main"><b>${esc(card.title)}</b><span>${esc(card.projectKey || card.typeLabel || t('case.table.project'))}</span></div>
         <span class="stage-pill" style="--cc:${column?.color || '#64748b'}">${esc(column?.title || card.status)}</span>
         <span class="risk-badges">${risk}<span class="risk-badge">${t('case.table.risk').split(' / ')[1] || 'Cases'} ${card.counts.testcases}</span></span>
-        <span class="last-active">${fmtTime(card.lastActivityAt)}</span>
+        <span class="last-active">${fmtTime(card.lastActivityAt)}<button class="row-detail-link" data-project-preview type="button">${currentLang() === 'en' ? 'Quick preview' : '快速预览'}</button></span>
       </div>`;
     }).join('') : emptyHtml(t('caseList.empty'));
-    $$('.case-overview-row', $('#dashboard-cases')).forEach((el) => el.addEventListener('click', () => openProject(el.dataset.projectId)));
+    $$('.case-overview-row', $('#dashboard-cases')).forEach((el) => el.addEventListener('click', () => openProjectDetail(el.dataset.projectId, 'dashboard')));
+    $$('[data-project-preview]', $('#dashboard-cases')).forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); openDrawer(button.closest('[data-project-id]').dataset.projectId); }));
   }
   function renderAiSummary() {
     const cards = sortedCards();
@@ -527,7 +540,7 @@
     const mats = (card.latestMaterials || []).slice(0, 2).map((m) => `<div class="card-mat">${FEED_ICON[m.type] || '记'} · ${esc(m.label)}</div>`).join('');
     return `<div class="card-top"><div class="card-title">${esc(card.title)}</div>${card.aiActive ? '<span class="ai-chip">AI</span>' : ''}</div>
       <div class="card-meta">${esc(card.projectKey || t('case.table.project'))} · ${esc(KIND_CN[card.kind] || card.typeLabel)}</div>
-      <div class="card-badges"><span class="badge">${currentLang() === 'en' ? 'Req' : '需'} ${counts.requirements}</span><span class="badge ${counts.milestoneOverdue ? 'danger' : counts.milestoneSoon ? 'warn' : ''}">${currentLang() === 'en' ? 'MS' : '里'} ${counts.milestones}</span><span class="badge">${currentLang() === 'en' ? 'TC' : '例'} ${counts.testcases}</span><span class="badge ${counts.defectsOpen ? 'danger' : ''}">${currentLang() === 'en' ? 'Bug' : '缺'} ${counts.defects}</span><span class="badge doc">${currentLang() === 'en' ? 'Rpt' : '报'} ${counts.reports}</span>${counts.pendingGates ? `<span class="badge gate">${currentLang() === 'en' ? 'G' : '审'} ${counts.pendingGates}</span>` : ''}</div>${mats ? `<div class="card-mats">${mats}</div>` : ''}<div class="card-foot">${fmtTime(card.lastActivityAt)}</div>`;
+      <div class="card-badges"><span class="badge">${currentLang() === 'en' ? 'Req' : '需'} ${counts.requirements}</span><span class="badge ${counts.milestoneOverdue ? 'danger' : counts.milestoneSoon ? 'warn' : ''}">${currentLang() === 'en' ? 'MS' : '里'} ${counts.milestones}</span><span class="badge">${currentLang() === 'en' ? 'TC' : '例'} ${counts.testcases}</span><span class="badge ${counts.defectsOpen ? 'danger' : ''}">${currentLang() === 'en' ? 'Bug' : '缺'} ${counts.defects}</span><span class="badge doc">${currentLang() === 'en' ? 'Rpt' : '报'} ${counts.reports}</span>${counts.pendingGates ? `<span class="badge gate">${currentLang() === 'en' ? 'G' : '审'} ${counts.pendingGates}</span>` : ''}</div>${mats ? `<div class="card-mats">${mats}</div>` : ''}<div class="card-foot">${fmtTime(card.lastActivityAt)}<button class="card-detail-link" type="button" data-card-preview>${currentLang() === 'en' ? 'Quick preview' : '快速预览'}</button></div>`;
   }
   function makeCardEl(card) {
     const el = document.createElement('article');
@@ -538,7 +551,8 @@
     el.innerHTML = cardHtml(card);
     el.addEventListener('dragstart', (event) => { state.justDragged = true; el.classList.add('dragging'); event.dataTransfer.setData('text/projectid', card.id); setTimeout(() => { state.justDragged = false; }, 300); });
     el.addEventListener('dragend', () => el.classList.remove('dragging'));
-    el.addEventListener('click', () => { if (!state.justDragged) openProject(card.id); });
+    $('[data-card-preview]', el).addEventListener('click', (event) => { event.stopPropagation(); openDrawer(card.id); });
+    el.addEventListener('click', () => { if (!state.justDragged) openProjectDetail(card.id, 'board'); });
     return el;
   }
   function appendCardEl(card) {
@@ -912,9 +926,10 @@
   }
 
   // ---------- drawer ----------
-  const TABS = [['overview', 'drawer.tab.overview', '项'], ['requirements', 'drawer.tab.requirements', '需'], ['testcases', 'drawer.tab.testcases', '例'], ['defects', 'drawer.tab.defects', '缺'], ['milestones', 'drawer.tab.milestones', '里'], ['reports', 'drawer.tab.reports', '报'], ['knowledge', 'drawer.tab.knowledge', '知'], ['minutes', 'drawer.tab.minutes', '纪'], ['gates', 'drawer.tab.gates', '审']];
+  const TABS = [['overview', 'drawer.tab.overview', '项'], ['qualityTasks', 'drawer.tab.qualityTasks', '质'], ['requirements', 'drawer.tab.requirements', '需'], ['testcases', 'drawer.tab.testcases', '例'], ['defects', 'drawer.tab.defects', '缺'], ['milestones', 'drawer.tab.milestones', '里'], ['reports', 'drawer.tab.reports', '报'], ['knowledge', 'drawer.tab.knowledge', '知'], ['minutes', 'drawer.tab.minutes', '纪'], ['gates', 'drawer.tab.gates', '审']];
   const TAB_META = {
     overview: ['drawer.overview.kicker', 'drawer.tab.overview', 'drawer.overview.sub'],
+    qualityTasks: ['drawer.qualityTasks.kicker', 'drawer.tab.qualityTasks', 'drawer.qualityTasks.sub'],
     requirements: ['drawer.requirements.kicker', 'drawer.tab.requirements', 'drawer.requirements.sub'],
     testcases: ['drawer.testcases.kicker', 'drawer.tab.testcases', 'drawer.testcases.sub'],
     defects: ['drawer.defects.kicker', 'drawer.tab.defects', 'drawer.defects.sub'],
@@ -941,13 +956,17 @@
       $('#drawer-summary').innerHTML = `<div class="sidebar-stage"><div><span>测试进度</span><b>${esc(columnOf(p)?.title || p.status)}</b></div><div class="stage-track"><i style="width:${stagePercent}%"></i></div><small>${stageIndex + 1} / ${state.columns.length} 阶段</small></div>
         <div class="sidebar-facts"><div><span>对象类型</span><b>${KIND_CN[p.kind] || esc(p.kind)}</b></div><div><span>被测产品</span><b>${esc(p.product || '尚未填写')}</b></div><div><span>测试负责人</span><b>${esc(p.owner || '尚未填写')}</b></div><div><span>DSH 协作</span><b>${p.assistant?.enabled === false ? '已关闭' : MODE_CN[p.assistant?.mode] || '全流程辅助'}</b></div></div>`;
       $('#btn-drawer-folder').textContent = p.workspacePath ? '打开项目文件' : '创建项目文件';
-      renderTabs(); renderTab(state.drawerTab);
+      $('#tabs').classList.add('hidden');
+      $('#drawer-section-kicker').textContent = currentLang() === 'en' ? 'QUICK PREVIEW' : '快速预览';
+      $('#drawer-section-title').textContent = currentLang() === 'en' ? 'Project snapshot' : '项目概览';
+      $('#drawer-section-subtitle').textContent = currentLang() === 'en' ? 'Key status and risks at a glance' : '快速查看状态、门禁、风险和近期数据';
+      $('#tab-body').innerHTML = `<div class="overview-metrics"><div><span>${currentLang() === 'en' ? 'Requirements' : '需求范围'}</span><b>${p.requirements.length}</b></div><div><span>${currentLang() === 'en' ? 'Test cases' : '测试用例'}</span><b>${p.testcases.length}</b></div><div><span>${currentLang() === 'en' ? 'Open defects' : '未关闭缺陷'}</span><b>${p.defects.filter((item) => item.status !== 'closed').length}</b></div><div><span>${currentLang() === 'en' ? 'Evidence' : '证据包'}</span><b>${p.evidenceBundles?.filter((item) => item.state === 'ready').length || 0}</b></div></div><section class="detail-card"><div class="detail-card-head"><div><span>QUALITY SNAPSHOT</span><h3>${currentLang() === 'en' ? 'Quality status' : '质量状态'}</h3></div></div><div class="li-sub">${p.qualityTasks?.length || 0} ${currentLang() === 'en' ? 'quality tasks' : '个质量任务'} · ${p.regressionSets?.length || 0} ${currentLang() === 'en' ? 'regression sets' : '个回归集'} · ${p.gates?.filter((item) => item.status === 'pending').length || 0} ${currentLang() === 'en' ? 'pending gates' : '个待审批门禁'}</div></section>`;
     } catch (error) { toast(error.message, 'err'); }
   }
   function renderTabs() {
     const p = state.drawerProject;
     $('#tabs').innerHTML = TABS.map(([key, label, icon]) => {
-      const count = p ? { requirements: p.requirements.length, testcases: p.testcases.length, defects: p.defects.length, milestones: p.milestones.length, reports: p.reports.length, knowledge: p.knowledge.length, minutes: p.minutes.length, gates: p.gates.filter((g) => g.status === 'pending').length }[key] : null;
+      const count = p ? { qualityTasks: p.qualityTasks?.length || 0, requirements: p.requirements.length, testcases: p.testcases.length, defects: p.defects.length, milestones: p.milestones.length, reports: p.reports.length, knowledge: p.knowledge.length, minutes: p.minutes.length, gates: p.gates.filter((g) => g.status === 'pending').length }[key] : null;
       return `<button class="tab ${state.drawerTab === key ? 'active' : ''}" data-tab="${key}" type="button"><span class="tab-icon">${icon}</span><span>${t(label)}</span>${count != null ? `<span class="tab-count">${count}</span>` : ''}</button>`;
     }).join('');
     $$('.tab', $('#tabs')).forEach((tab) => tab.addEventListener('click', () => { state.drawerTab = tab.dataset.tab; renderTabs(); renderTab(state.drawerTab); }));
@@ -958,8 +977,157 @@
     $('#drawer-section-kicker').textContent = kicker;
     $('#drawer-section-title').textContent = title;
     $('#drawer-section-subtitle').textContent = subtitle;
-    ({ overview: renderOverview, requirements: renderRequirements, testcases: renderTestcases, defects: renderDefects, milestones: renderMilestones, reports: renderReports, knowledge: renderKnowledge, minutes: renderMinutes, gates: renderGates }[tab])($('#tab-body'), p);
+    ({ overview: renderOverview, qualityTasks: renderQualityTasks, requirements: renderRequirements, testcases: renderTestcases, defects: renderDefects, milestones: renderMilestones, reports: renderReports, knowledge: renderKnowledge, minutes: renderMinutes, gates: renderGates }[tab])($('#tab-body'), p);
     applyStaticCopy();
+  }
+
+  async function refreshProjectDetail(id) {
+    try {
+      const { project: p } = await api(`api/projects/${id}`);
+      state.detailProject = p;
+      updateProjectDetailBackLabel();
+      $('#project-detail-meta').textContent = `${p.title} · ${p.projectKey || (currentLang() === 'en' ? 'Unnumbered' : '未编号')} · ${columnOf(p)?.title || p.status}`;
+      $('#btn-project-detail-folder').textContent = p.workspacePath ? (currentLang() === 'en' ? 'Open project files' : '打开项目文件') : (currentLang() === 'en' ? 'Create project files' : '创建项目文件');
+      const stageIndex = Math.max(0, state.columns.findIndex((column) => column.id === p.status));
+      const stagePercent = state.columns.length > 1 ? Math.round(stageIndex / (state.columns.length - 1) * 100) : 0;
+      $('#project-detail-summary').innerHTML = `<div class="sidebar-stage"><div><span>${currentLang() === 'en' ? 'Progress' : '测试进度'}</span><b>${esc(columnOf(p)?.title || p.status)}</b></div><div class="stage-track"><i style="width:${stagePercent}%"></i></div><small>${stageIndex + 1} / ${state.columns.length}</small></div><div class="sidebar-facts"><div><span>${currentLang() === 'en' ? 'Product' : '被测产品'}</span><b>${esc(p.product || '-')}</b></div><div><span>${currentLang() === 'en' ? 'Owner' : '测试负责人'}</span><b>${esc(p.owner || '-')}</b></div></div>`;
+      renderProjectDetailTabs();
+      renderProjectDetailTab(state.detailTab);
+    } catch (error) { toast(error.message, 'err'); }
+  }
+  function renderProjectDetailTabs() {
+    const p = state.detailProject;
+    $('#project-detail-tabs').innerHTML = TABS.map(([key, label, icon]) => {
+      const count = p ? { qualityTasks: p.qualityTasks?.length || 0, requirements: p.requirements.length, testcases: p.testcases.length, defects: p.defects.length, milestones: p.milestones.length, reports: p.reports.length, knowledge: p.knowledge.length, minutes: p.minutes.length, gates: p.gates.filter((g) => g.status === 'pending').length }[key] : null;
+      return `<button class="tab ${state.detailTab === key ? 'active' : ''}" data-detail-tab="${key}" type="button"><span class="tab-icon">${icon}</span><span>${t(label)}</span>${count != null ? `<span class="tab-count">${count}</span>` : ''}</button>`;
+    }).join('');
+    $$('[data-detail-tab]', $('#project-detail-tabs')).forEach((tab) => tab.addEventListener('click', () => { state.detailTab = tab.dataset.detailTab; renderProjectDetailTabs(); renderProjectDetailTab(state.detailTab); }));
+  }
+  function renderProjectDetailTab(tab) {
+    const p = state.detailProject; if (!p) return;
+    const [kicker, title, subtitle] = (TAB_META[tab] || TAB_META.overview).map(t);
+    $('#project-detail-kicker').textContent = kicker;
+    $('#project-detail-title').textContent = title;
+    $('#project-detail-subtitle').textContent = subtitle;
+    ({ overview: renderOverview, qualityTasks: renderQualityTasks, requirements: renderRequirements, testcases: renderTestcases, defects: renderDefects, milestones: renderMilestones, reports: renderReports, knowledge: renderKnowledge, minutes: renderMinutes, gates: renderGates }[tab])($('#project-detail-body'), p);
+    applyStaticCopy();
+  }
+  async function refreshAfterMutation(id) {
+    if (state.view === 'project-detail' && state.detailProject?.id === id) return refreshProjectDetail(id);
+    return refreshDrawer(id);
+  }
+  function renderQualityTasks(body, p) {
+    const q = (zh, en) => currentLang() === 'en' ? en : zh;
+    const tasks = p.qualityTasks || [];
+    const evidence = p.evidenceBundles || [];
+    const evidenceDownload = evidence.filter((bundle) => bundle.state === 'ready').flatMap((bundle) => (bundle.items || []).map((item) => `<a class="btn sm" href="api/projects/${encodeURIComponent(p.id)}/evidence/${encodeURIComponent(bundle.id)}/items/${encodeURIComponent(item.id)}/download" download>${q('下载', 'Download')} ${esc(item.relativePath)}</a>`)).join('');
+    const analyses = p.failureAnalyses || [];
+    const regressions = p.regressionSets || [];
+    const evidenceState = (item) => ({ ready: q('已验证', 'Verified'), finalizing: q('处理中', 'Finalizing'), expired: q('已过期', 'Expired'), 'integrity-failed': q('完整性失败', 'Integrity failed') }[item.state] || item.state || q('未知', 'Unknown'));
+    body.innerHTML = `<section class="detail-card" id="quality-gate-summary"><div class="detail-card-head"><div><span>QUALITY GATE</span><h3>${q('质量门禁', 'Quality gate')}</h3></div><span class="badge">${q('计算中', 'Checking')}</span></div><div class="li-sub">${q('正在检查测试运行、证据包和高风险项。', 'Checking test runs, evidence bundles, and high risks.')}</div></section><section class="detail-card quality-assets"><div class="detail-card-head"><div><span>QUALITY EVIDENCE</span><h3>${q('质量证据', 'Quality evidence')}</h3></div></div><div class="radar-grid"><div class="radar-stat"><b>${evidence.filter((item) => item.state === 'ready').length}</b><span>${q('就绪证据包', 'Ready bundles')}</span></div><div class="radar-stat"><b>${analyses.length}</b><span>${q('故障分析', 'Failure analyses')}</span></div><div class="radar-stat"><b>${regressions.length}</b><span>${q('回归集', 'Regression sets')}</span></div><div class="radar-stat"><b>${(p.testruns || []).length}</b><span>${q('测试运行', 'Test runs')}</span></div></div><div class="list quality-asset-list"><div class="list-item"><div class="li-title">${q('证据包', 'Evidence bundles')}</div><div class="li-sub">${evidence.map((item) => `${esc(item.id)} · ${esc(evidenceState(item))}`).join('、') || q('暂无证据包', 'No evidence bundles')}</div>${evidenceDownload ? `<div class="li-meta">${evidenceDownload}</div>` : ''}</div><div class="list-item"><div class="li-title">${q('故障分析', 'Failure analyses')}</div><div class="li-sub">${analyses.map((item) => `${esc(item.summary || item.id)} · ${esc(item.status || 'proposed')}`).join('、') || q('暂无故障分析', 'No failure analyses')}</div></div><div class="list-item"><div class="li-title">${q('回归集', 'Regression sets')}</div><div class="li-sub">${regressions.map((item) => `${esc(item.name || item.id)} · ${item.testCaseIds?.length || 0} ${q('个用例', 'cases')}`).join('、') || q('暂无回归集', 'No regression sets')}</div></div><div class="list-item"><div class="li-title">${q('修复前后对比', 'Before/after comparison')}</div><div class="li-sub">${q('选择同一测试计划的两个终态运行进行对比。', 'Compare two terminal runs from the same test plan.')}</div></div></div></section><div class="tab-toolbar"><div><b>${q('质量任务', 'Quality tasks')}</b><span>${q('记录验收标准、风险、测试范围和分析决策', 'Track acceptance criteria, risks, scope, and analysis decisions')}</span></div><button class="btn primary sm" id="qt-add" type="button">＋ ${q('新建质量任务', 'New quality task')}</button></div><div class="list">${tasks.map((task) => `<article class="list-item quality-task-card"><div class="li-title">${esc(task.title)} <span class="badge">v${task.version || 1}</span></div><div class="li-meta">${q('阶段', 'Stage')}：${esc(task.stage || 'intake')} · ${q('结果来源', 'Origin')}：${task.analysisOrigin === 'agent' ? 'DSH 分析' : q('人工录入', 'Manual')}</div><h4>${q('验收标准', 'Acceptance criteria')}</h4><div class="li-sub">${task.acceptanceCriteria?.map((item) => esc(item.condition || item)).join('、') || q('暂无验收标准', 'No acceptance criteria')}</div></article>`).join('') || emptyHtml(q('暂无质量任务', 'No quality tasks'))}</div><section class="detail-card execution-card"><div class="detail-card-head"><div><span>LOCAL EXECUTION</span><h3>${q('执行配置', 'Execution profiles')}</h3></div><button class="btn primary sm" id="ep-add" type="button">＋ ${q('新建执行配置', 'New execution profile')}</button></div><div class="list">${(p.executionProfiles || []).map((profile) => `<div class="list-item"><div class="li-title">${esc(profile.name)} · v${profile.currentVersion || profile.version || 1}</div></div>`).join('') || emptyHtml(q('暂无执行配置', 'No execution profiles'))}</div></section>`;
+    const gateCard = $('#quality-gate-summary', body);
+    if (gateCard) {
+      const actions = document.createElement('div');
+      actions.innerHTML = `<button class="btn primary sm" id="gate-evaluate" type="button">${q('评估质量门禁', 'Evaluate quality gate')}</button>`;
+      gateCard.querySelector('.detail-card-head')?.append(actions);
+      const taskGates = (p.gates || []).filter((item) => item.kind === 'computed' && item.qualityTaskId === tasks[0]?.id);
+      const latestGate = taskGates.at(-1);
+      const reportText = latestGate
+        ? `${esc(latestGate.verdict)} · ${(latestGate.checks || []).map((check) => esc(check.explanation)).join('；')}`
+        : q('评估后可查看可追溯交付依据。', 'Evaluate to view traceable delivery evidence.');
+      const trendText = taskGates.length
+        ? taskGates.map((gate) => esc(gate.verdict)).join(' → ')
+        : q('暂无门禁趋势。', 'No gate trend yet.');
+      const delivery = document.createElement('section');
+      delivery.className = 'detail-card';
+      delivery.innerHTML = `<div class="detail-card-head"><div><span>DELIVERY</span><h3>${q('交付报告', 'Delivery report')}</h3></div><button class="btn sm" id="gate-exception" type="button">${q('添加门禁例外', 'Add gate exception')}</button></div><div class="li-sub" id="gate-report">${reportText}</div><div class="detail-card-head"><div><span>TREND</span><h3>${q('门禁趋势', 'Gate trends')}</h3></div></div><div class="li-sub" id="gate-trend">${trendText}</div>`;
+      gateCard.after(delivery);
+      $('#gate-exception', delivery).addEventListener('click', async () => {
+        try {
+          const latest = await api(`api/projects/${p.id}`);
+          const gate = (latest.project.gates || []).filter((item) => item.kind === 'computed').at(-1);
+          const check = gate?.checks?.find((item) => item.status === 'failed' && item.waivable);
+          if (!gate || !check) return toast(q('当前没有可豁免的门禁检查项', 'No waivable gate check is available'), 'err');
+          const actorLabel = prompt(q('责任人', 'Owner'));
+          const reason = prompt(q('例外理由', 'Exception reason'));
+          const expiresAt = prompt(q('到期时间（ISO 格式）', 'Expiry time (ISO format)'));
+          if (!actorLabel?.trim() || !reason?.trim() || !expiresAt?.trim()) return;
+          await api(`api/projects/${p.id}/gates/${gate.id}/exceptions`, { method: 'POST', body: { expectedRevision: gate.revision, checkKey: check.key, actorLabel: actorLabel.trim(), reason: reason.trim(), expiresAt: expiresAt.trim() } });
+          toast(q('门禁例外已记录', 'Gate exception recorded'), 'ok');
+          await refreshAfterMutation(p.id);
+        } catch (error) { toast(error.message, 'err'); }
+      });
+    }
+    const assetHead = $('.quality-assets .detail-card-head', body);
+    if (assetHead) {
+      const actions = document.createElement('div');
+      actions.innerHTML = '<button class="btn sm" id="reg-add" type="button">＋ 新建回归集</button><button class="btn sm" id="analysis-add" type="button">＋ 新建故障分析</button><button class="btn sm" id="cleanup-add" type="button">清理过期证据</button>';
+      assetHead.append(actions);
+      $('#reg-add', actions).addEventListener('click', async () => {
+        const name = prompt('回归集名称');
+        if (!name?.trim()) return;
+        try { await api(`api/projects/${p.id}/regression-sets`, { method: 'POST', body: { name: name.trim(), testCaseIds: p.testcases.map((item) => item.id) } }); toast('回归集已创建', 'ok'); await refreshAfterMutation(p.id); } catch (error) { toast(error.message, 'err'); }
+      });
+      $('#cleanup-add', actions).addEventListener('click', async () => {
+        if (!confirm('确认创建过期证据清理任务？默认保留最近 30 天。')) return;
+        try { await api(`api/projects/${p.id}/artifact-cleanup`, { method: 'POST', body: {} }); toast('清理任务已创建', 'ok'); } catch (error) { toast(error.message, 'err'); }
+      });
+      $('#analysis-add', actions).addEventListener('click', async () => {
+        const failedRun = [...(p.testruns || [])].reverse().find((run) => run.status === 'failed' && run.resultTrust === 'controlled-local');
+        if (!failedRun) { toast('暂无可分析的受控失败运行', 'err'); return; }
+        const summary = prompt('故障摘要');
+        if (!summary?.trim()) return;
+        const rootCause = prompt('根因（可选）') || '';
+        try { await api(`api/projects/${p.id}/test-runs/${failedRun.id}/failure-analysis`, { method: 'POST', body: { category: 'product', summary: summary.trim(), rootCause } }); toast('故障分析已创建', 'ok'); await refreshAfterMutation(p.id); } catch (error) { toast(error.message, 'err'); }
+      });
+    }
+    const analysisList = $('.quality-asset-list .list-item:nth-child(2)', body);
+    analyses.filter((item) => item.status === 'proposed').forEach((analysis) => {
+      const button = document.createElement('button');
+      button.className = 'btn sm'; button.type = 'button'; button.textContent = '升级为缺陷';
+      button.addEventListener('click', async () => {
+        const actor = prompt('确认人');
+        if (!actor?.trim() || !confirm('确认将该故障分析升级为缺陷？')) return;
+        try { await api(`api/projects/${p.id}/failure-analyses/${analysis.id}/promote-defect`, { method: 'POST', body: { expectedRevision: analysis.version, actorLabel: actor.trim(), confirmed: true } }); toast('已登记为待处理缺陷', 'ok'); await refreshAfterMutation(p.id); } catch (error) { toast(error.message, 'err'); }
+      });
+      analysisList?.append(button);
+    });
+    const regressionList = $('.quality-asset-list .list-item:nth-child(3)', body);
+    regressions.forEach((set) => {
+      const available = (set.testCaseIds || []).find((id) => !(set.exclusions || []).some((item) => item.testCaseId === id));
+      if (!available) return;
+      const button = document.createElement('button');
+      button.className = 'btn sm'; button.type = 'button'; button.textContent = q('排除回归项', 'Exclude regression case');
+      button.addEventListener('click', async () => {
+        const reason = prompt(q('请填写排除理由', 'Enter an exclusion reason'));
+        if (!reason?.trim()) { toast(q('请填写排除理由', 'Enter an exclusion reason'), 'err'); return; }
+        const actor = prompt(q('操作者', 'Actor'));
+        if (!actor?.trim()) return;
+        try { await api(`api/projects/${p.id}/regression-sets/${set.id}/exclude`, { method: 'POST', body: { expectedRevision: set.version, testCaseId: available, actor: actor.trim(), reason: reason.trim() } }); toast(q('回归项已排除', 'Regression case excluded'), 'ok'); await refreshAfterMutation(p.id); } catch (error) { toast(error.message, 'err'); }
+      });
+      regressionList?.append(button);
+    });
+    const runList = $('.quality-asset-list .list-item:nth-child(1)', body);
+    const runs = p.testruns || [];
+    if (runs.length >= 2 && runList) {
+      const compare = document.createElement('button');
+      compare.className = 'btn sm'; compare.type = 'button'; compare.textContent = '对比测试运行';
+      compare.addEventListener('click', async () => {
+        const before = prompt('基线运行 ID', runs.at(-2).id);
+        const after = prompt('当前运行 ID', runs.at(-1).id);
+        if (!before || !after) return;
+        try { const result = await api(`api/projects/${p.id}/test-runs/${encodeURIComponent(after)}/compare`, { method: 'POST', body: { otherRunId: before } }); toast(`对比完成：${result.comparison.changedCases.length} 个用例发生变化`, 'ok'); } catch (error) { toast(error.message, 'err'); }
+      });
+      runList.append(compare);
+    }
+    $('#qt-add', body).addEventListener('click', () => openQualityTaskModal(p));
+    $('#ep-add', body).addEventListener('click', () => openExecutionProfileModal(p));
+    $('#gate-evaluate', body)?.addEventListener('click', async () => {
+      const task = tasks[0];
+      if (!task) return toast(q('请先创建质量任务', 'Create a quality task first'), 'err');
+      try { const result = await api(`api/projects/${p.id}/quality-tasks/${task.id}/gates/evaluate`, { method: 'POST', body: {} }); const [report, trend] = await Promise.all([api(`api/projects/${p.id}/quality-tasks/${task.id}/reports`), api(`api/projects/${p.id}/quality-tasks/${task.id}/gate-trends`)]); $('#gate-report', body).textContent = `${report.report.verdict} · ${report.report.checks.map((check) => check.explanation).join('；')}`; $('#gate-trend', body).textContent = trend.trend.series.map((point) => point.verdict).join(' → '); toast(`${q('门禁结论', 'Gate verdict')}：${result.gate.verdict}`, result.gate.verdict === 'BLOCK' ? 'err' : 'ok'); } catch (error) { toast(error.message, 'err'); }
+    });
+    api(`api/projects/${p.id}/quality-gate`).then(({ gate }) => { const card = $('#quality-gate-summary', body); if (!card) return; card.innerHTML = `<div class="detail-card-head"><div><span>QUALITY GATE</span><h3>质量门禁</h3></div><span class="badge ${gate.status === 'blocked' ? 'danger' : ''}">${gate.status === 'blocked' ? '阻断' : '通过'}</span><button class="btn primary sm" id="gate-evaluate" type="button">${q('评估质量门禁', 'Evaluate quality gate')}</button></div><div class="li-sub">${gate.blockers.length ? `阻断原因：${gate.blockers.map(esc).join('、')}` : '当前检查项均已满足。'}</div>`; card.querySelector('#gate-evaluate')?.addEventListener('click', async () => { const task = tasks[0]; if (!task) return toast(q('请先创建质量任务', 'Create a quality task first'), 'err'); try { const result = await api(`api/projects/${p.id}/quality-tasks/${task.id}/gates/evaluate`, { method: 'POST', body: {} }); const [report, trend] = await Promise.all([api(`api/projects/${p.id}/quality-tasks/${task.id}/reports`), api(`api/projects/${p.id}/quality-tasks/${task.id}/gate-trends`)]); $('#gate-report', body).textContent = `${report.report.verdict} · ${report.report.checks.map((check) => check.explanation).join('；')}`; $('#gate-trend', body).textContent = trend.trend.series.map((point) => point.verdict).join(' → '); toast(`${q('门禁结论', 'Gate verdict')}：${result.gate.verdict}`, result.gate.verdict === 'BLOCK' ? 'err' : 'ok'); } catch (error) { toast(error.message, 'err'); } }); }).catch(() => {});
   }
   function renderOverview(body, p) {
     const options = state.columns.map((column) => `<option value="${column.id}" ${p.status === column.id ? 'selected' : ''}>${esc(column.title)}</option>`).join('');
@@ -978,7 +1146,7 @@
     $('#ov-save', body).addEventListener('click', async () => { try {
       await api(`api/projects/${p.id}`, { method: 'PATCH', body: { title: $('#ov-title', body).value.trim(), projectKey: $('#ov-number', body).value.trim(), product: $('#ov-product', body).value.trim(), owner: $('#ov-owner', body).value.trim(), summary: $('#ov-summary', body).value.trim() } });
       if ($('#ov-status', body).value !== p.status) await api(`api/projects/${p.id}/transition`, { method: 'POST', body: { to: $('#ov-status', body).value } });
-      toast('项目信息已保存', 'ok'); await refreshDrawer(p.id);
+      toast('项目信息已保存', 'ok'); await refreshAfterMutation(p.id);
     } catch (e) { toast(e.message, 'err'); } });
     $('#ov-add-schedule', body).addEventListener('click', () => openScheduleModal(localDate(new Date()), p.id));
     $('#ov-policy', body).addEventListener('click', () => openAssistantPolicy(p));
@@ -1015,6 +1183,28 @@
   function renderGates(body, p) {
     body.innerHTML = `<div class="list">${p.gates.map((gate) => { const badge = gate.status === 'pending' ? '<span class="badge gate">待负责人审批</span>' : gate.status === 'approved' ? '<span class="badge doc">已通过</span>' : '<span class="badge danger">已驳回</span>'; return `<div class="list-item" data-gate-id="${gate.id}"><div class="li-title">${esc(gate.title)} ${badge} <span class="badge">${GATE_CN[gate.type] || gate.type}</span></div><div class="li-sub">${esc(gate.summary || '')}</div>${gate.status === 'pending' ? '<div class="li-actions"><button class="btn sm primary" data-decision="approve" type="button">通过</button><button class="btn sm danger" data-decision="reject" type="button">驳回</button></div>' : ''}</div>`; }).join('') || emptyHtml('暂无待审批门禁。')}</div>`;
     $$('[data-decision]', body).forEach((button) => button.addEventListener('click', async () => { if (button.dataset.decision === 'approve' && !confirm('确认通过该门禁？')) return; const item = button.closest('.list-item'); try { await api(`api/projects/${p.id}/gates/${item.dataset.gateId}/decide`, { method: 'POST', body: { decision: button.dataset.decision } }); toast('门禁已处理', 'ok'); } catch (e) { toast(e.message, 'err'); } }));
+  }
+
+  function openQualityTaskModal(project) {
+    const modal = modalShell('新建质量任务', '先登记任务名称，后续可由 DSH 分析或人工录入补全质量信息。', `<div class="field"><label for="qt-title">任务名称</label><input id="qt-title" placeholder="如：支付回调风险"/></div><div class="modal-foot"><button class="btn" id="qt-cancel" type="button">取消</button><button class="btn primary" id="qt-ok" type="button">创建任务</button></div>`);
+    $('#qt-cancel', modal).addEventListener('click', closeModal);
+    $('#qt-ok', modal).addEventListener('click', async () => {
+      const title = $('#qt-title', modal).value.trim();
+      if (!title) return toast('请填写任务名称', 'err');
+      try { await api(`api/projects/${project.id}/quality-tasks`, { method: 'POST', body: { title } }); closeModal(); await refreshAfterMutation(project.id); toast('质量任务已创建', 'ok'); }
+      catch (error) { toast(error.message, 'err'); }
+    });
+    setTimeout(() => $('#qt-title', modal).focus(), 30);
+  }
+
+  function openExecutionProfileModal(project) {
+    const modal = modalShell('新建执行配置', '仅允许执行项目工作区内的精确测试文件。', `<div class="field"><label for="ep-name">配置名称</label><input id="ep-name" value="unit"/></div><div class="field"><label for="ep-executor">执行器</label><select id="ep-executor"><option value="node-test">Node Test</option><option value="playwright">Playwright</option></select></div><div class="field"><label for="ep-targets">精确文件（每行一个）</label><textarea id="ep-targets" rows="3">test/fixtures/runner/pass.fixture.mjs</textarea></div><div class="modal-foot"><button class="btn" id="ep-cancel" type="button">取消</button><button class="btn primary" id="ep-ok" type="button">保存配置</button></div>`);
+    $('#ep-cancel', modal).addEventListener('click', closeModal);
+    $('#ep-ok', modal).addEventListener('click', async () => {
+      const targetFiles = $('#ep-targets', modal).value.split('\n').map((value) => value.trim()).filter(Boolean);
+      try { await api(`api/projects/${project.id}/execution-profiles`, { method: 'POST', body: { name: $('#ep-name', modal).value.trim(), executor: $('#ep-executor', modal).value, cwdRelative: '.', targetFiles, networkIntent: 'none' } }); closeModal(); await refreshAfterMutation(project.id); toast('执行配置已保存', 'ok'); }
+      catch (error) { toast(error.message, 'err'); }
+    });
   }
 
   // ---------- modals and workspaces ----------
@@ -1306,6 +1496,19 @@
     events.addEventListener('project.updated', (event) => { updateCard(JSON.parse(event.data).project); scheduleRefresh(); });
     events.addEventListener('project.created', (event) => { const card = JSON.parse(event.data).project; state.cards.set(card.id, card); renderRailCases(); renderCaseList(); scheduleRefresh(); });
     events.addEventListener('project.deleted', (event) => { removeCard(JSON.parse(event.data).projectId); scheduleRefresh(); });
+    events.addEventListener('quality.evidence.updated', (event) => {
+      const update = JSON.parse(event.data);
+      const seen = state.evidenceRevisions.get(update.entityId) || 0;
+      if (Number(update.revision || 0) <= seen) return;
+      state.evidenceRevisions.set(update.entityId, Number(update.revision));
+      if (state.drawerProject?.id === update.projectId) refreshDrawer(update.projectId).catch(() => {});
+      if (state.detailProject?.id === update.projectId) refreshProjectDetail(update.projectId).catch(() => {});
+    });
+    events.addEventListener('quality.gate.updated', (event) => {
+      const update = JSON.parse(event.data);
+      if (state.drawerProject?.id === update.projectId) refreshDrawer(update.projectId).catch(() => {});
+      if (state.detailProject?.id === update.projectId) refreshProjectDetail(update.projectId).catch(() => {});
+    });
     events.addEventListener('feed', (event) => { state.feed.unshift(JSON.parse(event.data).entry); state.feed = state.feed.slice(0, 100); renderFeed(); renderDashboardFeed(); });
     events.addEventListener('stats', (event) => { state.stats = JSON.parse(event.data); renderMetrics(); });
     events.onerror = () => {};
@@ -1402,7 +1605,8 @@
     // 重渲染动态区块
     renderBoard(); renderRailCases(); renderCaseList(); renderDashboard(); renderCalendars();
     if (state.activeProject) { updateChatHead(state.activeProject); renderProjectRadar(state.activeProject); }
-    if (state.drawerProject) renderTab(state.drawerTab);
+    if (state.drawerProject && !$('#drawer').classList.contains('hidden')) refreshDrawer(state.drawerProject.id);
+    if (state.detailProject && state.view === 'project-detail') refreshProjectDetail(state.detailProject.id);
     const skillSearch = $('#skills-search');
     if (skillSearch) skillSearch.placeholder = t('skills.search');
     if (state.view === 'skills') loadSkillCatalog();
@@ -1442,8 +1646,12 @@
     $('#btn-assistant-policy').addEventListener('click', () => openAssistantPolicy());
     $('#btn-dsh-capabilities').addEventListener('click', openDshCapabilities);
     $('#btn-close-drawer').addEventListener('click', closeDrawer); $('#drawer-backdrop').addEventListener('click', closeDrawer);
+    $('#btn-drawer-full').addEventListener('click', () => { if (!state.drawerProject) return; const id = state.drawerProject.id; closeDrawer(); openProjectDetail(id, state.view); });
     $('#btn-drawer-chat').addEventListener('click', () => { if (!state.drawerProject) return; const id = state.drawerProject.id; closeDrawer(); openProject(id); });
     $('#btn-drawer-folder').addEventListener('click', () => { if (state.drawerProject) openWorkspace(state.drawerProject.id); });
+    $('#btn-project-detail-back').addEventListener('click', () => switchView(state.detailReturnView));
+    $('#btn-project-detail-chat').addEventListener('click', () => { if (state.detailProject) openProject(state.detailProject.id); });
+    $('#btn-project-detail-folder').addEventListener('click', () => { if (state.detailProject) openWorkspace(state.detailProject.id); });
     $('#btn-send').addEventListener('click', sendMessage); $('#btn-stop').addEventListener('click', stopChat);
     $('#chat-input').addEventListener('input', () => { autoGrow($('#chat-input')); renderSlashSuggestions(); });
     $('#chat-input').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendMessage(); } });

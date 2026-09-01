@@ -1,0 +1,30 @@
+import { test, expect } from '@playwright/test';
+
+test('项目详情可以创建质量任务并在刷新后保留', async ({ page }) => {
+  const projectTitle = `质量任务浏览器项目-${Date.now()}`;
+  await page.goto('/');
+  await page.getByRole('button', { name: '新建测试项目' }).click();
+  await page.locator('#nc-title').fill(projectTitle);
+  await page.locator('#nc-workspace').uncheck();
+  await page.getByRole('button', { name: '创建项目' }).click();
+  await page.getByRole('button', { name: '项目看板' }).click();
+  await page.locator('.card').filter({ hasText: projectTitle }).click();
+  await page.locator('#project-detail-tabs button[data-detail-tab="qualityTasks"]').click();
+  await page.getByRole('button', { name: '新建质量任务' }).click();
+  await page.getByLabel('任务名称').fill('支付回调风险');
+  await page.getByRole('button', { name: '创建任务' }).click();
+  await expect(page.getByText('支付回调风险')).toBeVisible();
+  await expect(page.getByText('结果来源：人工录入')).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: '项目看板' }).click();
+  await page.locator('.card').filter({ hasText: projectTitle }).click();
+  await page.locator('#project-detail-tabs button[data-detail-tab="qualityTasks"]').click();
+  await expect(page.getByRole('heading', { name: '质量门禁' })).toBeVisible();
+  await expect(page.getByText('通过', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '质量证据' })).toBeVisible();
+  const assets = page.locator('.quality-asset-list');
+  await expect(assets.getByText('证据包', { exact: true })).toBeVisible();
+  await expect(assets.getByText('故障分析', { exact: true })).toBeVisible();
+  await expect(assets.getByText('回归集', { exact: true })).toBeVisible();
+  await expect(page.getByText('支付回调风险')).toBeVisible();
+});

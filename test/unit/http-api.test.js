@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -9,6 +10,7 @@ const skillsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-qa-skills-'));
 process.env.QA_DATA_DIR = dataDir;
 process.env.DSH_SKILLS_DIR = skillsDir;
 const { startQaBench, closeQaBench } = await import('../../server/index.js');
+const store = await import('../../server/store.js');
 const started = await startQaBench({ port: 0, openBrowser: false, log: () => {} });
 const base = `http://127.0.0.1:${started.server.address().port}`;
 
@@ -29,6 +31,8 @@ test('board API exposes created project and rejects invalid transition', async (
   const board = await (await fetch(`${base}/api/board`)).json();
   assert.equal(board.projects.some((project) => project.title === 'API 项目'), true);
   const id = board.projects.find((project) => project.title === 'API 项目').id;
+  const detail = await (await fetch(`${base}/api/projects/${id}`)).json();
+  assert.equal('artifactRoot' in detail.project, false);
   const invalid = await fetch(`${base}/api/projects/${id}/transition`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ to: 'unknown' }) });
   assert.equal(invalid.status, 400);
 });
@@ -81,6 +85,355 @@ test('project API validates schedule payloads and missing resources', async () =
 
   const missing = await fetch(`${base}/api/projects/${id}/schedule/evt-missing`, { method: 'DELETE' });
   assert.equal(missing.status, 404);
+});
+
+test('quality task API creates, lists, and enforces revision conflicts', async () => {
+  const project = await (await fetch(`${base}/api/projects`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '质量任务 API 项目', createWorkspace: false }),
+  })).json();
+  const projectId = project.project.id;
+  const created = await fetch(`${base}/api/projects/${projectId}/quality-tasks`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '支付回调风险' }),
+  });
+  assert.equal(created.status, 201);
+  const task = (await created.json()).task;
+  assert.equal(task.title, '支付回调风险');
+  const listed = await fetch(`${base}/api/projects/${projectId}/quality-tasks`);
+  assert.equal(listed.status, 200);
+  assert.equal((await listed.json()).tasks[0].id, task.id);
+  const detail = await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}`);
+  assert.equal(detail.status, 200);
+  assert.equal((await detail.json()).task.id, task.id);
+  const analysisRequest = await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/analysis-requests`, { method: 'POST' });
+  assert.equal(analysisRequest.status, 202);
+  const conflict = await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/decisions`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: 0, action: 'confirm' }),
+  });
+  assert.equal(conflict.status, 409);
+  const conflictPayload = await conflict.json();
+  assert.match(conflictPayload.error, /版本|revision/i);
+  assert.equal(conflictPayload.code, 'QUALITY_REVISION_CONFLICT');
+});
+
+test('project details never expose execution paths or argv', async () => {
+  const project = store.createProject({ title: '脱敏项目' });
+  project.testruns.push({ id: 'run_secret', artifactDir: '/private/secret/run', command: ['node', '--test', 'secret.test.js'], status: 'passed' });
+  const response = await fetch(`${base}/api/projects/${project.id}`);
+  const payload = await response.json();
+  assert.equal('artifactDir' in payload.project.testruns[0], false);
+  assert.equal('command' in payload.project.testruns[0], false);
+});
+
+test('computed gate API persists evaluations, protects revisions, and projects reports and trends', async () => {
+  const created = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '计算门禁 API 项目', createWorkspace: false }) })).json();
+  const projectId = created.project.id;
+  const task = (await (await fetch(`${base}/api/projects/${projectId}/quality-tasks`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '门禁任务' }) })).json()).task;
+  const project = store.getProject(projectId);
+  project.testruns.push({ id: 'run_gate_api', projectId, status: 'passed', resultTrust: 'controlled-local', provenance: {} });
+  project.evidenceBundles.push({ id: 'evidence_gate_api', testRunId: 'run_gate_api', state: 'ready', integrity: 'verified', provenance: {} });
+  const evaluated = await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/gates/evaluate`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+  assert.equal(evaluated.status, 201);
+  const gate = (await evaluated.json()).gate;
+  assert.equal(gate.kind, 'computed');
+  assert.equal(gate.verdict, 'PASS');
+  const detail = await fetch(`${base}/api/projects/${projectId}/gates/${gate.id}`);
+  assert.equal(detail.status, 200);
+  const rejected = await fetch(`${base}/api/projects/${projectId}/gates/${gate.id}/exceptions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 0, actorLabel: 'QA', reason: '范围外', expiresAt: '2026-08-26T00:00:00.000Z', checkKey: 'medium-coverage' }) });
+  assert.equal(rejected.status, 409);
+  assert.equal((await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/reports`)).status, 200);
+  assert.equal((await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/gate-trends`)).status, 200);
+});
+
+test('quality task API rejects six 1 MiB sources above the project capture limit', async () => {
+  const project = await (await fetch(`${base}/api/projects`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '来源总量 API 项目' }),
+  })).json();
+  const current = store.getProject(project.project.id);
+  const sources = Array.from({ length: 6 }, (_, index) => {
+    const ref = `source-${index}.md`;
+    fs.writeFileSync(path.join(current.workspacePath, ref), Buffer.alloc(1024 * 1024, 0x61));
+    return { type: 'workspace-file', ref };
+  });
+
+  const response = await fetch(`${base}/api/projects/${current.id}/quality-tasks`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '超限来源', sources }),
+  });
+
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /5 MiB/);
+  assert.equal(current.qualityTasks.length, 0);
+});
+
+test('quality task API replaces client supplied source metadata with server capture', async () => {
+  const project = await (await fetch(`${base}/api/projects`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '来源采集 API 项目' }),
+  })).json();
+  const current = store.getProject(project.project.id);
+  const ref = 'trusted-source.md';
+  const snapshot = '# 服务端采集的来源';
+  fs.writeFileSync(path.join(current.workspacePath, ref), snapshot);
+
+  const response = await fetch(`${base}/api/projects/${current.id}/quality-tasks`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      title: '来源采集',
+      sources: [{ type: 'workspace-file', ref, digest: 'forged-digest', snapshot: 'forged snapshot', byteSize: 1 }],
+    }),
+  });
+
+  assert.equal(response.status, 201);
+  const source = (await response.json()).task.sources[0];
+  assert.deepEqual(source, {
+    type: 'workspace-file',
+    ref,
+    digest: crypto.createHash('sha256').update(snapshot).digest('hex'),
+    byteSize: Buffer.byteLength(snapshot),
+    snapshot,
+    capturedAt: source.capturedAt,
+  });
+  assert.match(source.capturedAt, /^\d{4}-\d{2}-\d{2}T/);
+});
+
+test('manual analysis rejects host fields and records manual origin', async () => {
+  const project = await (await fetch(`${base}/api/projects`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '手工分析 API 项目', createWorkspace: false }),
+  })).json();
+  const projectId = project.project.id;
+  const task = (await (await fetch(`${base}/api/projects/${projectId}/quality-tasks`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '手工任务' }),
+  })).json()).task;
+  const forged = await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/manual-analyses`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: 1, origin: 'agent', dshSessionId: 'forged', risks: [] }),
+  });
+  assert.equal(forged.status, 400);
+  const manual = await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/manual-analyses`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: 1, actorLabel: '张测试', sourceDigests: [], acceptanceCriteria: [], risks: [], testScope: [] }),
+  });
+  assert.equal(manual.status, 201);
+  const saved = (await manual.json()).task;
+  assert.equal(saved.analysisOrigin, 'manual');
+  assert.equal(saved.analysisRuns.at(-1).dshSessionId, '');
+  const audit = store.getProject(projectId).qualityAudit.at(-1);
+  assert.deepEqual({ action: audit.action, source: audit.source, actorLabel: audit.actorLabel, result: audit.result }, { action: 'manual-analysis-save', source: 'http', actorLabel: '张测试', result: 'success' });
+
+  const missingConfirmation = await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/manual-analyses`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: saved.version, sourceDigests: [], risks: [] }),
+  });
+  assert.equal(missingConfirmation.status, 400);
+  const unknownField = await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/manual-analyses`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: saved.version, actorLabel: '张测试', sourceDigests: [], risks: [], ignored: true }),
+  });
+  assert.equal(unknownField.status, 400);
+});
+
+test('execution API creates profiles and returns a run preview', async () => {
+  const project = await (await fetch(`${base}/api/projects`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '执行 API 项目', createWorkspace: false }),
+  })).json();
+  const projectId = project.project.id;
+  const profileResponse = await fetch(`${base}/api/projects/${projectId}/execution-profiles`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'unit', executor: 'node-test', cwdRelative: '.', targetFiles: ['test/fixtures/runner/pass.fixture.mjs'], networkIntent: 'none' }),
+  });
+  assert.equal(profileResponse.status, 201);
+  const profile = (await profileResponse.json()).profile;
+  const current = store.getProject(projectId);
+  current.testcases.push({ id: 'tc_api_run', target: 'test/fixtures/runner/pass.fixture.mjs', planIds: [] });
+  current.testPlans.push({ id: 'plan_api_run', version: 1, testcaseIds: ['tc_api_run'], status: 'reviewed' });
+  const previewResponse = await fetch(`${base}/api/projects/${projectId}/test-plans/plan_api_run/run-preview`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ profileId: profile.id }),
+  });
+  assert.equal(previewResponse.status, 200);
+  const preview = (await previewResponse.json()).preview;
+  const runResponse = await fetch(`${base}/api/projects/${projectId}/test-plans/plan_api_run/runs`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ previewToken: preview.previewToken }),
+  });
+  assert.equal(runResponse.status, 202);
+  assert.deepEqual((await runResponse.json()).run, {
+    id: current.testruns[0].id, status: 'queued', revision: 1, mode: 'local', resultTrust: 'controlled-local',
+  });
+});
+
+test('run API rejects stale previews and tokens issued for a different URL plan', async () => {
+  const project = await (await fetch(`${base}/api/projects`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '运行预览失效 API 项目', createWorkspace: false }),
+  })).json();
+  const projectId = project.project.id;
+  const current = store.getProject(projectId);
+  current.testPlans.push(
+    { id: 'plan_preview_a', version: 1, testcaseIds: [], status: 'reviewed' },
+    { id: 'plan_preview_b', version: 1, testcaseIds: [], status: 'reviewed' },
+  );
+  const profile = (await (await fetch(`${base}/api/projects/${projectId}/execution-profiles`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'unit', executor: 'node-test', cwdRelative: '.', targetFiles: ['test/fixtures/runner/pass.fixture.mjs'], networkIntent: 'none' }),
+  })).json()).profile;
+  const preview = (await (await fetch(`${base}/api/projects/${projectId}/test-plans/plan_preview_a/run-preview`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ profileId: profile.id }),
+  })).json()).preview;
+
+  const wrongPlan = await fetch(`${base}/api/projects/${projectId}/test-plans/plan_preview_b/runs`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ previewToken: preview.previewToken }),
+  });
+  assert.equal(wrongPlan.status, 409);
+  assert.equal((await wrongPlan.json()).code, 'QUALITY_RUN_PREVIEW_STALE');
+  assert.equal(current.testruns.length, 0);
+
+  const stalePreview = (await (await fetch(`${base}/api/projects/${projectId}/test-plans/plan_preview_a/run-preview`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ profileId: profile.id }),
+  })).json()).preview;
+  await fetch(`${base}/api/projects/${projectId}/execution-profiles/${profile.id}/versions`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 1, timeoutMs: 60_000 }),
+  });
+  const stale = await fetch(`${base}/api/projects/${projectId}/test-plans/plan_preview_a/runs`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ previewToken: stalePreview.previewToken }),
+  });
+  assert.equal(stale.status, 409);
+  assert.equal((await stale.json()).code, 'QUALITY_RUN_PREVIEW_STALE');
+  assert.equal(current.testruns.length, 0);
+});
+
+test('execution API versions and disables profiles with revision checks', async () => {
+  const project = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '配置版本 API 项目', createWorkspace: false }) })).json();
+  const projectId = project.project.id;
+  const created = await (await fetch(`${base}/api/projects/${projectId}/execution-profiles`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'unit', executor: 'node-test', cwdRelative: '.', targetFiles: ['test/fixtures/runner/pass.fixture.mjs'], networkIntent: 'none' }) })).json();
+  const profile = created.profile;
+  const version = await fetch(`${base}/api/projects/${projectId}/execution-profiles/${profile.id}/versions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 1, timeoutMs: 60000 }) });
+  assert.equal(version.status, 201);
+  assert.equal((await version.json()).profile.version, 2);
+  const stale = await fetch(`${base}/api/projects/${projectId}/execution-profiles/${profile.id}/disable`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 1 }) });
+  assert.equal(stale.status, 409);
+});
+
+test('plan API reviews versions and cancels a queued run', async () => {
+  const project = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '计划 API 项目', createWorkspace: false }) })).json();
+  const projectId = project.project.id;
+  const current = store.getProject(projectId);
+  current.qualityTasks.push({ id: 'qt_api_plan', projectId, risks: [] });
+  current.testcases.push({ id: 'tc_plan_api', target: 'test/fixtures/runner/pass.fixture.mjs', planIds: [] });
+  current.testPlans.push({ id: 'plan_api_review', qualityTaskId: 'qt_api_plan', version: 1, testcaseIds: ['tc_plan_api'], status: 'draft' });
+  const reviewed = await fetch(`${base}/api/projects/${projectId}/test-plans/plan_api_review/review`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 1, actorLabel: '张测试' }) });
+  assert.equal(reviewed.status, 200);
+  assert.equal((await reviewed.json()).plan.status, 'reviewed');
+  const next = await fetch(`${base}/api/projects/${projectId}/test-plans/plan_api_review/versions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 1, testcaseIds: ['tc_plan_api'] }) });
+  assert.equal(next.status, 201);
+  assert.equal((await next.json()).plan.version, 2);
+});
+
+test('run cancellation requires the current revision and returns a stable conflict code', async () => {
+  const project = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '取消运行 API 项目', createWorkspace: false }) })).json();
+  const projectId = project.project.id;
+  const current = store.getProject(projectId);
+  current.testruns.push({ id: 'run_cancel_api', projectId, revision: 2, status: 'queued', mode: 'local', resultTrust: 'controlled-local' });
+  const endpoint = `${base}/api/projects/${projectId}/test-runs/run_cancel_api/cancel`;
+
+  for (const body of [{}, { expectedRevision: 1 }]) {
+    const response = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const payload = await response.json();
+    assert.equal(response.status, 409);
+    assert.equal(payload.code, 'QUALITY_REVISION_CONFLICT');
+    assert.equal(current.testruns[0].status, 'queued');
+    assert.equal(current.testruns[0].revision, 2);
+  }
+
+  const cancelled = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 2 }) });
+  const payload = await cancelled.json();
+  assert.equal(cancelled.status, 200);
+  assert.deepEqual(payload.run, { id: 'run_cancel_api', status: 'cancelled', revision: 3 });
+});
+
+test('quality APIs expose gate state and regression assets', async () => {
+  const project = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '质量门禁 API 项目', createWorkspace: false }) })).json();
+  const projectId = project.project.id;
+  const current = store.getProject(projectId);
+  current.testcases.push({ id: 'tc_gate_api', title: '门禁用例', planIds: [] });
+  const created = await fetch(`${base}/api/projects/${projectId}/regression-sets`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: '主回归', testCaseIds: ['tc_gate_api'] }) });
+  assert.equal(created.status, 201);
+  const set = (await created.json()).regressionSet;
+  const excluded = await fetch(`${base}/api/projects/${projectId}/regression-sets/${set.id}/exclude`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 1, testCaseId: 'tc_gate_api', actor: 'tester', reason: '环境未就绪' }) });
+  assert.equal(excluded.status, 200);
+  const gate = await fetch(`${base}/api/projects/${projectId}/quality-gate`);
+  assert.equal(gate.status, 200);
+  assert.equal((await gate.json()).gate.status, 'passed');
+});
+
+test('quality HTTP API keeps task, regression, and gate contracts available', async () => {
+  const project = await (await fetch(`${base}/api/projects`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '质量路由委托回归项目', createWorkspace: false }),
+  })).json();
+  const projectId = project.project.id;
+  const taskResponse = await fetch(`${base}/api/projects/${projectId}/quality-tasks`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '路由委托任务' }),
+  });
+  assert.equal(taskResponse.status, 201);
+  assert.equal((await taskResponse.json()).task.title, '路由委托任务');
+
+  const listResponse = await fetch(`${base}/api/projects/${projectId}/quality-tasks`);
+  assert.equal(listResponse.status, 200);
+  assert.equal((await listResponse.json()).tasks.length, 1);
+
+  const gateResponse = await fetch(`${base}/api/projects/${projectId}/quality-gate`);
+  assert.equal(gateResponse.status, 200);
+  assert.equal((await gateResponse.json()).gate.status, 'passed');
+});
+
+test('failure analysis API requires confirmation before defect promotion', async () => {
+  const project = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '故障分析 API 项目', createWorkspace: false }) })).json();
+  const projectId = project.project.id;
+  const current = store.getProject(projectId);
+  current.testruns.push({ id: 'run_failure_api', projectId, status: 'failed', mode: 'local', resultTrust: 'controlled-local' });
+  const analysisResponse = await fetch(`${base}/api/projects/${projectId}/test-runs/run_failure_api/failure-analysis`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ summary: '提交失败', rootCause: '接口错误', category: 'product' }) });
+  assert.equal(analysisResponse.status, 201);
+  const analysis = (await analysisResponse.json()).analysis;
+  const rejected = await fetch(`${base}/api/projects/${projectId}/failure-analyses/${analysis.id}/promote-defect`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 1, confirmed: false }) });
+  assert.equal(rejected.status, 400);
+  const promoted = await fetch(`${base}/api/projects/${projectId}/failure-analyses/${analysis.id}/promote-defect`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 1, confirmed: true, actor: 'tester' }) });
+  assert.equal(promoted.status, 201);
+  assert.equal((await promoted.json()).defect.status, 'open');
+  const duplicate = await fetch(`${base}/api/projects/${projectId}/failure-analyses/${analysis.id}/promote-defect`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 2, confirmed: true, actor: 'tester' }) });
+  assert.equal(duplicate.status, 409);
+});
+
+test('evidence API finalizes, lists, downloads, and rejects tampered files', async () => {
+  const project = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '证据 API 项目', createWorkspace: false }) })).json();
+  const projectId = project.project.id;
+  const current = store.getProject(projectId);
+  const staging = path.join(dataDir, 'artifacts', projectId, 'run_evidence.staging');
+  fs.mkdirSync(staging, { recursive: true });
+  fs.writeFileSync(path.join(staging, 'process.log'), 'passed');
+  fs.writeFileSync(path.join(staging, 'trace.zip'), 'trace');
+  current.testruns.push({ id: 'run_evidence', projectId, revision: 1, status: 'passed', mode: 'local', resultTrust: 'controlled-local', artifactDir: staging });
+  const missingRevision = await fetch(`${base}/api/projects/${projectId}/test-runs/run_evidence/evidence/finalize`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+  assert.equal(missingRevision.status, 409);
+  const finalized = await fetch(`${base}/api/projects/${projectId}/test-runs/run_evidence/evidence/finalize`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRunRevision: 1 }) });
+  assert.equal(finalized.status, 201);
+  const evidence = (await finalized.json()).evidence;
+  assert.equal('root' in evidence, false);
+  const listed = await fetch(`${base}/api/projects/${projectId}/evidence`);
+  assert.equal((await listed.json()).evidence[0].id, evidence.id);
+  const legacyDownload = await fetch(`${base}/api/projects/${projectId}/evidence/${evidence.id}/download?path=process.log`);
+  assert.equal(legacyDownload.status, 404);
+  const itemDownload = await fetch(`${base}/api/projects/${projectId}/evidence/${evidence.id}/items/${evidence.items[0].id}/download`);
+  assert.equal(itemDownload.status, 200);
+  assert.ok(['passed', 'trace'].includes(await itemDownload.text()));
+  const repeated = await fetch(`${base}/api/projects/${projectId}/test-runs/run_evidence/evidence/finalize`, { method: 'POST' });
+  assert.equal(repeated.status, 200);
+  const processItem = evidence.items.find((item) => item.relativePath === 'process.log');
+  fs.appendFileSync(path.join(dataDir, 'artifacts', projectId, 'evidence', evidence.id, 'process.log'), 'changed');
+  const tampered = await fetch(`${base}/api/projects/${projectId}/evidence/${evidence.id}/items/${processItem.id}/download`);
+  assert.equal(tampered.status, 409);
 });
 
 test('skills API returns language-specific catalog in website category order', async () => {

@@ -3,6 +3,8 @@ import crypto from 'node:crypto';
 import * as store from './store.js';
 import { broadcast } from './sse.js';
 import { projectCard, computeStats, KANBAN_COLUMNS } from './board.js';
+import { createAnalysisRequest, saveAnalysis, commitQualityMutation } from './quality/analysis.js';
+import { createTestRun } from './quality/test-run.js';
 
 export const TOOL_CN = {
   project_get: '读取项目信息',
@@ -23,6 +25,9 @@ export const TOOL_CN = {
   project_transition: '推进项目阶段',
   gate_request: '提交门禁',
   testrun_import: '导入测试结果',
+  qa_quality_task_get: '读取质量任务',
+  qa_quality_analysis_request: '创建质量分析请求',
+  qa_quality_analysis_save: '保存质量分析',
 };
 
 const str = (v) => (typeof v === 'string' ? v : v == null ? '' : String(v));
@@ -93,6 +98,13 @@ export const TOOL_DEFS = [
       framework: { type: 'string', description: '框架名，如 Playwright / Pytest' },
       summary: { type: 'string', description: '执行汇总，如 通过 42 / 失败 3 / 跳过 2，总耗时 4m12s' },
       detail: { type: 'string', description: '可选的失败详情/附件路径' } }, additionalProperties: false } } },
+  { type: 'function', function: { name: 'qa_quality_task_get', description: '读取当前项目中的质量任务', parameters: { type: 'object', required: ['taskId'], properties: { taskId: { type: 'string' } }, additionalProperties: false } } },
+  { type: 'function', function: { name: 'qa_quality_analysis_request', description: '为当前项目质量任务创建受控分析请求', parameters: { type: 'object', required: ['taskId'], properties: { taskId: { type: 'string' } }, additionalProperties: false } } },
+  { type: 'function', function: { name: 'qa_quality_analysis_save', description: '保存与当前来源和版本匹配的质量分析结果', parameters: { type: 'object', required: ['analysisRequestId', 'expectedRevision', 'sourceDigests'], properties: {
+      analysisRequestId: { type: 'string' }, expectedRevision: { type: 'integer' }, sourceDigests: { type: 'array', items: { type: 'string' } },
+      acceptanceCriteria: { type: 'array', items: { type: 'object' } }, risks: { type: 'array', items: { type: 'object' } }, testScope: { type: 'array', items: { type: 'object' } }, analysisVersion: { type: 'string' } }, additionalProperties: false } } },
+  { type: 'function', function: { name: 'qa_quality_risk_decide', description: '追加当前质量任务的一条人工风险决定', parameters: { type: 'object', required: ['taskId', 'expectedRevision', 'riskId', 'action', 'actorLabel'], properties: { taskId: { type: 'string' }, expectedRevision: { type: 'integer' }, riskId: { type: 'string' }, action: { type: 'string', enum: ['confirm', 'dismiss', 'mitigate', 'accept', 'close'] }, actorLabel: { type: 'string' }, reason: { type: 'string' } }, additionalProperties: false } } },
+  { type: 'function', function: { name: 'qa_quality_test_scope_suggest', description: '更新当前质量任务的建议测试范围', parameters: { type: 'object', required: ['taskId', 'expectedRevision', 'testScope'], properties: { taskId: { type: 'string' }, expectedRevision: { type: 'integer' }, testScope: { type: 'array', items: { type: 'object' } } }, additionalProperties: false } } },
 ];
 
 // ---------- 事件发射 ----------
@@ -260,7 +272,7 @@ export async function executeTool(projectId, name, args = {}) {
     }
 
     case 'gate_request': {
-      const g = { id: store.uid('gate'), type: str(args.type), title: str(args.title), summary: str(args.summary), status: 'pending', requestedAt: store.now(), decidedAt: null, decision: null };
+      const g = { id: store.uid('gate'), kind: 'approval', type: str(args.type), title: str(args.title), summary: str(args.summary), status: 'pending', requestedAt: store.now(), decidedAt: null, decision: null };
       p.gates.push(g);
       store.touch(p); store.persist();
       afterChange(projectId, { type: 'gate', label: `AI 提交门禁待审批：${g.title}` });
@@ -269,12 +281,56 @@ export async function executeTool(projectId, name, args = {}) {
     }
 
     case 'testrun_import': {
-      const tr = { id: store.uid('run'), framework: str(args.framework), summary: str(args.summary), detail: str(args.detail), at: store.now() };
-      p.materials.unshift({ id: tr.id, ts: tr.at, type: 'run', label: `导入 ${tr.framework} 测试结果：${tr.summary}` });
-      p.materials = p.materials.slice(0, 6);
+      const tr = createTestRun(p, { mode: 'imported', executor: str(args.framework), summary: str(args.summary), provenance: { detail: str(args.detail) } });
       store.touch(p); store.persist();
       afterChange(projectId, { type: 'run', label: `AI 导入 ${tr.framework} 测试结果：${tr.summary}` });
       return { ok: true, run: tr };
+    }
+
+    case 'qa_quality_task_get': {
+      const task = p.qualityTasks?.find((item) => item.id === args.taskId && item.projectId === p.id);
+      return task ? { ok: true, task } : { ok: false, error: '质量任务不存在' };
+    }
+
+    case 'qa_quality_analysis_request': {
+      const request = createAnalysisRequest(p, args.taskId);
+      if (!request) return { ok: false, error: '质量任务不存在' };
+      store.touch(p); store.persist();
+      return { ok: true, request };
+    }
+
+    case 'qa_quality_analysis_save': {
+      const result = await saveAnalysis({ ...args, origin: 'agent' }, p);
+      if (!result.ok) return result;
+      return result;
+    }
+
+    case 'qa_quality_risk_decide': {
+      const task = p.qualityTasks?.find((item) => item.id === args.taskId && item.projectId === p.id);
+      const risk = task?.risks?.find((item) => item.id === args.riskId);
+      if (!task || !risk) return { ok: false, error: '质量任务或风险不存在' };
+      if (task.version !== args.expectedRevision) return { ok: false, code: 'QUALITY_REVISION_CONFLICT' };
+      if (!['confirm', 'dismiss', 'mitigate', 'accept', 'close'].includes(args.action)) return { ok: false, error: '风险决定无效' };
+      if (!str(args.actorLabel).trim()) return { ok: false, error: '需要确认人' };
+      const updated = commitQualityMutation(p, task.id, args.expectedRevision, (target) => {
+        const targetRisk = target.risks.find((item) => item.id === args.riskId);
+        if (args.action === 'confirm') targetRisk.assessmentStatus = 'confirmed';
+        if (args.action === 'dismiss') targetRisk.assessmentStatus = 'dismissed';
+        if (args.action === 'mitigate') targetRisk.dispositionStatus = 'mitigated';
+        if (args.action === 'accept') targetRisk.dispositionStatus = 'accepted';
+        if (args.action === 'close') targetRisk.dispositionStatus = 'closed';
+        target.decisions ||= [];
+        target.decisions.push({ riskId: targetRisk.id, action: args.action, actorLabel: str(args.actorLabel).trim(), reason: str(args.reason), createdAt: store.now() });
+      }, { action: 'risk-decide', source: 'dsh-tool', actorLabel: str(args.actorLabel).trim() });
+      return { ok: true, task: updated };
+    }
+
+    case 'qa_quality_test_scope_suggest': {
+      const task = p.qualityTasks?.find((item) => item.id === args.taskId && item.projectId === p.id);
+      if (!task) return { ok: false, error: '质量任务不存在' };
+      if (task.version !== args.expectedRevision) return { ok: false, code: 'QUALITY_REVISION_CONFLICT' };
+      const updated = commitQualityMutation(p, task.id, args.expectedRevision, (target) => { target.testScope = Array.isArray(args.testScope) ? args.testScope : []; }, { action: 'test-scope-suggest', source: 'dsh-tool' });
+      return { ok: true, task: updated };
     }
 
     default:

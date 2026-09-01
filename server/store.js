@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { DATA_PATH, CONV_DIR, DATA_DIR } from './config.js';
+import { migrateDb } from './migrations.js';
+import { normalizeGate } from './quality/gate.js';
 
 const DEFAULT_ASSISTANT = Object.freeze({
   enabled: true,
@@ -16,13 +18,12 @@ export function uid(prefix = '') {
 }
 export const now = () => new Date().toISOString();
 
-let db = { projects: [], feed: [] };
+let db = migrateDb({ projects: [], feed: [], artifactCleanupJobs: [] });
 let saveTimer = null;
 
 export function loadStore() {
-  try { db = JSON.parse(fs.readFileSync(DATA_PATH, 'utf8')); } catch { /* first run */ }
-  db.projects ||= [];
-  db.feed ||= [];
+  if (fs.existsSync(DATA_PATH)) db = migrateDb(JSON.parse(fs.readFileSync(DATA_PATH, 'utf8')));
+  else db = migrateDb({ projects: [], feed: [], artifactCleanupJobs: [] });
   for (const p of db.projects) normalizeProject(p);
   return db;
 }
@@ -34,6 +35,7 @@ function normalizeProject(p) {
   p.dshSessionId ||= '';
   p.assistant = { ...DEFAULT_ASSISTANT, ...(p.assistant || {}) };
   p.workspacePath ||= '';
+  p.artifactRoot ||= path.join(DATA_DIR, 'artifacts', p.id);
   p.events ||= [];
   p.milestones ||= [];
   p.testcases ||= [];
@@ -42,10 +44,19 @@ function normalizeProject(p) {
   p.reports ||= [];
   p.knowledge ||= [];
   p.minutes ||= [];
-  p.gates ||= [];
+  p.gates = (p.gates || []).map(normalizeGate);
   p.materials ||= [];
   p.history ||= [];
   p.members ||= [];
+  p.qualityTasks ||= [];
+  p.qualityAudit ||= [];
+  p.testruns ||= [];
+  p.testPlans ||= [];
+  p.executionProfiles ||= [];
+  p.evidenceBundles ||= [];
+  p.failureAnalyses ||= [];
+  p.regressionSets ||= [];
+  p.artifactCleanupJobs ||= [];
   return p;
 }
 
@@ -58,6 +69,7 @@ export function flush() {
   writeNow();
 }
 function writeNow() {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
   const tmp = DATA_PATH + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(db, null, 1));
   fs.renameSync(tmp, DATA_PATH);
@@ -65,12 +77,14 @@ function writeNow() {
 
 // ---------- projects ----------
 export function listProjects() { return db.projects; }
+export function listArtifactCleanupJobs() { return db.artifactCleanupJobs || []; }
 export function getProject(id) { return db.projects.find((p) => p.id === id) || null; }
 
 export function createProject(fields = {}) {
   const t = now();
+  const projectId = uid('prj');
   const p = {
-    id: uid('prj'),
+    id: projectId,
     kind: fields.kind === 'iteration' ? 'iteration' : 'project',
     parentId: fields.parentId || '',
     title: fields.title || '未命名测试项目',
@@ -86,6 +100,7 @@ export function createProject(fields = {}) {
       ...(fields.assistant && typeof fields.assistant === 'object' ? fields.assistant : {}),
     },
     workspacePath: '',
+    artifactRoot: path.join(DATA_DIR, 'artifacts', projectId),
     status: 'intake',
     history: [{ from: null, to: 'intake', at: t, by: 'human' }],
     milestones: [],
@@ -98,6 +113,15 @@ export function createProject(fields = {}) {
     events: [],
     gates: [],
     materials: [],
+    qualityTasks: [],
+    qualityAudit: [],
+    testruns: [],
+    testPlans: [],
+    executionProfiles: [],
+    evidenceBundles: [],
+    failureAnalyses: [],
+    regressionSets: [],
+    artifactCleanupJobs: [],
     aiActive: false,
     createdAt: t,
     updatedAt: t,
@@ -126,8 +150,11 @@ export function updateProject(id, patch) {
 export function deleteProject(id) {
   const i = db.projects.findIndex((p) => p.id === id);
   if (i < 0) return false;
+  db.artifactCleanupJobs ||= [];
+  const project = db.projects[i];
+  db.artifactCleanupJobs.push({ id: uid('cleanup'), projectId: project.id, artifactRoot: project.artifactRoot || '', status: 'queued', attempts: 0, createdAt: now() });
   db.projects.splice(i, 1);
-  persist();
+  flush();
   return true;
 }
 

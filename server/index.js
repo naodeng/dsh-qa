@@ -4,6 +4,11 @@ import { loadConfig, publicSettings, DATA_DIR } from './config.js';
 import * as store from './store.js';
 import { seedIfEmpty } from './seed.js';
 import { handleRequest } from './routes.js';
+import { recoverEvidenceFinalization } from './quality/evidence.js';
+import { startArtifactCleanupWorker, recoverOrphanStaging } from './quality/evidence-retention.js';
+import { recoverInterruptedRuns } from './quality/test-runner.js';
+
+const workers = new WeakMap();
 
 /**
  * 启动工作台服务。
@@ -19,6 +24,15 @@ export function startQaBench(opts = {}) {
   const cfg = loadConfig();
   store.loadStore();
   seedIfEmpty();
+  recoverInterruptedRuns(store.listProjects());
+  store.flush();
+  recoverEvidenceFinalization(store.listProjects()).catch(() => {});
+  recoverOrphanStaging(store.listProjects()).catch(() => {});
+  const cleanupWorker = startArtifactCleanupWorker({
+    jobs: store.listArtifactCleanupJobs(),
+    projectExists: (projectId) => Boolean(store.getProject(projectId)),
+    onChange: store.flush,
+  });
 
   const server = http.createServer((req, res) => {
     try { handleRequest(req, res); }
@@ -29,6 +43,7 @@ export function startQaBench(opts = {}) {
     const listen = (port) => {
       const onListening = () => {
         server.off('error', onError);
+        workers.set(server, cleanupWorker);
         const s = publicSettings(cfg);
         log(`[dsh-qa] 质量工作台已启动：http://127.0.0.1:${port}（DSH 测试模式，数据 ${DATA_DIR}）`);
         if (openBrowser && process.platform === 'darwin') {
@@ -55,6 +70,8 @@ export function startQaBench(opts = {}) {
 
 export function closeQaBench(server) {
   return new Promise((resolve) => {
+    workers.get(server)?.stop();
+    workers.delete(server);
     store.flush();
     if (!server?.listening) return resolve();
     server.close(() => resolve());

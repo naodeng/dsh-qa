@@ -7,6 +7,8 @@ import { ROOT } from './config.js';
 import * as store from './store.js';
 import { sseHandler, broadcast } from './sse.js';
 import { getBoard, projectCard, computeStats, KANBAN_COLUMNS } from './board.js';
+import { evaluateQualityGate } from './quality/gate.js';
+import { handleQualityRoutes, publicEvidence } from './quality/http-routes.js';
 
 const PUBLIC = path.join(ROOT, 'public');
 const SKILLS_ROOT = path.join(process.env.QA_SKILLS_ROOT || path.join(os.homedir(), 'awsomeCode', 'awesome-qa-skills'), 'skills');
@@ -77,7 +79,15 @@ function json(res, code, obj) {
   res.end(JSON.stringify(obj));
 }
 function ok(res, obj) { json(res, 200, { ok: true, ...obj }); }
-function fail(res, code, error) { json(res, code, { ok: false, error }); }
+function created(res, obj) { json(res, 201, { ok: true, ...obj }); }
+function publicProject(project) {
+  const { artifactRoot, evidenceBundles, ...safe } = project;
+  safe.evidenceBundles = (evidenceBundles || []).map(publicEvidence);
+  safe.testruns = (project.testruns || []).map(({ artifactDir, command, ...run }) => run);
+  return safe;
+}
+function accepted(res, obj) { json(res, 202, { ok: true, ...obj }); }
+function fail(res, code, error, stableCode) { json(res, code, { ok: false, error, ...(stableCode ? { code: stableCode } : {}) }); }
 
 function parseSkillFile(file, lang, categoryId, groupId) {
   const source = fs.readFileSync(file, 'utf8');
@@ -212,10 +222,12 @@ async function api(req, res, url, body) {
     return true;
   }
 
+  if (await handleQualityRoutes({ req, res, url, body, store, broadcast, emitProject, ok, created, accepted, fail })) return true;
+
   if (parts[1] === 'projects' && parts[2] && !parts[3]) {
     const c = store.getProject(parts[2]);
     if (!c) return fail(res, 404, '项目不存在');
-    if (m('GET')) { ok(res, { project: c }); return true; }
+    if (m('GET')) { ok(res, { project: publicProject(c) }); return true; }
     if (m('DELETE')) {
       store.deleteProject(c.id);
       broadcast('project.deleted', { projectId: c.id });
@@ -236,6 +248,10 @@ async function api(req, res, url, body) {
     const c = store.getProject(parts[2]);
     if (!c) return fail(res, 404, '项目不存在');
     if (!KANBAN_COLUMNS.some((k) => k.id === body.to)) return fail(res, 400, '无效目标列');
+    if (body.to === 'closed') {
+      const gate = evaluateQualityGate(c);
+      if (gate.status === 'blocked') return fail(res, 409, `质量门禁阻断：${gate.blockers.join('、')}`);
+    }
     const from = c.status;
     store.transitionProject(c, body.to, 'human');
     feedAndBroadcast({ type: 'transition', projectId: c.id, projectTitle: c.title, label: `阶段变更：${KANBAN_COLUMNS.find((k) => k.id === from)?.title} → ${KANBAN_COLUMNS.find((k) => k.id === body.to)?.title}` });
@@ -345,6 +361,7 @@ async function api(req, res, url, body) {
     const c = store.getProject(parts[2]);
     const g = c?.gates.find((x) => x.id === parts[4]);
     if (!g) return fail(res, 404, '门禁不存在');
+    if (g.kind === 'computed') return fail(res, 400, '计算门禁只能通过例外记录处理');
     if (!['approve', 'reject'].includes(body.decision)) return fail(res, 400, 'decision 必须是 approve 或 reject');
     if (g.status !== 'pending') return fail(res, 400, '该门禁已处理');
     g.status = body.decision === 'approve' ? 'approved' : 'rejected';

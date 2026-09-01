@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-qa-store-'));
 process.env.QA_DATA_DIR = dataDir;
@@ -26,4 +27,32 @@ test('workspace creation stays under data directory and creates standard folders
   const workspace = store.ensureProjectWorkspace(project);
   assert.equal(path.dirname(path.dirname(workspace)), dataDir);
   for (const name of ['01_需求与范围', '02_测试计划', '03_测试用例', '04_测试数据与脚本', '05_测试执行', '06_缺陷', '07_测试报告', '08_发布与归档']) assert.equal(fs.existsSync(path.join(workspace, name)), true);
+});
+
+test('project deletion persists a controlled artifact cleanup job', () => {
+  const project = store.createProject({ title: '待删除项目' });
+  const artifactRoot = path.join(dataDir, 'artifacts', project.id);
+  project.artifactRoot = artifactRoot;
+  store.flush();
+  assert.equal(store.deleteProject(project.id), true);
+  const jobs = store.listArtifactCleanupJobs();
+  assert.equal(jobs.at(-1).artifactRoot, artifactRoot);
+  store.loadStore();
+  assert.equal(store.getProject(project.id), null);
+  assert.equal(store.listArtifactCleanupJobs().at(-1).artifactRoot, artifactRoot);
+});
+
+test('debounced persistence creates a missing data directory', () => {
+  const missingDataDir = path.join(os.tmpdir(), `dsh-qa-missing-store-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+  const moduleUrl = new URL('../../server/store.js', import.meta.url).href;
+  const result = spawnSync(process.execPath, ['--input-type=module', '--eval', `import { persist } from ${JSON.stringify(moduleUrl)}; persist(); await new Promise((resolve) => setTimeout(resolve, 120));`], {
+    env: { ...process.env, QA_DATA_DIR: missingDataDir },
+    encoding: 'utf8',
+  });
+  try {
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(fs.existsSync(path.join(missingDataDir, 'data.json')), true);
+  } finally {
+    fs.rmSync(missingDataDir, { recursive: true, force: true });
+  }
 });
