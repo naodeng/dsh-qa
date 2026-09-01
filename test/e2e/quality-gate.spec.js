@@ -20,4 +20,10 @@ test('项目详情展示质量门禁的评估入口和交付依据区域', async
   await expect(page.locator('#gate-report')).toContainText('BLOCK');
   await expect(page.locator('#gate-trend')).toContainText('BLOCK');
   await expect(page.getByRole('button', { name: '添加门禁例外' })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: '项目看板' }).click();
+  await page.locator('.card').filter({ hasText: title }).click();
+  await page.locator('#project-detail-tabs button[data-detail-tab="qualityTasks"]').click();
+  await expect(page.locator('#gate-report')).toContainText('BLOCK');
+  await expect(page.locator('#gate-trend')).toContainText('BLOCK');
 });

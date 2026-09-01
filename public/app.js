@@ -1030,9 +1030,17 @@
       const actions = document.createElement('div');
       actions.innerHTML = `<button class="btn primary sm" id="gate-evaluate" type="button">${q('评估质量门禁', 'Evaluate quality gate')}</button>`;
       gateCard.querySelector('.detail-card-head')?.append(actions);
+      const taskGates = (p.gates || []).filter((item) => item.kind === 'computed' && item.qualityTaskId === tasks[0]?.id);
+      const latestGate = taskGates.at(-1);
+      const reportText = latestGate
+        ? `${esc(latestGate.verdict)} · ${(latestGate.checks || []).map((check) => esc(check.explanation)).join('；')}`
+        : q('评估后可查看可追溯交付依据。', 'Evaluate to view traceable delivery evidence.');
+      const trendText = taskGates.length
+        ? taskGates.map((gate) => esc(gate.verdict)).join(' → ')
+        : q('暂无门禁趋势。', 'No gate trend yet.');
       const delivery = document.createElement('section');
       delivery.className = 'detail-card';
-      delivery.innerHTML = `<div class="detail-card-head"><div><span>DELIVERY</span><h3>${q('交付报告', 'Delivery report')}</h3></div><button class="btn sm" id="gate-exception" type="button">${q('添加门禁例外', 'Add gate exception')}</button></div><div class="li-sub" id="gate-report">${q('评估后可查看可追溯交付依据。', 'Evaluate to view traceable delivery evidence.')}</div><div class="detail-card-head"><div><span>TREND</span><h3>${q('门禁趋势', 'Gate trends')}</h3></div></div><div class="li-sub" id="gate-trend">${q('暂无门禁趋势。', 'No gate trend yet.')}</div>`;
+      delivery.innerHTML = `<div class="detail-card-head"><div><span>DELIVERY</span><h3>${q('交付报告', 'Delivery report')}</h3></div><button class="btn sm" id="gate-exception" type="button">${q('添加门禁例外', 'Add gate exception')}</button></div><div class="li-sub" id="gate-report">${reportText}</div><div class="detail-card-head"><div><span>TREND</span><h3>${q('门禁趋势', 'Gate trends')}</h3></div></div><div class="li-sub" id="gate-trend">${trendText}</div>`;
       gateCard.after(delivery);
       $('#gate-exception', delivery).addEventListener('click', async () => {
         try {
