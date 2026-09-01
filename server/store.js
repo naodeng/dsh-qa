@@ -69,6 +69,7 @@ export function flush() {
   writeNow();
 }
 function writeNow() {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
   const tmp = DATA_PATH + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(db, null, 1));
   fs.renameSync(tmp, DATA_PATH);
