@@ -16,6 +16,10 @@ export function publicEvidence(bundle) {
   return { id: bundle.id, projectId: bundle.projectId, testRunId: bundle.testRunId, state: bundle.state, totalSize: bundle.totalSize, manifestSha256: bundle.manifestSha256, createdAt: bundle.createdAt, updatedAt: bundle.updatedAt, items: bundle.items.map(({ id, relativePath, size, sha256 }) => ({ id, relativePath, size, sha256 })) };
 }
 
+function revisionConflict(res, fail, message) {
+  return fail(res, 409, message, 'QUALITY_REVISION_CONFLICT');
+}
+
 export async function handleQualityRoutes({ req, res, url, body, store, broadcast, emitProject, ok, created, accepted, fail }) {
   const parts = url.pathname.split('/').filter(Boolean);
   const m = (method) => req.method === method;
@@ -40,7 +44,7 @@ export async function handleQualityRoutes({ req, res, url, body, store, broadcas
     const c = store.getProject(parts[2]);
     const task = c && getQualityTask(c, parts[4]);
     if (!task) return fail(res, 404, '质量任务不存在');
-    if (body.expectedRevision !== task.version) return fail(res, 409, '质量任务版本已变化，请重新加载');
+    if (body.expectedRevision !== task.version) return revisionConflict(res, fail, '质量任务版本已变化，请重新加载');
     task.decisions.push({ action: String(body.action || ''), at: store.now(), by: 'human' });
     task.version += 1;
     task.updatedAt = store.now();
@@ -52,7 +56,7 @@ export async function handleQualityRoutes({ req, res, url, body, store, broadcas
     const c = store.getProject(parts[2]);
     const task = c && getQualityTask(c, parts[4]);
     if (!task) return fail(res, 404, '质量任务不存在');
-    if (body.expectedRevision !== task.version) return fail(res, 409, '质量任务版本已变化，请重新加载');
+    if (body.expectedRevision !== task.version) return revisionConflict(res, fail, '质量任务版本已变化，请重新加载');
     if (['origin', 'dshSessionId', 'stage', 'version', 'analysisOrigin', 'analysisRuns'].some((field) => field in body)) return fail(res, 400, '手工分析不允许提交宿主或派生字段');
     task.acceptanceCriteria = Array.isArray(body.acceptanceCriteria) ? body.acceptanceCriteria : [];
     task.risks = Array.isArray(body.risks) ? body.risks : [];
@@ -77,7 +81,7 @@ export async function handleQualityRoutes({ req, res, url, body, store, broadcas
     const c = store.getProject(parts[2]);
     const profile = c?.executionProfiles?.find((item) => item.id === parts[4]);
     if (!profile) return fail(res, 404, '执行配置不存在');
-    if (body.expectedRevision !== (profile.currentVersion || profile.version)) return fail(res, 409, '执行配置版本已变化，请重新加载');
+    if (body.expectedRevision !== (profile.currentVersion || profile.version)) return revisionConflict(res, fail, '执行配置版本已变化，请重新加载');
     try { const version = createExecutionProfileVersion(c, profile.id, body); store.touch(c); store.persist(); return created(res, { profile: version }); }
     catch (error) { return fail(res, 400, error.message); }
   }
@@ -86,7 +90,7 @@ export async function handleQualityRoutes({ req, res, url, body, store, broadcas
     const c = store.getProject(parts[2]);
     const profile = c?.executionProfiles?.find((item) => item.id === parts[4]);
     if (!profile) return fail(res, 404, '执行配置不存在');
-    if (body.expectedRevision !== (profile.currentVersion || profile.version)) return fail(res, 409, '执行配置版本已变化，请重新加载');
+    if (body.expectedRevision !== (profile.currentVersion || profile.version)) return revisionConflict(res, fail, '执行配置版本已变化，请重新加载');
     const disabled = disableExecutionProfile(c, profile.id); store.touch(c); store.persist(); return ok(res, { profile: disabled });
   }
 
@@ -101,7 +105,7 @@ export async function handleQualityRoutes({ req, res, url, body, store, broadcas
     const c = store.getProject(parts[2]);
     const plan = c && getTestPlan(c, parts[4]);
     if (!plan) return fail(res, 404, '测试计划不存在');
-    if (body.expectedRevision !== plan.version) return fail(res, 409, '测试计划版本已变化，请重新加载');
+    if (body.expectedRevision !== plan.version) return revisionConflict(res, fail, '测试计划版本已变化，请重新加载');
     try { const reviewed = reviewTestPlan(c, plan.id, body.actorLabel); store.touch(c); store.persist(); return ok(res, { plan: reviewed }); }
     catch (error) { return fail(res, 400, error.message); }
   }
@@ -110,7 +114,7 @@ export async function handleQualityRoutes({ req, res, url, body, store, broadcas
     const c = store.getProject(parts[2]);
     const plan = c && getTestPlan(c, parts[4]);
     if (!plan) return fail(res, 404, '测试计划不存在');
-    if (body.expectedRevision !== plan.version) return fail(res, 409, '测试计划版本已变化，请重新加载');
+    if (body.expectedRevision !== plan.version) return revisionConflict(res, fail, '测试计划版本已变化，请重新加载');
     try { const version = createTestPlanVersion(c, plan.id, body); store.touch(c); store.persist(); return created(res, { plan: version }); }
     catch (error) { return fail(res, 400, error.message); }
   }
@@ -131,7 +135,7 @@ export async function handleQualityRoutes({ req, res, url, body, store, broadcas
     if (!c) return fail(res, 404, '项目不存在');
     const run = c.testruns?.find((item) => item.id === parts[4]);
     if (!run) return fail(res, 404, '测试运行不存在');
-    if (body.expectedRevision !== (run.revision || 1)) return fail(res, 409, '测试运行版本已变化，请重新加载', 'QUALITY_REVISION_CONFLICT');
+    if (body.expectedRevision !== (run.revision || 1)) return revisionConflict(res, fail, '测试运行版本已变化，请重新加载');
     try {
       const cancelled = await cancelRun(c, parts[4], body.expectedRevision);
       return ok(res, { run: { id: cancelled.id, status: cancelled.status, revision: cancelled.revision } });
@@ -146,7 +150,7 @@ export async function handleQualityRoutes({ req, res, url, body, store, broadcas
     const run = c.testruns?.find((item) => item.id === parts[4]);
     if (!run) return fail(res, 404, '测试运行不存在');
     const existing = c.evidenceBundles?.find((item) => item.testRunId === run.id && item.state === 'ready');
-    if (!existing && body.expectedRunRevision !== (run.revision || 1)) return fail(res, 409, '测试运行版本已变化，请重新加载');
+    if (!existing && body.expectedRunRevision !== (run.revision || 1)) return revisionConflict(res, fail, '测试运行版本已变化，请重新加载');
     try {
       const bundle = await finalizeEvidence(c, parts[4]);
       if (!existing) {
@@ -209,7 +213,7 @@ export async function handleQualityRoutes({ req, res, url, body, store, broadcas
     if (!c) return fail(res, 404, '项目不存在');
     const analysis = c.failureAnalyses?.find((item) => item.id === parts[4]);
     if (!analysis) return fail(res, 404, '故障分析不存在');
-    if (body.expectedRevision !== analysis.version) return fail(res, 409, '故障分析版本已变化，请重新加载');
+    if (body.expectedRevision !== analysis.version) return revisionConflict(res, fail, '故障分析版本已变化，请重新加载');
     try { const defect = promoteConfirmedDefect(c, parts[4], body); store.touch(c); store.persist(); return created(res, { defect }); }
     catch (error) { return fail(res, /已升级|已创建/.test(error.message) ? 409 : 400, error.message); }
   }
@@ -228,7 +232,7 @@ export async function handleQualityRoutes({ req, res, url, body, store, broadcas
     const c = store.getProject(parts[2]);
     const set = c?.regressionSets?.find((item) => item.id === parts[4]);
     if (!set) return fail(res, 404, '回归集不存在');
-    if (body.expectedRevision !== set.version) return fail(res, 409, '回归集版本已变化，请重新加载');
+    if (body.expectedRevision !== set.version) return revisionConflict(res, fail, '回归集版本已变化，请重新加载');
     try { const updated = excludeRegressionCase(set, body.testCaseId, body); store.touch(c); store.persist(); return ok(res, { regressionSet: updated }); }
     catch (error) { return fail(res, 400, error.message); }
   }

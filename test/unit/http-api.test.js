@@ -107,7 +107,9 @@ test('quality task API creates, lists, and enforces revision conflicts', async (
     body: JSON.stringify({ expectedRevision: 0, action: 'confirm' }),
   });
   assert.equal(conflict.status, 409);
-  assert.match((await conflict.json()).error, /版本|revision/i);
+  const conflictPayload = await conflict.json();
+  assert.match(conflictPayload.error, /版本|revision/i);
+  assert.equal(conflictPayload.code, 'QUALITY_REVISION_CONFLICT');
 });
 
 test('quality task API rejects six 1 MiB sources above the project capture limit', async () => {
