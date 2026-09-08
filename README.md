@@ -26,6 +26,7 @@
 - [AI 工具集](#ai-工具集)
 - [配套 QA 技能库](#配套-qa-技能库)
 - [开发与贡献](#开发与贡献)
+- [路线图文档（0.6–1.0）](#路线图文档0610)
 - [许可证](#许可证)
 - [常见问题](#常见问题)
 
@@ -175,6 +176,14 @@ scripts/install-qa-skills.sh --dry-run           # 预览不写入
 - 测试：`npm test` 运行单元/API 测试（node:test）与 Chromium 端到端测试（Playwright）；`npm run test:unit` / `npm run test:e2e` 可单独执行
 - 发布：`npm publish` 后使用 `dsh plugin --profile web add dsh-qa` 安装；模型与密钥由使用者自己的 DSH 配置管理
 - 欢迎提交 Issue 与 PR（Conventional Commits）
+
+## 路线图文档（0.6–1.0）
+
+后续版本将 dsh-qa 定位为 **DSH Agent 的 QA 工作面板**（行动台 → 对话工作台 → 变更与回归 → 证据与交付 → 1.0 稳定）。完整需求、方案、技术设计、如何开始与分版实施计划见：
+
+- 索引：[docs/quality-workbench/README.md](./docs/quality-workbench/README.md)
+- 如何开始：[docs/quality-workbench/2026-09-08-getting-started.md](./docs/quality-workbench/2026-09-08-getting-started.md)
+- 迭代总计划：[docs/superpowers/plans/2026-09-08-workbench-iterations.md](./docs/superpowers/plans/2026-09-08-workbench-iterations.md)
 
 ## 许可证
 

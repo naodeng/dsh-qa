@@ -26,6 +26,7 @@ Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
 - [AI Toolset](#ai-toolset)
 - [Companion QA Skills](#companion-qa-skills)
 - [Development & Contributing](#development--contributing)
+- [Roadmap docs (0.6–1.0)](#roadmap-docs-0610)
 - [License](#license)
 - [FAQ](#faq)
 
@@ -175,6 +176,14 @@ After installing, restart `dsh web` and type `/` in the workbench chat to see th
 - Test: `npm test` runs unit/API tests (node:test) plus Chromium end-to-end tests (Playwright); `npm run test:unit` / `npm run test:e2e` run each separately
 - Publish: after `npm publish`, install with `dsh plugin --profile web add dsh-qa`; models and keys are managed by the user's DSH configuration
 - Issues and PRs welcome (Conventional Commits)
+
+## Roadmap docs (0.6–1.0)
+
+Upcoming versions position dsh-qa as a **QA workbench panel for the DSH Agent** (action queue → assistant UX → change impact → delivery readability → 1.0 stabilize). Requirements, solution design, technical design, getting started, and per-version plans:
+
+- Index: [docs/quality-workbench/README.md](./docs/quality-workbench/README.md)
+- Getting started: [docs/quality-workbench/2026-09-08-getting-started.md](./docs/quality-workbench/2026-09-08-getting-started.md)
+- Iteration plan: [docs/superpowers/plans/2026-09-08-workbench-iterations.md](./docs/superpowers/plans/2026-09-08-workbench-iterations.md)
 
 ## License
 
