@@ -73,19 +73,37 @@ The diagram makes the control boundary explicit: a run that is not terminal or l
 
 ## Installation (DSH plugin)
 
-```bash
-# From GitHub (recommended)
-dsh plugin --profile web add github:naodeng/dsh-qa
-# Or after publishing to npm
-dsh plugin --profile web add dsh-qa
-# Local development
-dsh plugin --profile web add link:/path/to/dsh-qa
+Manage the plugin with the **same method used to start DSH**. `dsh web` is an alias for `dsh --profile web`; both command sets below manage the `web` profile.
 
-# Update an installed dsh-qa plugin
-dsh plugin --profile web update dsh-qa
+### Option 1: Start DSH with npx
+
+```bash
+# Install the dsh-qa plugin
+npx @deepseek-ai/dsh plugin --profile web add dsh-qa
+
+# Update to npm's latest version
+npx @deepseek-ai/dsh plugin --profile web update dsh-qa
+
+# Start or restart the Web UI after installation or update
+npx @deepseek-ai/dsh web
 ```
 
-After installing or updating, restart `dsh web` (plugins load when the host starts). A **「质量工作台 / QA Workbench」** entry appears in the GUI sidebar; click to open the workbench in the conversation area or use the toolbar to open it in a tab.
+### Option 2: Start from a DeepSeek Harness source checkout
+
+Run these commands from the Harness repository root after `pnpm install` and `pnpm run build`:
+
+```bash
+# Install the dsh-qa plugin
+pnpm dsh plugin --profile web add dsh-qa
+
+# Update to npm's latest version
+pnpm dsh plugin --profile web update dsh-qa
+
+# Start or restart the Web UI after installation or update
+pnpm dsh web
+```
+
+To pin GitHub or a local development checkout, replace `add dsh-qa` in either option with `add github:naodeng/dsh-qa` or `add link:/path/to/dsh-qa`. Restart the Web UI after installation or update because plugins load when the host starts. A **「质量工作台 / QA Workbench」** entry appears in the GUI sidebar; click to open the workbench in the conversation area or use the toolbar to open it in a tab.
 
 > **Models & API**: The workbench does not maintain a second set of API keys or model configs. Each test project binds a native DSH session whose working directory is the project folder, and automatically uses Test Mode (preset id: `qa`). Model list, model switching, skills, commands, tools, and permission policies all come from DSH; to add providers or models, configure them in DSH settings.
 >

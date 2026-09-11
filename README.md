@@ -73,19 +73,37 @@
 
 ## 安装（DSH 插件）
 
-```bash
-# GitHub（推荐）
-dsh plugin --profile web add github:naodeng/dsh-qa
-# 或 npm 发布后
-dsh plugin --profile web add dsh-qa
-# 本地开发
-dsh plugin --profile web add link:/path/to/dsh-qa
+请使用**启动 DSH 的同一种方式**管理插件：`dsh web` 是 `dsh --profile web` 的别名，下面两组命令都操作同一个 `web` profile。
 
-# 更新已安装的 dsh-qa 插件
-dsh plugin --profile web update dsh-qa
+### 方式一：通过 npx 启动 DSH
+
+```bash
+# 安装 dsh-qa 插件
+npx @deepseek-ai/dsh plugin --profile web add dsh-qa
+
+# 更新到 npm 的 latest 版本
+npx @deepseek-ai/dsh plugin --profile web update dsh-qa
+
+# 安装或更新后启动/重启 Web UI
+npx @deepseek-ai/dsh web
 ```
 
-安装或更新后重启 `dsh web`（插件在宿主启动时加载）。GUI 侧边栏会出现「质量工作台」入口；点击可在会话区打开，工具栏可在独立标签页打开。
+### 方式二：从 DeepSeek Harness 源码仓库启动
+
+在已完成 `pnpm install` 和 `pnpm run build` 的 Harness 仓库根目录运行：
+
+```bash
+# 安装 dsh-qa 插件
+pnpm dsh plugin --profile web add dsh-qa
+
+# 更新到 npm 的 latest 版本
+pnpm dsh plugin --profile web update dsh-qa
+
+# 安装或更新后启动/重启 Web UI
+pnpm dsh web
+```
+
+如需固定到 GitHub 或本地开发副本，可在两种方式的 `add dsh-qa` 中分别替换为 `add github:naodeng/dsh-qa` 或 `add link:/path/to/dsh-qa`。安装或更新后重启 Web UI（插件在宿主启动时加载）。GUI 侧边栏会出现「质量工作台」入口；点击可在会话区打开，工具栏可在独立标签页打开。
 
 > **模型与 API**：工作台不维护第二套 API Key 或模型配置。每个测试项目绑定一个以项目文件夹为工作目录的 DSH 原生会话，并自动使用「测试模式」（preset id: `qa`）。模型列表、模型切换、技能、命令、工具和权限策略全部来自 DSH；新增服务商或模型请在 DSH 设置中配置。
 >
