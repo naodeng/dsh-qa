@@ -7,6 +7,7 @@
 [![Version](https://img.shields.io/badge/version-0.2.0-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
+[![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.5--rc.2%20compatible-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.5-rc.2)
 
 **dsh-qa** is a local QA workbench for DeepSeek Harness. It keeps requirements, test cases, risks, execution, evidence, and delivery decisions in one project space. Project and iteration conversations reuse native DSH sessions with **Test Mode** (preset id: `qa`); business data stays local and the runtime has no production dependencies.
 
@@ -67,7 +68,6 @@ The diagram makes the control boundary explicit: a run that is not terminal or l
 - **Language switching (zh / en)**: the "中 / EN" toggle in the top bar switches the UI language on the fly — Chinese by default, persisted in your local browser; navigation, dashboard, kanban, lists, calendar, radar and drawer/modal titles are all bilingual
 - **Adjustable workspace**: Main nav, project rail, and project radar widths are draggable and collapsible; double-click edges to reset; compact / standard / focus-chat presets persist in your local browser
 - **Four QA themes**: QA Dashboard, Terminal, Minimal, and Cyber — full skins; the Cyber theme can trigger a "BUILD PASSED" scene at any time
-- **DSH Remote**: Reuses the DSH-installed Remote plugin — shows entry & device status, generates one-time pairing links, and opens the `/m` mobile page directly
 - Overdue milestones in red, due-within-7-days in yellow, pending gates in purple — live counts in the top bar
 
 ## Installation (DSH plugin)
@@ -117,9 +117,9 @@ server/           Workbench service (native http + SSE; projects, quality tasks,
 public/           Four-view frontend (vanilla JS, no build step; relative paths, mountable under any prefix)
 ```
 
-**Routes**: `/api/dsh-qa/info` (status), `/api/dsh-qa/workbench/` (same-origin mirror proxy, SSE pass-through). The same-origin iframe also connects native sessions through DSH's official `session.*`, `skill.list`, and `commands/*` APIs — all behind a loopback guard.
+**Routes**: `/api/dsh-qa/info` (status), `/api/dsh-qa/workbench/` (same-origin mirror proxy, SSE pass-through). The same-origin iframe also connects native sessions through DSH's current `session/*`, `agentPresets/*`, `skills/*`, and `commands/*` APIs — all behind a loopback guard.
 
-**Data directory**: plugin mode `~/.dsh/dsh-qa/` (projects & local materials); standalone mode `<project>/data/`. DSH chat is persisted by DSH itself. Both the workbench and DSH listen on `127.0.0.1`; the mobile endpoint is only reachable via one-time token pairing once you enable DSH Remote's official auto tunnel or bring your own tunnel.
+**Data directory**: plugin mode `~/.dsh/dsh-qa/` (projects & local materials); standalone mode `<project>/data/`. DSH chat is persisted by DSH itself. Both the workbench and DSH listen on `127.0.0.1`.
 
 ## AI Toolset
 
@@ -144,7 +144,7 @@ scripts/install-qa-preset.sh
 # or preview: scripts/install-qa-preset.sh --dry-run
 ```
 
-The preset is based on DSH's official `standard` (full coding capabilities) with a QA-testing persona and built-in QA quality principles (executable, judgeable test cases covering positive/exception/boundary; defects separating facts from guesses; no fabricated data). No restart needed — `agentPreset.list` picks up id=`qa` immediately.
+The preset is based on DSH's official `standard` (full coding capabilities) with a QA-testing persona and built-in QA quality principles (executable, judgeable test cases covering positive/exception/boundary; defects separating facts from guesses; no fabricated data). No restart needed — `agentPresets/list` picks up id=`qa` immediately.
 
 ## Companion QA Skills
 
@@ -185,7 +185,6 @@ After installing, restart `dsh web` and type `/` in the workbench chat to see th
 - **No sidebar entry**: restart `dsh web` (plugins load when the host starts)
 - **Model unavailable or auth failure**: check the provider, model, and credentials in DSH settings; the workbench does not store keys separately
 - **Can't see skills or commands**: make sure you opened the plugin from the DSH sidebar, not the standalone 8899 address; a DSH session is auto-created and bound on first entry into a project
-- **Remote says "secure remote entry required"**: current DSH versions forbid `--host 0.0.0.0`; enable the official "auto public tunnel" in DSH settings → Plugins → Remote, or configure your own trusted `publicBaseUrl`, and stop pairing in the Remote panel when done
 - **Port conflict**: automatically bumps 8899→8909; the plugin line can configure `port`
 - **Quality gate shows BLOCK**: a run, evidence item, or risk does not yet meet the delivery rules. Check the delivery-report checks first; fix the issue or create a time-bound exception only for an eligible warning.
 - **Relation to DSH Test Mode**: testing business data is stored by this plugin; each project session automatically uses the `qa` preset and can invoke the testing tools and skills installed there

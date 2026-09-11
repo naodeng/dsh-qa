@@ -7,6 +7,7 @@
 [![Version](https://img.shields.io/badge/version-0.2.0-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
+[![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.5--rc.2%20compatible-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.5-rc.2)
 
 **dsh-qa** 是 DeepSeek Harness 的本地 QA 工作台：在一个项目空间中管理需求、测试用例、风险、执行、证据和交付决策。项目与迭代的对话复用 DSH 原生会话，并自动使用「测试模式」（preset id: `qa`）；业务数据保留在本机，运行时没有生产依赖。
 
@@ -67,7 +68,6 @@
 - **中英文语言切换**：顶栏「中 / EN」按钮一键切换，默认中文，选择在本机浏览器中持久保存；导航、首页、看板、列表、日历、雷达与抽屉/模态框标题均双语化
 - **可调工作区**：主导航、项目栏与项目雷达均可拖动边缘改变宽度，可分别收起；双击边缘恢复默认，提供紧凑、标准与专注对话预设，选择在本机浏览器中持久保存
 - **四套 QA 主题**：质量仪表、终端、极简与赛博四套完整皮肤；赛博主题可随时触发“BUILD PASSED”场景
-- **DSH Remote**：复用当前 DSH 已安装的 Remote 插件，显示入口与设备状态，生成一次性配对链接，并可直接打开 `/m` 手机端
 - 逾期里程碑红标、7 日内临期黄标、待批门禁紫标，顶栏实时统计
 
 ## 安装（DSH 插件）
@@ -117,9 +117,9 @@ server/           工作台服务（原生 http + SSE；项目、质量任务、
 public/           四视图前端（原生 JS，无构建步骤；相对路径，可挂任意前缀）
 ```
 
-**路由**：`/api/dsh-qa/info`（状态）、`/api/dsh-qa/workbench/`（同源镜像代理，SSE 透传）。同源 iframe 还通过 DSH 官方 `session.*`、`skill.list` 与 `commands/*` 接口连接原生会话；全部带 loopback 护栏。
+**路由**：`/api/dsh-qa/info`（状态）、`/api/dsh-qa/workbench/`（同源镜像代理，SSE 透传）。同源 iframe 还通过 DSH 当前的 `session/*`、`agentPresets/*`、`skills/*` 与 `commands/*` 接口连接原生会话；全部带 loopback 护栏。
 
-**数据目录**：插件模式 `~/.dsh/dsh-qa/`（项目与本地材料）；独立模式 `<项目>/data/`。DSH 对话由 DSH 自身持久化。工作台与 DSH 都保持监听 `127.0.0.1`；只有用户明确启用 DSH Remote 的官方自动隧道或自备隧道后，手机端才可通过一次性令牌配对。
+**数据目录**：插件模式 `~/.dsh/dsh-qa/`（项目与本地材料）；独立模式 `<项目>/data/`。DSH 对话由 DSH 自身持久化。工作台与 DSH 都保持监听 `127.0.0.1`。
 
 ## AI 工具集
 
@@ -144,7 +144,7 @@ scripts/install-qa-preset.sh
 # 或预览：scripts/install-qa-preset.sh --dry-run
 ```
 
-preset 基于 DSH 官方 `standard`（完整编码能力），persona 定制为 QA 测试助手，并内置 QA 质量原则（用例可执行可判定、覆盖正向/异常/边界、缺陷区分事实与猜测、不编造数据）。安装后无需重启，DSH 的 `agentPreset.list` 即可发现 id=`qa`。
+preset 基于 DSH 官方 `standard`（完整编码能力），persona 定制为 QA 测试助手，并内置 QA 质量原则（用例可执行可判定、覆盖正向/异常/边界、缺陷区分事实与猜测、不编造数据）。安装后无需重启，DSH 的 `agentPresets/list` 即可发现 id=`qa`。
 
 ## 配套 QA 技能库
 
@@ -185,7 +185,6 @@ scripts/install-qa-skills.sh --dry-run           # 预览不写入
 - **侧边栏没有入口**：重启 `dsh web` 后生效（插件在宿主启动时加载）
 - **模型不可用或鉴权失败**：在 DSH 设置中检查对应服务商、模型和凭据；工作台不单独保存密钥
 - **看不到技能或命令**：确认是从 DSH 侧边栏打开，而不是直接访问 8899 独立地址；首次进入某项目时会自动创建并绑定 DSH 会话
-- **Remote 显示“需要设置安全的远程入口”**：当前 DSH 版本明确禁止 `--host 0.0.0.0`；请在 DSH 设置的 Remote 插件项开启“自动公网隧道”，或配置自己的 `publicBaseUrl`，用完后在 Remote 面板停止配对
 - **端口冲突**：自动顺延 8899→8909；插件行可配置 `port`
 - **质量门禁显示 BLOCK**：这表示运行、证据或风险尚未满足交付规则；先查看交付报告中的检查项，修复问题或仅对可豁免警告创建带有效期的例外
 - **与 DSH 测试模式的关系**：测试业务数据仍由本插件保存；每个项目会话自动使用 `qa` preset，并可调用其中安装的测试工具和技能

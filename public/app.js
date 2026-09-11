@@ -57,7 +57,6 @@
     dshEmbedded: location.pathname.startsWith('/api/dsh-qa/workbench'),
     theme: 'dashboard',
     layout: { ...DEFAULT_LAYOUT },
-    remote: { status: null, url: '', expiresAt: 0 },
     dsh: { projectId: null, sessionId: '', skills: [], commands: [], models: null, qaPreset: null, busy: false, turnToken: 0 },
     skillCatalog: { lang: '', categories: [], groups: [], skills: [] }, skillSearch: '', installingSkill: '', uninstallingSkill: '',
     calendarCursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), selectedDate: localDate(new Date()),
@@ -106,22 +105,8 @@
     if (!response.ok) throw new Error(data.error || `请求失败 (${response.status})`);
     return data;
   }
-  async function dshRpc(method, payload = {}) {
+  async function dshRpc(endpoint, args = {}) {
     if (!state.dshEmbedded) throw new Error('请从 DSH 侧边栏打开“质量工作台”后使用原生技能与命令');
-    const rpcId = globalThis.crypto?.randomUUID?.() || `dshqa-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    const response = await fetch(`/api/${method}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'client-request', rpcId, method, payload }),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(`DSH 连接失败 (${response.status})`);
-    if (data.rpcId && data.rpcId !== rpcId) throw new Error('DSH 响应校验失败');
-    if (!data.result?.ok) throw new Error(data.result?.error?.message || 'DSH 调用失败');
-    return data.result.value;
-  }
-  async function dshRemote(endpoint, args = {}) {
-    if (!state.dshEmbedded) throw new Error('当前不在 DSH 插件环境中');
     const rpcId = globalThis.crypto?.randomUUID?.() || `dshqa-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const response = await fetch(`/api/${endpoint}`, {
       method: 'POST',
@@ -129,9 +114,53 @@
       body: JSON.stringify({ type: 'client-request', rpcId, method: endpoint, payload: { args } }),
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(`DSH 命令接口失败 (${response.status})`);
-    if (!data.result?.ok) throw new Error(data.result?.error?.message || 'DSH 命令调用失败');
-    return data.result.value;
+    if (!response.ok) throw new Error(`DSH 连接失败 (${response.status})`);
+    if (data.rpcId && data.rpcId !== rpcId) throw new Error('DSH 响应校验失败');
+    if (!data.result?.ok) throw new Error(data.result?.error?.message || 'DSH 调用失败');
+    const value = data.result.value;
+    if (endpoint === 'session/modelCatalog') {
+      return {
+        current: value.default,
+        groups: value.groups || [],
+        routable: (value.routableProviders || []).length > 0,
+      };
+    }
+    return value;
+  }
+  async function dshFollowSnapshot(sessionId, maxMessages = 30) {
+    if (!state.dshEmbedded) throw new Error('请从 DSH 侧边栏打开“质量工作台”');
+    const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const streamId = globalThis.crypto?.randomUUID?.() || `dshqa-stream-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    return await new Promise((resolve, reject) => {
+      const socket = new WebSocket(`${scheme}//${location.host}/api`);
+      let settled = false;
+      const finish = (fn, value) => {
+        if (settled) return;
+        settled = true;
+        try { socket.close(); } catch { /* ignore */ }
+        fn(value);
+      };
+      const timer = setTimeout(() => finish(reject, new Error('DSH 会话快照超时')), 10000);
+      socket.addEventListener('open', () => socket.send(JSON.stringify({
+        type: 'open', streamId, endpoint: 'session/follow',
+        payload: { args: { request: { address: { kind: 'session', sessionId }, maxMessages } } },
+      })));
+      socket.addEventListener('message', (event) => {
+        let frame;
+        try { frame = JSON.parse(event.data); } catch { return; }
+        if (frame.streamId !== streamId) return;
+        if (frame.type === 'item' && frame.value?.type === 'snapshot') {
+          clearTimeout(timer); finish(resolve, frame.value); return;
+        }
+        if (frame.type === 'error') { clearTimeout(timer); finish(reject, new Error(frame.error?.message || 'DSH 会话快照失败')); }
+      });
+      socket.addEventListener('error', () => { clearTimeout(timer); finish(reject, new Error('DSH 会话 WebSocket 连接失败')); });
+      socket.addEventListener('close', () => { if (!settled) { clearTimeout(timer); finish(reject, new Error('DSH 会话 WebSocket 已关闭')); } });
+    });
+  }
+  async function dshHistory(sessionId, maxMessages) {
+    const snapshot = await dshFollowSnapshot(sessionId, maxMessages);
+    return { events: snapshot.records || [], cursor: snapshot.cursor ?? -1 };
   }
   const clamp = (value, min, max) => Math.min(max, Math.max(min, Number(value) || min));
   function applyLayout(next = {}, persist = true) {
@@ -650,7 +679,7 @@
   }
   async function getQaPreset() {
     if (state.dsh.qaPreset) return state.dsh.qaPreset;
-    const catalog = await dshRpc('agentPreset.list', {});
+    const catalog = await dshRpc('agentPresets/list', {});
     const presets = catalog.presets || [];
     const preset = presets.find((item) => item.id === 'qa')
       || presets.find((item) => /测试|质量|qa|quality|test/i.test(`${item.id} ${item.name} ${item.description || ''}`));
@@ -686,13 +715,13 @@
     let needsNewSession = !sessionId;
     if (sessionId) {
       try {
-        const sessions = await dshRpc('session.list', {});
+        const sessions = await dshRpc('session/list', { _request: {} });
         const linked = (sessions.items || []).find((item) => item.sessionId === sessionId);
-        models = await dshRpc('session.models', { sessionId });
+        models = await dshRpc('session/modelCatalog', {});
         if (linked?.agentPreset !== qaPreset.id) {
           if (linked?.blank !== false) {
-            await dshRpc('agentPreset.select', { sessionId, agentPreset: qaPreset.id });
-            models = await dshRpc('session.models', { sessionId });
+            await dshRpc('agentPresets/select', { agentId: sessionId, agentPreset: qaPreset.id });
+            models = await dshRpc('session/modelCatalog', {});
             toast(`本项目已切换为 DSH ${qaPreset.name}`, 'ok');
           } else {
             needsNewSession = true;
@@ -701,16 +730,16 @@
       } catch { needsNewSession = true; }
     }
     if (needsNewSession) {
-      const created = await dshRpc('session.create', { cwd: p.workspacePath, agentPreset: qaPreset.id });
+      const created = await dshRpc('session/create', { request: { cwd: p.workspacePath, agentPreset: qaPreset.id } });
       sessionId = created.sessionId;
-      await dshRpc('session.rename', { sessionId, title: `质量｜${p.title}` }).catch(() => {});
+      await dshRpc('session/rename', { request: { sessionId, title: `质量｜${p.title}` } }).catch(() => {});
       await api(`api/projects/${projectId}`, { method: 'PATCH', body: { dshSessionId: sessionId } });
       p.dshSessionId = sessionId;
-      models = await dshRpc('session.models', { sessionId });
+      models = await dshRpc('session/modelCatalog', {});
     }
     const [skillResult, commandResult] = await Promise.allSettled([
-      dshRpc('skill.list', { sessionId }),
-      dshRemote('commands/list', { agentId: sessionId }),
+      dshRpc('skills/list', { agentId: sessionId }),
+      dshRpc('commands/list', { agentId: sessionId }),
     ]);
     if (state.activeProjectId !== projectId) return sessionId;
     state.dsh.projectId = projectId;
@@ -803,7 +832,7 @@
   }
   async function renderDshHistory() {
     if (!state.dsh.sessionId) return renderDshEmpty('尚未绑定 DSH 会话。');
-    const history = await dshRpc('session.history', { sessionId: state.dsh.sessionId, maxMessages: 30 });
+    const history = await dshHistory(state.dsh.sessionId, 30);
     const rows = dshRows(history.events || []);
     if (!rows.length) return renderDshEmpty(`已绑定本项目文件夹。输入“/”可选择 ${state.dsh.skills.length} 个技能或 ${state.dsh.commands.length} 个命令。`);
     $('#chat-msgs').innerHTML = '';
@@ -832,16 +861,17 @@
       const command = commandName && state.dsh.commands.find((item) => item.name === commandName);
       if (command) {
         const pending = appendAiMsg(`/${command.name} 正在执行…`, true, 'command');
-        const execution = await dshRemote('commands/execute', { agentId: sessionId, line: text });
+        const execution = await dshRpc('commands/execute', { agentId: sessionId, line: text, attachments: [] });
         const result = execution?.result;
         pending.textContent = result?.text || (result?.kind === 'error' ? '命令执行失败' : `/${command.name} 已执行`);
         if (result?.kind === 'error') throw new Error(result.text || '命令执行失败');
         toast(`DSH 命令 /${command.name} 已执行`, 'ok');
       } else {
-        const before = await dshRpc('session.history', { sessionId, maxMessages: 1 });
+        const before = await dshHistory(sessionId, 1);
         const afterSeq = Math.max(-1, ...(before.events || []).map((entry) => entry.event.seq));
         const pending = appendAiMsg(t('chat.reading'), true, 'dsh');
-        await dshRpc('session.prompt', { sessionId, mode: 'queue', content: [{ type: 'text', text }], clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+        const requestId = globalThis.crypto?.randomUUID?.() || `dshqa-prompt-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        await dshRpc('session/prompt', { request: { requestId, sessionId, mode: 'queue', content: [{ type: 'text', text }], clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone } });
         const answer = await waitForDshTurn(sessionId, afterSeq, pending, token);
         if (token === state.dsh.turnToken && projectId === state.activeProjectId) pending.textContent = answer || '本轮已完成（无文本回复）';
       }
@@ -858,7 +888,7 @@
     while (Date.now() - startedAt < 30 * 60 * 1000) {
       if (token !== state.dsh.turnToken) throw new Error('已切换项目或对话通道，DSH 会话仍会在后台继续');
       await new Promise((resolve) => setTimeout(resolve, 900));
-      const history = await dshRpc('session.history', { sessionId, maxMessages: 6 });
+      const history = await dshHistory(sessionId, 6);
       const fresh = (history.events || []).filter((entry) => entry.event.seq > afterSeq);
       const tools = fresh.filter((entry) => entry.event.type === 'tool/call');
       if (tools.length) {
@@ -875,7 +905,7 @@
   async function stopChat() {
     if (!state.activeProjectId) return;
     try {
-      if (state.dsh.sessionId) await dshRpc('session.cancel', { sessionId: state.dsh.sessionId });
+      if (state.dsh.sessionId) await dshRpc('session/cancel', { request: { sessionId: state.dsh.sessionId } });
       state.dsh.turnToken += 1; state.dsh.busy = false; updateChatUI(); toast('已请求停止 DSH 当前任务', 'ok');
     }
     catch (error) { toast(error.message, 'err'); }
@@ -1348,93 +1378,12 @@
       p.workspacePath = workspace.path;
     }
     const qaPreset = await getQaPreset();
-    const created = await dshRpc('session.create', { cwd: p.workspacePath, agentPreset: qaPreset.id });
-    await dshRpc('session.rename', { sessionId: created.sessionId, title: `质量｜${p.title}` }).catch(() => {});
+    const created = await dshRpc('session/create', { request: { cwd: p.workspacePath, agentPreset: qaPreset.id } });
+    await dshRpc('session/rename', { request: { sessionId: created.sessionId, title: `质量｜${p.title}` } }).catch(() => {});
     await api(`api/projects/${p.id}`, { method: 'PATCH', body: { dshSessionId: created.sessionId } });
     p.dshSessionId = created.sessionId;
     if (state.activeProjectId === p.id) state.dsh = { projectId: null, sessionId: '', skills: [], commands: [], models: null, qaPreset, busy: false, turnToken: state.dsh.turnToken + 1 };
     return created.sessionId;
-  }
-  async function pairApi(path, options = {}) {
-    if (!state.dshEmbedded) throw new Error('DSH Remote 仅在 DSH 内嵌工作台中可用');
-    const response = await fetch(`/api/pair/${path}`, {
-      method: options.method || 'GET',
-      headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
-      body: options.body ? JSON.stringify(options.body) : undefined,
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || data.ok === false) {
-      const reason = data.code === 'lan-required' ? '请先在 DSH Remote 设置中启用自动公网隧道或配置 publicBaseUrl' : data.code;
-      throw new Error(data.error || data.message || reason || `Remote 请求失败 (${response.status})`);
-    }
-    return data;
-  }
-  function updateRemoteBadge(status = state.remote.status) {
-    const button = $('#btn-remote');
-    button.classList.remove('ready', 'paired', 'blocked');
-    if (!state.dshEmbedded) { button.classList.add('blocked'); button.title = '请从 DSH 中打开工作台'; return; }
-    if (!status) { button.title = '打开 DSH Remote'; return; }
-    if (status.paired || status.deviceCount > 0) button.classList.add('paired');
-    else if (status.lanAvailable) button.classList.add('ready');
-    else button.classList.add('blocked');
-    button.title = status.paired ? `Remote 已连接（${status.onlineCount || status.deviceCount || 1} 台在线）` : status.lanAvailable ? 'DSH Remote 可配对' : 'DSH Remote 需要局域网监听';
-  }
-  async function refreshRemoteStatus(quiet = true) {
-    try {
-      state.remote.status = await pairApi('status');
-      updateRemoteBadge();
-      return state.remote.status;
-    } catch (error) {
-      state.remote.status = null;
-      updateRemoteBadge();
-      if (!quiet) toast(error.message, 'err');
-      return null;
-    }
-  }
-  function remoteStatusView(status) {
-    if (!state.dshEmbedded) return { title: '请在 DSH 中打开', detail: '独立网页无法访问 DSH Remote；请从 DSH 侧边栏进入质量工作台。', tone: 'blocked' };
-    if (!status) return { title: '正在读取 Remote 状态', detail: '正在连接 DSH 自带的远程控制插件。', tone: '' };
-    if (status.paired || status.deviceCount > 0) return { title: '手机端已配对', detail: `${status.onlineCount || 0} 台在线，${status.deviceCount || 0} 台已授权；可从手机继续操作当前 DSH。`, tone: 'paired' };
-    if (!status.lanAvailable || status.phase === 'lan-required') return { title: '需要设置安全的远程入口', detail: 'Remote 已安装，但当前 DSH 版本只允许监听 127.0.0.1。请到 DSH 设置 → 插件 → Remote 开启“自动公网隧道”（推荐），或填写可信的 publicBaseUrl，再返回此处生成一次性配对链接。', tone: 'blocked' };
-    if (status.phase === 'waiting') return { title: '等待手机扫码 / 打开链接', detail: '一次性链接已创建，在手机浏览器中打开即可完成配对。', tone: 'ready' };
-    return { title: 'Remote 已就绪', detail: '生成一次性链接后，可在同一局域网的手机上接管 DSH 会话。', tone: 'ready' };
-  }
-  function copyText(value) {
-    if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(value);
-    const input = document.createElement('textarea'); input.value = value; document.body.append(input); input.select(); document.execCommand('copy'); input.remove(); return Promise.resolve();
-  }
-  async function openRemotePanel() {
-    const status = await refreshRemoteStatus(true);
-    const view = remoteStatusView(status);
-    const addresses = status?.lanAddresses || [];
-    const modal = modalShell('DSH Remote', '使用 DSH 当前安装的 Remote 插件，把手机安全配对到本机；不创建第二套远程服务。', `
-      <div class="remote-status-card"><span class="remote-status-icon">R</span><div class="remote-status-copy"><b>${esc(view.title)}</b><span>${esc(view.detail)}</span></div>${addresses.length ? `<div class="remote-addresses">${addresses.map((address) => `<code>${esc(address)}</code>`).join('')}</div>` : ''}</div>
-      ${state.remote.url ? `<div class="remote-link"><input id="remote-url" value="${esc(state.remote.url)}" readonly/><button id="remote-copy" class="btn" type="button">复制链接</button></div>` : ''}
-      <div class="remote-actions">
-        <button id="remote-issue" class="btn primary" type="button" ${!status?.lanAvailable ? 'disabled' : ''}>生成一次性配对链接</button>
-        <button id="remote-mobile" class="btn" type="button">打开手机端页面</button>
-        ${status?.paired || status?.phase === 'waiting' ? '<button id="remote-stop" class="btn danger" type="button">停止配对 / 撤销</button>' : ''}
-      </div>
-      <p class="remote-note">配对链接由 DSH Remote 生成并设有有效期。测试数据仍保存在本机；启用远程入口后，请妥善保管链接，并在用完后停止 Remote 或关闭 DSH。</p>
-      <div class="modal-foot"><button class="btn" id="remote-refresh" type="button">刷新状态</button><button class="btn primary" id="remote-close" type="button">完成</button></div>`);
-    $('#remote-close', modal).addEventListener('click', closeModal);
-    $('#remote-refresh', modal).addEventListener('click', openRemotePanel);
-    $('#remote-mobile', modal).addEventListener('click', () => window.open('/m', '_blank', 'noopener'));
-    $('#remote-issue', modal).addEventListener('click', async () => {
-      try {
-        const result = await pairApi('issue', { method: 'POST', body: {} });
-        state.remote.url = result.url || result.pairingUrl || '';
-        state.remote.expiresAt = result.expiresAt || 0;
-        state.remote.status = await refreshRemoteStatus(true);
-        toast('一次性 Remote 配对链接已生成', 'ok');
-        openRemotePanel();
-      } catch (error) { toast(error.message, 'err'); }
-    });
-    $('#remote-copy', modal)?.addEventListener('click', async () => { await copyText(state.remote.url); toast('配对链接已复制', 'ok'); });
-    $('#remote-stop', modal)?.addEventListener('click', async () => {
-      try { await pairApi('stop', { method: 'POST', body: {} }); state.remote.url = ''; await refreshRemoteStatus(true); toast('Remote 配对已停止', 'ok'); openRemotePanel(); }
-      catch (error) { toast(error.message, 'err'); }
-    });
   }
   function showPassScene() {
     const scene = $('#theme-scene');
@@ -1562,7 +1511,7 @@
         ['新建日程', 'New schedule'], ['关联到具体项目，保存后会同步显示在首页提醒和项目档案中。', 'Link it to a project; it will appear in reminders and the project profile after saving.'], ['工作日程', 'Work event'], ['里程碑 / 截止日', 'Milestone / due date'], ['关联项目 *', 'Project *'], ['事项名称 *', 'Item name *'], ['如：用例评审会、版本发布', 'e.g. test-case review, release'], ['日期 *', 'Date *'], ['类型', 'Type'], ['依据 / 计算说明', 'Basis / calculation note'], ['备注', 'Notes'], ['地点、参加人、准备事项等', 'Location, attendees, preparation notes'], ['如：发布排期、评审范围', 'e.g. release schedule, review scope'], ['保存日程', 'Save schedule'], ['保存里程碑', 'Save milestone'], ['请填写事项名称和日期', 'Please enter an item name and date'], ['里程碑已登记', 'Milestone recorded'], ['日程已添加', 'Schedule added'],
         ['创建独立项目空间，并按需启用 DSH 全流程辅助。', 'Create an independent project space and enable DSH assistance as needed.'], ['迭代挂靠在测试项目下，共享产品与负责人信息。', 'Attach the iteration to a test project and share its product and owner.'], ['迭代名称 *', 'Iteration name *'], ['项目名称 *', 'Project name *'], ['如：订单域 3 月迭代（v1.2.0）', 'e.g. Orders domain March iteration (v1.2.0)'], ['如：电商中台订单服务测试项目', 'e.g. E-commerce order service test project'], ['如 PRJ-2026-001', 'e.g. PRJ-2026-001'], ['如 电商中台 · 订单域', 'e.g. E-commerce platform · Orders'], ['如 张测试', 'e.g. Alex Chen'], ['成员（每行：姓名:角色）', 'Members (one name:role per line)'], ['项目摘要 / 测试范围', 'Project summary / test scope'], ['测试范围、重点链路、风险…', 'Scope, critical flows, risks…'], ['全流程辅助', 'Full assistance'], ['主动提取、登记并提醒', 'Proactively extract, record and remind'], ['按需协作', 'On demand'], ['明确要求时才执行', 'Act only when explicitly requested'], ['自动提取测试要素', 'Auto-extract test elements'], ['从对话识别需求、用例、缺陷、里程碑与日程', 'Identify requirements, cases, defects, milestones and schedules from chat'], ['全流程提醒', 'Full-process reminders'], ['在首页提示临期、逾期与待审批事项', 'Show upcoming, overdue and pending approval items on the dashboard'], ['创建本地项目文件夹', 'Create local project folder'], ['自动生成需求、计划、用例、数据、执行、缺陷、报告和归档目录', 'Generate requirement, plan, case, data, execution, defect, report and archive folders'], ['创建迭代', 'Create iteration'], ['创建项目', 'Create project'], ['请填写名称', 'Please enter a name'], ['项目与文件夹已创建', 'Project and folder created'],
         ['DSH 辅助策略', 'DSH assistance policy'], ['仅作用于', 'Applies only to'], ['，随时可以关闭或切换。', '; you can turn it off or switch it at any time.'], ['启用本项目 DSH 辅助', 'Enable DSH assistance for this project'], ['关闭后仍可对话，但不会自动调用登记工具', 'Chat remains available when off, but registration tools will not be called automatically'], ['工作模式', 'Work mode'], ['登记需求、用例、缺陷、里程碑、日程和报告', 'Record requirements, cases, defects, milestones, schedules and reports'], ['提醒策略', 'Reminder policy'], ['里程碑与流程提醒', 'Milestones and process reminders'], ['仅里程碑提醒', 'Milestones only'], ['关闭首页提醒', 'Disable dashboard reminders'], ['对话模型不在此处设置；工作台只使用本项目 DSH 会话的模型，可在对话顶部从 DSH 模型目录切换。', 'The chat model is not configured here; this workbench uses the model from the project DSH session, which you can switch from the DSH model menu above the chat.'], ['保存策略', 'Save policy'], ['DSH 辅助策略已保存', 'DSH assistance policy saved'],
-        ['使用 DSH 当前安装的 Remote 插件，把手机安全配对到本机；不创建第二套远程服务。', 'Use the Remote plugin installed in DSH to securely pair a phone with this machine; no second remote service is created.'], ['复制链接', 'Copy link'], ['生成一次性配对链接', 'Generate one-time pairing link'], ['打开手机端页面', 'Open mobile page'], ['停止配对 / 撤销', 'Stop pairing / revoke'], ['配对链接由 DSH Remote 生成并设有有效期。测试数据仍保存在本机；启用远程入口后，请妥善保管链接，并在用完后停止 Remote 或关闭 DSH。', 'Pairing links are generated by DSH Remote and expire. Test data remains local; protect the link and stop Remote or close DSH when finished.'], ['刷新状态', 'Refresh status'], ['完成', 'Done'], ['一次性 Remote 配对链接已生成', 'One-time Remote pairing link generated'], ['配对链接已复制', 'Pairing link copied'], ['Remote 配对已停止', 'Remote pairing stopped'], ['界面风格与布局', 'Appearance & layout'], ['四套皮肤只改变工作台外观；模型、技能和测试模式仍完全来自 DSH。', 'Themes change only the workbench appearance; models, skills and test mode still come entirely from DSH.'], ['质量仪表', 'QA dashboard'], ['终端', 'Terminal'], ['极简', 'Minimal'], ['赛博', 'Cyber'], ['当前', 'Current'], ['工作区宽度', 'Workspace width'], ['主导航、项目栏与项目雷达的边缘均可拖动；双击边缘恢复默认，箭头键可微调。', 'Drag the edges of the navigation, project list and project radar; double-click an edge to reset, or use arrow keys for fine adjustments.'], ['紧凑', 'Compact'], ['标准', 'Standard'], ['专注对话', 'Chat focus'], ['收起项目栏与雷达', 'Collapse project list and radar'], ['模型只从 DSH 当前会话的模型目录读取；如需新增服务商或模型，请在 DSH 设置中配置。', 'Models are read from the current DSH session; configure new providers or models in DSH settings.'], ['工作区布局已更新', 'Workbench layout updated'],
+        ['界面风格与布局', 'Appearance & layout'], ['四套皮肤只改变工作台外观；模型、技能和测试模式仍完全来自 DSH。', 'Themes change only the workbench appearance; models, skills and test mode still come entirely from DSH.'], ['质量仪表', 'QA dashboard'], ['终端', 'Terminal'], ['极简', 'Minimal'], ['赛博', 'Cyber'], ['当前', 'Current'], ['工作区宽度', 'Workspace width'], ['主导航、项目栏与项目雷达的边缘均可拖动；双击边缘恢复默认，箭头键可微调。', 'Drag the edges of the navigation, project list and project radar; double-click an edge to reset, or use arrow keys for fine adjustments.'], ['紧凑', 'Compact'], ['标准', 'Standard'], ['专注对话', 'Chat focus'], ['收起项目栏与雷达', 'Collapse project list and radar'], ['模型只从 DSH 当前会话的模型目录读取；如需新增服务商或模型，请在 DSH 设置中配置。', 'Models are read from the current DSH session; configure new providers or models in DSH settings.'], ['工作区布局已更新', 'Workbench layout updated'],
         ['项目详情', 'Project details'], ['项目文件夹', 'Project folder'], ['项目文件', 'Project files'], ['打开项目文件', 'Open project files'], ['创建项目文件', 'Create project files'], ['创建标准项目目录', 'Create standard project folder'], ['在 Finder 中打开', 'Open in Finder'],
         ['项目与迭代', 'Projects & iterations'], ['搜索项目', 'Search projects'], ['全部', 'All'], ['项目', 'Project'], ['迭代', 'Iteration'], ['项目概览', 'Project overview'], ['项目档案', 'Project profile'], ['项目基本信息', 'Project information'], ['对象类型', 'Object type'], ['项目编号', 'Project key'], ['被测产品', 'Product under test'], ['测试负责人', 'Test owner'], ['测试阶段', 'Test stage'], ['测试进度', 'Test progress'], ['测试用例', 'Test cases'], ['测试报告', 'Test reports'], ['缺陷', 'Defects'], ['需求范围', 'Requirements'], ['里程碑与日程', 'Milestones & schedule'], ['沟通纪要', 'Minutes'], ['知识沉淀', 'Knowledge'],
         ['DSH 协作策略', 'DSH assistance policy'], ['调整协作策略', 'Adjust assistance policy'], ['自动辅助已关闭', 'Auto assistance off'], ['已关闭', 'Closed'], ['已开启', 'On'], ['关闭', 'Off'], ['开启', 'On'], ['全流程辅助', 'Full assistance'], ['按需协作', 'On demand'], ['自动提取测试要素', 'Auto-extract test elements'], ['流程提醒', 'Flow reminders'], ['对话模式', 'Chat mode'], ['DSH 测试模式', 'DSH Test Mode'],
@@ -1570,11 +1519,11 @@
         ['通过', 'Approve'], ['驳回', 'Reject'], ['已通过', 'Approved'], ['已驳回', 'Rejected'], ['待负责人审批', 'Pending owner approval'], ['已完成', 'Completed'], ['逾期', 'Overdue'], ['截止日', 'Due date'], ['依据', 'Basis'], ['验收', 'Acceptance'], ['覆盖用例', 'Covered cases'], ['风险', 'Risk'], ['步骤', 'Steps'], ['预期', 'Expected'], ['实际', 'Actual'], ['状态', 'Status'],
         ['新建 DSH 对话', 'New DSH chat'], ['删除项目记录', 'Delete project record'], ['保存项目信息', 'Save project info'], ['项目记录已删除，文件夹仍保留', 'Project record deleted; folder kept'], ['项目信息已保存', 'Project information saved'],
         // Cleanup for phrases affected by the broad fallback replacements above.
-        ['新建测试Project', 'New test project'], ['创建独立Project空间，并按需启用 DSH Full assistance。', 'Create an independent project space and enable DSH full assistance as needed.'], ['Project name *', 'Project name *'], ['对象Type', 'Object type'], ['测试Project', 'Test project'], ['Project编号', 'Project key'], ['创建本地Project folder', 'Create local project folder'], ['四套皮肤只改变工作台外观；模型、Skills和Test Mode仍完全来自 DSH。', 'Themes change only the workbench appearance; models, skills and test mode still come entirely from DSH.'], ['清爽 QA 面板蓝、Approve率绿与测试徽章，默认外观。', 'Clean QA dashboard blue, approval green and test badges; the default appearance.'], ['深色Terminal绿与等宽字体，Commands行质感。', 'Dark terminal green and a monospaced command-line feel.'], ['主导航、Project栏与Project radar的边缘均可拖动；双击边缘恢复默认，箭头键可微调。', 'Drag the edges of the navigation, project list and project radar; double-click an edge to reset, or use arrow keys for fine adjustments.'], ['模型只从 DSH Current会话的模型目录读取；如需新增服务商或模型，请在 DSH 设置中配置。', 'Models are read from the current DSH session; configure new providers or models in DSH settings.'], ['测试数据仍Save在本机；启用远程入口后，请妥善保管链接，并在用完后停止 Remote 或Off DSH。', 'Test data remains local; protect the link and stop Remote or close DSH when finished.'],
-        ['DSH 辅助模式', 'DSH assistance mode'], ['纯白留白、细线与安静的黑灰层次。', 'Pure white space, fine lines and quiet black-and-gray layers.'], ['霓虹紫、深空黑与发光描边，附带可触发的 BUILD PASSED 场景。', 'Neon purple, deep-space black and glowing outlines, with a triggerable BUILD PASSED scene.'], ['请在 DSH 中打开', 'Open in DSH'], ['独立网页无法访问 DSH Remote；请从 DSH 侧边栏进入质量工作台。', 'The standalone page cannot access DSH Remote; open the QA Workbench from the DSH sidebar.'], ['配对链接由 DSH Remote 生成并设有有效期。', 'Pairing links are generated by DSH Remote and expire.'], ['Test data remains local; protect the link and stop Remote or close DSH when finished.', 'Test data remains local; protect the link and stop Remote or close DSH when finished.'],
+        ['新建测试Project', 'New test project'], ['创建独立Project空间，并按需启用 DSH Full assistance。', 'Create an independent project space and enable DSH assistance as needed.'], ['Project name *', 'Project name *'], ['对象Type', 'Object type'], ['测试Project', 'Test project'], ['Project编号', 'Project key'], ['创建本地Project folder', 'Create local project folder'], ['四套皮肤只改变工作台外观；模型、Skills和Test Mode仍完全来自 DSH。', 'Themes change only the workbench appearance; models, skills and test mode still come entirely from DSH.'], ['清爽 QA 面板蓝、Approve率绿与测试徽章，默认外观。', 'Clean QA dashboard blue, approval green and test badges; the default appearance.'], ['深色Terminal绿与等宽字体，Commands行质感。', 'Dark terminal green and a monospaced command-line feel.'], ['主导航、Project栏与Project radar的边缘均可拖动；双击边缘恢复默认，箭头键可微调。', 'Drag the edges of the navigation, project list and project radar; double-click an edge to reset, or use arrow keys for fine adjustments.'], ['模型只从 DSH Current会话的模型目录读取；如需新增服务商或模型，请在 DSH 设置中配置。', 'Models are read from the current DSH session; configure new providers or models in DSH settings.'],
+        ['DSH 辅助模式', 'DSH assistance mode'], ['纯白留白、细线与安静的黑灰层次。', 'Pure white space, fine lines and quiet black-and-gray layers.'], ['霓虹紫、深空黑与发光描边，附带可触发的 BUILD PASSED 场景。', 'Neon purple, deep-space black and glowing outlines, with a triggerable BUILD PASSED scene.'], ['请在 DSH 中打开', 'Open in DSH'],
         ['请从 DSH 侧边栏打开“质量工作台”', 'Open the QA Workbench from the DSH sidebar'], ['Open from the DSH sidebar“质量工作台”', 'Open the QA Workbench from the DSH sidebar'], ['暂无Materials', 'No materials yet'], ['2026年8月', 'August 2026'], ['年', 'Year'], ['月', 'Month'], ['Done需求梳理与测试范围确认', 'Completed: requirement breakdown and test scope confirmation'],
         ['请从 DSH 打开', 'Open from DSH'], ['当前是独立项目管理模式；对话、模型、技能与命令请从 DSH 侧边栏进入', 'Standalone project mode; open the DSH sidebar for chat, models, skills and commands'], ['Defects修复 · 回归验证', 'Defect fixes · regression verification'], ['这一天还没有安排', 'Nothing scheduled for this day'], ['今', 'Today'],
-        ['返回 DSH 主页面', 'Return to DSH home'], ['请从 DSH 中打开工作台', 'Open the workbench from DSH'], ['打开 DSH Remote', 'Open DSH Remote'], ['切换界面风格', 'Change appearance'], ['收起主导航', 'Collapse main navigation'], ['主导航', 'Main navigation'], ['调整主导航宽度', 'Resize main navigation'], ['收起Project栏', 'Collapse project list'], ['调整Project栏宽度', 'Resize project list'], ['选择Current DSH 会话模型', 'Select the current DSH session model'], ['材料上传将在下一版接入', 'Material upload is coming in a future version'], ['上传材料（下一版接入）', 'Upload material (coming soon)'], ['输入任务；键入 / 可选择 DSH Skills或Commands…', 'Enter a task; type / to choose DSH skills or commands…'], ['发送', 'Send'], ['调整Project radar宽度', 'Resize project radar'], ['收起Project radar', 'Collapse project radar'], ['上个Month', 'Previous month'], ['下个Month', 'Next month'], ['选择Year份', 'Select year'], ['选择Month份', 'Select month'], ['跳转到具体日期', 'Jump to a date'], ['在 ', 'Add schedule on '], [' 新增日程', ''],
+        ['返回 DSH 主页面', 'Return to DSH home'], ['请从 DSH 中打开工作台', 'Open the workbench from DSH'], ['切换界面风格', 'Change appearance'], ['收起主导航', 'Collapse main navigation'], ['主导航', 'Main navigation'], ['调整主导航宽度', 'Resize main navigation'], ['收起Project栏', 'Collapse project list'], ['调整Project栏宽度', 'Resize project list'], ['选择Current DSH 会话模型', 'Select the current DSH session model'], ['材料上传将在下一版接入', 'Material upload is coming in a future version'], ['上传材料（下一版接入）', 'Upload material (coming soon)'], ['输入任务；键入 / 可选择 DSH Skills或Commands…', 'Enter a task; type / to choose DSH skills or commands…'], ['发送', 'Send'], ['调整Project radar宽度', 'Resize project radar'], ['收起Project radar', 'Collapse project radar'], ['上个Month', 'Previous month'], ['下个Month', 'Next month'], ['选择Year份', 'Select year'], ['选择Month份', 'Select month'], ['跳转到具体日期', 'Jump to a date'], ['在 ', 'Add schedule on '], [' 新增日程', ''],
         ['调整Main navigation宽度', 'Resize main navigation'], ['在所选日期新增', 'Add to selected date'],
       ]);
       const replace = (value) => { let result = value; for (const [zh, en] of replacements) result = result.split(zh).join(en); return result; };
@@ -1627,7 +1576,6 @@
     $('#btn-new-iteration').addEventListener('click', () => openNewProject(true));
     $('#btn-open-ai').addEventListener('click', () => { switchView('assistant'); if (state.activeProject) initializeDshChat({ initialize: true }).catch((error) => toast(error.message, 'err')); });
     $('#btn-settings').addEventListener('click', openSettings);
-    $('#btn-remote').addEventListener('click', openRemotePanel);
     $('#btn-pass-scene').addEventListener('click', showPassScene);
     $('#btn-back-dsh').addEventListener('click', () => {
       // 通知 DSH 宿主关闭工作台面板，回到 DSH 主页面
@@ -1660,7 +1608,7 @@
       try {
         const selected = parseDshModelValue($('#chat-model').value);
         if (!selected) return;
-        const result = await dshRpc('session.selectModel', { sessionId: state.dsh.sessionId, provider: selected.provider, model: selected.model });
+        const result = await dshRpc('session/selectModel', { request: { sessionId: state.dsh.sessionId, provider: selected.provider, model: selected.model } });
         state.dsh.models.current = result.selected; populateDshModelSelect(state.dsh.models); updateDshChrome(); toast(`DSH 模型：${result.selected.model}`, 'ok');
       } catch (error) { toast(error.message, 'err'); }
     });
@@ -1689,8 +1637,7 @@
     updateDshChrome();
     if (state.dshEmbedded) {
       getQaPreset().catch((error) => { $('#service-status').classList.add('offline'); $('#service-status span').textContent = '测试模式缺失'; toast(error.message, 'err'); });
-      refreshRemoteStatus(true);
-    } else updateRemoteBadge();
+    }
     if (!location.search.includes('nosse')) connectSSE();
     await refreshBoard(true);
     switchView('dashboard');
