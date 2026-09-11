@@ -20,6 +20,7 @@ Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
 
 - [Features](#features)
 - [Installation (DSH plugin)](#installation-dsh-plugin)
+- [Install and update with npm (standalone)](#install-and-update-with-npm-standalone)
 - [Quick Start (try without installing)](#quick-start-try-without-installing)
 - [QA Control Workbench](#qa-control-workbench-020)
 - [Standalone Mode](#standalone-mode)
@@ -79,13 +80,30 @@ dsh plugin --profile web add github:naodeng/dsh-qa
 dsh plugin --profile web add dsh-qa
 # Local development
 dsh plugin --profile web add link:/path/to/dsh-qa
+
+# Update an installed dsh-qa plugin
+dsh plugin --profile web update dsh-qa
 ```
 
-After installing, restart `dsh web` (plugins load when the host starts). A **「质量工作台 / QA Workbench」** entry appears in the GUI sidebar; click to open the workbench in the conversation area or use the toolbar to open it in a tab.
+After installing or updating, restart `dsh web` (plugins load when the host starts). A **「质量工作台 / QA Workbench」** entry appears in the GUI sidebar; click to open the workbench in the conversation area or use the toolbar to open it in a tab.
 
 > **Models & API**: The workbench does not maintain a second set of API keys or model configs. Each test project binds a native DSH session whose working directory is the project folder, and automatically uses Test Mode (preset id: `qa`). Model list, model switching, skills, commands, tools, and permission policies all come from DSH; to add providers or models, configure them in DSH settings.
 >
 > If an old project is bound to a blank standard-mode session, the workbench switches it to Test Mode automatically; if the old session already has conversation history, the workbench keeps that history, creates a new Test Mode session, and rebinds.
+
+## Install and update with npm (standalone)
+
+```bash
+# Requires Node.js 18+
+npm install -g dsh-qa
+qabench           # → http://127.0.0.1:8899
+
+# Update to npm's latest version, then restart the workbench
+npm update -g dsh-qa
+qabench
+```
+
+This starts the local QA workbench only. To use sessions, models, skills, and commands inside DeepSeek Harness, install the plugin using the **Installation (DSH plugin)** steps above.
 
 ## Quick Start (try without installing)
 

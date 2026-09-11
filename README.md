@@ -20,6 +20,7 @@
 
 - [功能特性](#功能特性)
 - [安装（DSH 插件）](#安装dsh-插件)
+- [npm 安装与更新（独立运行）](#npm-安装与更新独立运行)
 - [快速开始（不装插件体验）](#快速开始不装插件体验)
 - [质量工作流](#研发质量控制工作台020)
 - [独立运行模式](#独立运行模式)
@@ -79,13 +80,30 @@ dsh plugin --profile web add github:naodeng/dsh-qa
 dsh plugin --profile web add dsh-qa
 # 本地开发
 dsh plugin --profile web add link:/path/to/dsh-qa
+
+# 更新已安装的 dsh-qa 插件
+dsh plugin --profile web update dsh-qa
 ```
 
-安装后重启 `dsh web`（插件在宿主启动时加载）。GUI 侧边栏会出现「质量工作台」入口；点击可在会话区打开，工具栏可在独立标签页打开。
+安装或更新后重启 `dsh web`（插件在宿主启动时加载）。GUI 侧边栏会出现「质量工作台」入口；点击可在会话区打开，工具栏可在独立标签页打开。
 
 > **模型与 API**：工作台不维护第二套 API Key 或模型配置。每个测试项目绑定一个以项目文件夹为工作目录的 DSH 原生会话，并自动使用「测试模式」（preset id: `qa`）。模型列表、模型切换、技能、命令、工具和权限策略全部来自 DSH；新增服务商或模型请在 DSH 设置中配置。
 >
 > 旧项目如果绑定的是空白标准模式会话，工作台会直接切换为测试模式；如果旧会话已有对话，则保留原会话历史，自动新建并改绑一个测试模式会话。
+
+## npm 安装与更新（独立运行）
+
+```bash
+# 需要 Node.js 18+
+npm install -g dsh-qa
+qabench           # → http://127.0.0.1:8899
+
+# 升级到 npm 的 latest 版本后，重新启动工作台
+npm update -g dsh-qa
+qabench
+```
+
+此方式只启动本地 QA 工作台；如需在 DeepSeek Harness 中使用会话、模型、技能和命令，请按上方「安装（DSH 插件）」步骤安装插件。
 
 ## 快速开始（不装插件体验）
 
