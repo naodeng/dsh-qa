@@ -9,7 +9,7 @@
 | dsh-qa 基线 | `v0.4.0` / implementation branch `codex/0.4.1` |
 | Harness 目标 | `dsh-v0.1.6-alpha.1` |
 | 0.4.1 状态 | `IMPLEMENTED_PENDING_HOST` |
-| 真实宿主冒烟 | `FAILED`：带完整启动 token 的最新运行已通过插件入口、preset/Session 流程，但 `session/follow` 仍连接旧 WebSocket 路径；修复后待重跑 |
+| 真实宿主冒烟 | `FAILED`：带完整启动 token 的最新运行已通过插件入口、preset/Session、follow snapshot 和 model catalog，但 `skills/list` 仍发送旧 `agentId` 参数；修复后待重跑 |
 | 兼容徽章 | 保持当前已发布事实，验证后再更新 |
 
 ## 2. 核心兼容矩阵
@@ -19,10 +19,10 @@
 | `agentPresets/list` | slash endpoint + compatibility/unit tests | `PASS`：真实运行发现 `qa` preset | `VERIFIED_LOCAL / VERIFIED_HOST` |
 | `agentPresets/select` | slash endpoint + compatibility test | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
 | `session/list` | slash endpoint + compatibility test | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
-| `session/create`、`session/rename` | slash endpoint + compatibility test | `FAIL`：最新 `session/create` 挂载 `qa` 时 `dsh-persona` 缺少必填 `prefix`；rename 未执行（前一轮旧 workflow 包名问题已修复） | `VERIFIED_LOCAL / FAILED_HOST` |
-| `session/modelCatalog` | slash endpoint + compatibility test | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
-| `skills/list`、`commands/list` | slash endpoint + local error propagation + browser regression | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
-| `session/follow` | locked open envelope, `snapshot.records` parser, wrong-stream/error/close/timeout cleanup tests | `FAIL`：Host 运行在 WebSocket 建连阶段失败；Harness 0.1.6 的 Remote mux 路径为 `/api/remote.mux` | `VERIFIED_LOCAL / FAILED_HOST` |
+| `session/create`、`session/rename` | slash endpoint + compatibility test | `PASS`：最新真实运行已发现 `qa` preset、创建并重命名 Session | `VERIFIED_LOCAL / VERIFIED_HOST` |
+| `session/modelCatalog` | slash endpoint + compatibility test | `PASS`：最新真实运行读取到默认模型目录 | `VERIFIED_LOCAL / VERIFIED_HOST` |
+| `skills/list`、`commands/list` | slash endpoint + local error propagation + browser regression | `FAIL`：`skills/list` 收到 Harness descriptor 错误，要求 `request`、拒绝 `agentId`；commands 尚未执行 | `VERIFIED_LOCAL / FAILED_HOST` |
+| `session/follow` | locked open envelope, `snapshot.records` parser, wrong-stream/error/close/timeout cleanup tests | `PASS`：最新真实运行通过 `/api/remote.mux` 建连并读取 snapshot | `VERIFIED_LOCAL / VERIFIED_HOST` |
 | `session/prompt` | slash endpoint + existing error UI path | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
 | model select / cancel | slash endpoint + compatibility test | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
 | Workbench load | standalone Chromium E2E | `PASS`：插件入口和 `/api/dsh-qa/workbench` iframe 可见 | `VERIFIED_LOCAL / VERIFIED_HOST` |
@@ -49,9 +49,9 @@
 
 | 检查 | 结果 |
 | --- | --- |
-| `node --test test/unit/dsh-rpc-contract.test.js test/unit/dsh-compatibility.test.js` | `12 passed` |
-| `npm run test:unit`（当前实现） | `136 passed` |
-| `QA_E2E_PORT=8900 npm test`（当前重跑） | `136` 个单元/API + `22` 个本地 Chromium E2E 通过；host smoke 被默认配置排除 |
+| `node --test test/unit/dsh-rpc-contract.test.js test/unit/dsh-compatibility.test.js` | `13 passed` |
+| `npm run test:unit`（当前实现） | `137 passed` |
+| `QA_E2E_PORT=8900 npm test`（当前重跑） | `137` 个单元/API + `22` 个本地 Chromium E2E 通过；host smoke 被默认配置排除 |
 | `npm run test:e2e -- test/e2e/skills.spec.js test/e2e/workbench-reconnect.spec.js` | 默认端口被已有进程占用；使用隔离数据目录和 8900 端口重跑后 `4 passed` |
 | 标准本地 E2E（同一 Playwright 项目配置，排除 opt-in host smoke） | `22 passed` |
 | `npm run test:host-smoke` 无环境变量 | 按设计在浏览器启动前失败，提示必须提供 `DSH_WEB_URL` 和 `DSH_HOST_VERSION` |
@@ -63,6 +63,8 @@
 | `qa` preset persona schema 修复 | `VERIFIED_LOCAL`：将 Harness 0.1.6 要求的 `config.prefix` 替换旧的 `config.text`；兼容性回归测试 `5 passed`，已重新安装到当前 web profile；真实宿主待重跑 |
 | 当前真实 `dsh-v0.1.6-alpha.1` host smoke（带启动 token） | `FAILED`：第 1、2 项通过；第 3 项在 `session/follow` WebSocket 建连时失败，第 4 项因 serial suite 未运行。错误为 `session/follow WebSocket failed`；trace 位于 `test-results/dsh-host-compatibility-Dee-625f1-nd-queues-a-harmless-prompt/trace.zip` |
 | `session/follow` Remote mux 路径修复 | `VERIFIED_LOCAL`：工作台和 Host smoke helper 均改为 `/api/remote.mux`，新增路径回归测试；真实宿主待重跑 |
+| 最新真实 `dsh-v0.1.6-alpha.1` host smoke（带启动 token） | `FAILED`：第 1、2 项通过；第 3 项已通过 follow snapshot 和 model catalog，但在 `skills/list` 失败，错误为 `missing "request"; unexpected "agentId"`；第 4 项因 serial suite 未运行。trace 位于 `test-results/dsh-host-compatibility-Dee-625f1-nd-queues-a-harmless-prompt/trace.zip` |
+| `skills/list` request envelope 修复 | `VERIFIED_LOCAL`：工作台和 Host smoke helper 均改为 `{ request: { sessionId } }`，新增兼容性回归测试；真实宿主待重跑 |
 
 ## 5. 与 0.5 的边界
 

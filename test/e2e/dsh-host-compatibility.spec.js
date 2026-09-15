@@ -60,7 +60,7 @@ test.describe('DeepSeek Harness host compatibility', () => {
 
     const modelCatalog = await rpc(page, 'session/modelCatalog', {});
     expect(modelCatalog.default).toBeTruthy();
-    const skills = await rpc(page, 'skills/list', { agentId: sessionId });
+    const skills = await rpc(page, 'skills/list', { request: { sessionId } });
     expect(Array.isArray(skills.skills)).toBe(true);
     const commands = await rpc(page, 'commands/list', { agentId: sessionId });
     expect(Array.isArray(commands) || Array.isArray(commands.commands)).toBe(true);

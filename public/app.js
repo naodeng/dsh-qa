@@ -715,7 +715,7 @@ import { createClientRequest, openFollowSnapshot } from './dsh-rpc-contract.js';
       models = await dshRpc('session/modelCatalog', {});
     }
     const [skillResult, commandResult] = await Promise.all([
-      dshRpc('skills/list', { agentId: sessionId }),
+      dshRpc('skills/list', { request: { sessionId } }),
       dshRpc('commands/list', { agentId: sessionId }),
     ]);
     if (state.activeProjectId !== projectId) return sessionId;

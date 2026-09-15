@@ -59,3 +59,8 @@ test('DSH follow opens the Harness Remote stream WebSocket', () => {
   assert.match(app, /new WebSocket\(`\$\{scheme\}\/\/\$\{location\.host\}\/api\/remote\.mux`\)/);
   assert.equal(app.includes('`${scheme}//${location.host}/api`'), false, 'follow still uses the retired WebSocket path');
 });
+
+test('DSH skill catalog uses the Harness session request envelope', () => {
+  assert.match(app, /dshRpc\('skills\/list', \{ request: \{ sessionId \} \}\)/);
+  assert.equal(app.includes("dshRpc('skills/list', { agentId: sessionId })"), false, 'skills/list still uses the retired agentId envelope');
+});
