@@ -5,7 +5,7 @@ import { buildDeliveryReport } from '../../server/quality/report.js';
 
 test('builds a traceable report from the saved gate without recalculating it', () => {
   const gate = makeGate({ id: 'gate_report', verdict: 'BLOCK', checks: [{ key: 'critical-risk', evidenceRefs: ['evidence_report'] }] });
-  const project = makeProject({ gates: [gate], evidenceBundles: [makeEvidenceBundle({ id: 'evidence_report' })] });
+  const project = makeProject({ gates: [gate], evidenceBundles: [makeEvidenceBundle({ id: 'evidence_report', state: 'ready', integrity: 'verified' })] });
   const report = buildDeliveryReport(project, gate.id);
   assert.equal(report.verdict, 'BLOCK');
   assert.deepEqual(report.evidenceRefs, ['evidence_report']);
@@ -16,4 +16,13 @@ test('reports missing saved evidence references instead of hiding them', () => {
   const gate = makeGate({ id: 'gate_missing', verdict: 'WARN', checks: [{ key: 'coverage', evidenceRefs: ['missing_evidence'] }] });
   const report = buildDeliveryReport(makeProject({ gates: [gate] }), gate.id);
   assert.match(report.warnings[0], /引用不存在/);
+});
+
+test('reports saved evidence references that later fail integrity verification', () => {
+  const gate = makeGate({ id: 'gate_failed_evidence', verdict: 'PASS', checks: [{ key: 'verified-evidence', evidenceRefs: ['evidence_failed'] }] });
+  const project = makeProject({ gates: [gate], evidenceBundles: [makeEvidenceBundle({ id: 'evidence_failed', state: 'integrity-failed', integrity: 'failed' })] });
+
+  const report = buildDeliveryReport(project, gate.id);
+
+  assert.match(report.warnings[0], /完整性/);
 });

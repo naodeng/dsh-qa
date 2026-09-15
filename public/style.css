@@ -607,6 +607,9 @@ body.dsh-busy .model-reminder { color: var(--blue); background: var(--blue-soft)
 .li-title { font-size: 11.5px; font-weight: 600; }
 .li-sub { margin-top: 4px; color: var(--muted); font-size: 10.5px; white-space: pre-wrap; }
 .li-meta { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 7px; color: var(--faint); font-size: 9.5px; }
+.evidence-items { align-items: flex-start; }
+.evidence-item { display: inline-flex; flex-direction: column; gap: 5px; padding: 5px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.evidence-preview { display: block; width: min(240px, 100%); max-height: 160px; object-fit: contain; border-radius: 5px; background: #10151b; }
 .li-actions { margin-top: 8px; display: flex; gap: 6px; }
 .doc-view { margin-top: 9px; padding: 11px; border-radius: 7px; background: #f7f9fa; white-space: pre-wrap; font: 10.5px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace; }
 code { padding: 1px 4px; border-radius: 4px; background: #f2f4f6; font-size: 9px; }

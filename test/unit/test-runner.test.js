@@ -40,12 +40,16 @@ test('runs controlled node tests and recovers interrupted runs', async () => {
   project.testPlans.push(passPlan, failPlan);
   const passPreview = createRunPreview(project, passPlan.id, passProfile.id);
   assert.deepEqual(passPreview.effects, { declaredWrites: ['artifact-root'], networkIntent: 'none', filesystemEnforced: false, networkEnforced: false });
+  assert.match(passPreview.commit, /^[0-9a-f]{40}$/);
+  assert.deepEqual(passPreview.sourceDigests, []);
   const passed = await startRun(project, passPreview.previewToken);
   const failPreview = createRunPreview(project, failPlan.id, failProfile.id);
   assert.equal(failPreview.command.at(-1), failCase.target);
   const failed = await startRun(project, failPreview.previewToken);
   assert.equal(failed.command.at(-1), failCase.target);
   assert.equal(passed.status, 'passed');
+  assert.equal(passed.provenance.commit, passPreview.commit);
+  assert.deepEqual(passed.provenance.sourceDigests, []);
   assert.equal(failed.exitCode, 1);
   assert.equal(failed.status, 'failed');
   assert.equal(fs.existsSync(path.join(passed.artifactDir, 'process.log')), true);

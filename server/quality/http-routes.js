@@ -6,17 +6,49 @@ import { captureSources } from './source.js';
 import { createExecutionProfile, createExecutionProfileVersion, disableExecutionProfile } from './execution-profile.js';
 import { cancelRun, createRunPreview, startRun } from './test-runner.js';
 import { createTestPlanVersion, getTestPlan, reviewTestPlan } from './test-plan.js';
-import { finalizeEvidence, resolveEvidence, verifyEvidence } from './evidence.js';
+import { ensureEvidenceIntegrity, finalizeEvidence, getEvidenceItemMetadata, resolveEvidence, verifyEvidence } from './evidence.js';
 import { compareRuns } from './run-comparison.js';
 import { saveFailureAnalysis, promoteConfirmedDefect } from './failure-analysis.js';
-import { createRegressionSet, excludeRegressionCase } from './regression.js';
+import { calculateRegressionSet, createRegressionSet, excludeRegressionCase, recalculateRegressionSet } from './regression.js';
 import { enqueueArtifactCleanup, runArtifactCleanup } from './evidence-retention.js';
 import { applyGateExceptions, evaluateGate, evaluateQualityGate } from './gate.js';
 import { buildDeliveryReport } from './report.js';
 import { buildGateTrend } from './gate-trend.js';
 
 export function publicEvidence(bundle) {
-  return { id: bundle.id, projectId: bundle.projectId, testRunId: bundle.testRunId, state: bundle.state, totalSize: bundle.totalSize, manifestSha256: bundle.manifestSha256, createdAt: bundle.createdAt, updatedAt: bundle.updatedAt, items: bundle.items.map(({ id, relativePath, size, sha256 }) => ({ id, relativePath, size, sha256 })) };
+  const provenance = bundle.provenance || {};
+  return {
+    id: bundle.id,
+    projectId: bundle.projectId,
+    testRunId: bundle.testRunId,
+    revision: bundle.revision || 1,
+    state: bundle.state,
+    integrity: bundle.integrity || 'unknown',
+    provenance: {
+      sourceDigests: [...(provenance.sourceDigests || [])].sort(),
+      commit: provenance.commit ?? bundle.commit ?? null,
+      testPlanVersion: provenance.testPlanVersion ?? null,
+      regressionSetVersion: provenance.regressionSetVersion ?? null,
+      profileId: provenance.profileId ?? null,
+      profileVersion: provenance.profileVersion ?? null,
+    },
+    commit: bundle.commit ?? provenance.commit ?? null,
+    verifiedAt: bundle.verifiedAt || null,
+    totalSize: bundle.totalSize,
+    manifestHash: bundle.manifestHash || bundle.manifestSha256,
+    manifestSha256: bundle.manifestSha256,
+    createdAt: bundle.createdAt,
+    updatedAt: bundle.updatedAt,
+    items: (bundle.items || []).map((item) => ({
+      id: item.id,
+      relativePath: item.relativePath,
+      type: item.type || getEvidenceItemMetadata(item.relativePath).type,
+      mimeType: item.mimeType || getEvidenceItemMetadata(item.relativePath).mimeType,
+      size: item.size,
+      sha256: item.sha256,
+      capturedAt: item.capturedAt || bundle.verifiedAt || bundle.createdAt || null,
+    })),
+  };
 }
 
 function revisionConflict(res, fail, message) {
@@ -28,7 +60,7 @@ function onlyFields(body, fields) {
 }
 
 function gateFacts(project, task) {
-  const runs = (project.testruns || []).filter((run) => run.provenance?.planId ? true : true);
+  const runs = project.testruns || [];
   const latestRun = runs.at(-1);
   const profile = latestRun?.provenance?.profileId && (project.executionProfiles || []).find((item) => item.id === latestRun.provenance.profileId);
   const plan = latestRun?.provenance?.planId && (project.testPlans || []).find((item) => item.id === latestRun.provenance.planId);
@@ -51,6 +83,11 @@ function gateFacts(project, task) {
 export async function handleQualityRoutes({ req, res, url, body, store, broadcast, emitProject, ok, created, accepted, fail }) {
   const parts = url.pathname.split('/').filter(Boolean);
   const m = (method) => req.method === method;
+  const refreshEvidence = async (project) => {
+    if (!await ensureEvidenceIntegrity(project)) return false;
+    store.touch(project); store.persist(); emitProject(project.id);
+    return true;
+  };
 
   if (parts[1] === 'projects' && parts[2] && parts[3] === 'quality-tasks' && !parts[4]) {
     const c = store.getProject(parts[2]);
@@ -227,28 +264,43 @@ export async function handleQualityRoutes({ req, res, url, body, store, broadcas
         return created(res, { evidence: publicEvidence(bundle) });
       }
       return ok(res, { evidence: publicEvidence(bundle) });
-    } catch (error) { return fail(res, 400, error.message); }
+    } catch (error) { return fail(res, /完整性/.test(error.message) ? 409 : 400, error.message); }
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'test-runs' && parts[4] && parts[5] === 'evidence' && !parts[6] && m('GET')) {
+    const c = store.getProject(parts[2]);
+    const run = c?.testruns?.find((item) => item.id === parts[4]);
+    if (!c || !run) return fail(res, 404, '测试运行不存在');
+    await refreshEvidence(c);
+    return ok(res, { evidence: (c.evidenceBundles || []).filter((bundle) => bundle.testRunId === run.id).map(publicEvidence) });
   }
 
   if (parts[1] === 'projects' && parts[2] && parts[3] === 'evidence' && !parts[4] && m('GET')) {
     const c = store.getProject(parts[2]);
     if (!c) return fail(res, 404, '项目不存在');
-    if (!onlyFields(body, ['otherRunId'])) return fail(res, 400, '包含不允许的字段');
+    await refreshEvidence(c);
     return ok(res, { evidence: (c.evidenceBundles || []).map(publicEvidence) });
   }
 
   if (parts[1] === 'projects' && parts[2] && parts[3] === 'evidence' && parts[4] && parts[5] === 'items' && parts[7] === 'download' && m('GET')) {
     const c = store.getProject(parts[2]);
-    const bundle = c && resolveEvidence(c, parts[4]);
+    if (!c) return fail(res, 404, '项目不存在');
+    await refreshEvidence(c);
+    const rawBundle = c.evidenceBundles?.find((item) => item.id === parts[4]);
+    if (rawBundle?.state === 'integrity-failed' || rawBundle?.integrity === 'failed') return fail(res, 409, '证据完整性校验失败');
+    const bundle = resolveEvidence(c, parts[4]);
     if (!bundle) return fail(res, 404, '证据包不存在');
     const itemId = parts[6];
     const item = bundle.items.find((entry) => entry.id === itemId);
     const resolvedPath = item?.relativePath || '';
     if (!item || path.isAbsolute(resolvedPath) || resolvedPath.split(/[\\/]/).includes('..')) return fail(res, 400, '证据文件路径无效');
-    if (!(await verifyEvidence(bundle)).ok) return fail(res, 409, '证据完整性校验失败');
+    const integrity = await verifyEvidence(bundle);
+    if (!integrity.ok) return fail(res, 409, '证据完整性校验失败');
     const file = path.join(bundle.root, resolvedPath);
     if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return fail(res, 404, '证据文件不存在');
-    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': String(item.size), 'Content-Disposition': `attachment; filename="${path.basename(resolvedPath).replace(/[^a-zA-Z0-9._-]/g, '_')}"` });
+    const mimeType = item.mimeType || getEvidenceItemMetadata(resolvedPath).mimeType;
+    const previewable = ['text/plain', 'image/png', 'image/jpeg'].includes(mimeType.split(';')[0]);
+    res.writeHead(200, { 'Content-Type': mimeType, 'Content-Length': String(item.size), 'Content-Disposition': `${previewable ? 'inline' : 'attachment'}; filename="${path.basename(resolvedPath).replace(/[^a-zA-Z0-9._-]/g, '_')}"` });
     fs.createReadStream(file).pipe(res);
     return true;
   }
@@ -258,8 +310,8 @@ export async function handleQualityRoutes({ req, res, url, body, store, broadcas
   if (parts[1] === 'projects' && parts[2] && parts[3] === 'test-runs' && parts[4] && parts[5] === 'compare' && m('POST')) {
     const c = store.getProject(parts[2]);
     if (!c) return fail(res, 404, '项目不存在');
-    if (!onlyFields(body, ['category', 'summary', 'rootCause'])) return fail(res, 400, '包含不允许的字段');
-    try { return ok(res, { comparison: compareRuns(c, parts[4], body.otherRunId) }); }
+    if (!onlyFields(body, ['otherRunId'])) return fail(res, 400, '包含不允许的字段');
+    try { return ok(res, { comparison: compareRuns(c, body.otherRunId, parts[4]) }); }
     catch (error) { return fail(res, 400, error.message); }
   }
 
@@ -270,9 +322,10 @@ export async function handleQualityRoutes({ req, res, url, body, store, broadcas
     catch (error) { return fail(res, 400, error.message); }
   }
 
-  if (parts[1] === 'projects' && parts[2] && parts[3] === 'test-runs' && parts[4] && parts[5] === 'failure-analysis' && m('POST')) {
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'test-runs' && parts[4] && ['failure-analysis', 'failure-analyses'].includes(parts[5]) && m('POST')) {
     const c = store.getProject(parts[2]);
     if (!c) return fail(res, 404, '项目不存在');
+    if (!onlyFields(body, ['category', 'summary', 'rootCause', 'suspectedCause', 'confidence', 'decision', 'failureStep', 'errorSummary', 'historicalDefectIds'])) return fail(res, 400, '包含不允许的字段');
     try { const analysis = saveFailureAnalysis(c, parts[4], body); store.touch(c); store.persist(); return created(res, { analysis }); }
     catch (error) { return fail(res, 400, error.message); }
   }
@@ -299,6 +352,32 @@ export async function handleQualityRoutes({ req, res, url, body, store, broadcas
     }
   }
 
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'quality-tasks' && parts[4] && parts[5] === 'regression-sets' && !parts[6] && m('POST')) {
+    const c = store.getProject(parts[2]);
+    const task = c && getQualityTask(c, parts[4]);
+    if (!task) return fail(res, 404, '质量任务不存在');
+    if (!onlyFields(body, ['name', 'inputDigest'])) return fail(res, 400, '包含不允许的字段');
+    try {
+      const calculated = calculateRegressionSet(c, task.id, String(body.inputDigest || ''));
+      const existing = (c.regressionSets || []).find((item) => item.id === calculated.id);
+      if (existing) return ok(res, { regressionSet: existing });
+      calculated.name = String(body.name || `质量任务 ${task.title} 回归`);
+      calculated.createdAt = store.now(); calculated.updatedAt = calculated.createdAt;
+      c.regressionSets ||= []; c.regressionSets.push(calculated); store.touch(c); store.persist(); emitProject(c.id);
+      return created(res, { regressionSet: calculated });
+    } catch (error) { return fail(res, 400, error.message); }
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'regression-sets' && parts[4] && parts[5] === 'recalculate' && m('POST')) {
+    const c = store.getProject(parts[2]);
+    const set = c?.regressionSets?.find((item) => item.id === parts[4]);
+    if (!set) return fail(res, 404, '回归集不存在');
+    if (!onlyFields(body, ['expectedRevision', 'inputDigest'])) return fail(res, 400, '包含不允许的字段');
+    if (body.expectedRevision !== set.version) return revisionConflict(res, fail, '回归集版本已变化，请重新加载');
+    try { const updated = recalculateRegressionSet(c, set.id, String(body.inputDigest || '')); store.touch(c); store.persist(); emitProject(c.id); return ok(res, { regressionSet: updated }); }
+    catch (error) { return fail(res, 400, error.message); }
+  }
+
   if (parts[1] === 'projects' && parts[2] && parts[3] === 'regression-sets' && parts[4] && parts[5] === 'exclude' && m('POST')) {
     const c = store.getProject(parts[2]);
     const set = c?.regressionSets?.find((item) => item.id === parts[4]);
@@ -313,6 +392,7 @@ export async function handleQualityRoutes({ req, res, url, body, store, broadcas
     const c = store.getProject(parts[2]);
     if (!c) return fail(res, 404, '项目不存在');
     if (!onlyFields(body, ['before'])) return fail(res, 400, '包含不允许的字段');
+    await refreshEvidence(c);
     return ok(res, { gate: evaluateQualityGate(c) });
   }
 
@@ -321,6 +401,7 @@ export async function handleQualityRoutes({ req, res, url, body, store, broadcas
     const task = c && getQualityTask(c, parts[4]);
     if (!task) return fail(res, 404, '质量任务不存在');
     if (!onlyFields(body, [])) return fail(res, 400, '包含不允许的字段');
+    await refreshEvidence(c);
     const result = evaluateGate(gateFacts(c, task), { version: 'gate-rules-v1', requireVerifiedEvidence: true, blockCriticalOpenRisk: true });
     const gate = { id: store.uid('gate'), kind: 'computed', revision: 1, qualityTaskId: task.id, ...result, exceptions: [], calculatedAt: store.now() };
     c.gates.push(gate); store.touch(c); store.persist();
@@ -353,6 +434,7 @@ export async function handleQualityRoutes({ req, res, url, body, store, broadcas
   if (parts[1] === 'projects' && parts[2] && parts[3] === 'quality-tasks' && parts[4] && parts[5] === 'reports' && m('GET')) {
     const c = store.getProject(parts[2]);
     if (!c || !getQualityTask(c, parts[4])) return fail(res, 404, '质量任务不存在');
+    await refreshEvidence(c);
     const gate = (c.gates || []).filter((item) => item.kind === 'computed' && item.qualityTaskId === parts[4]).at(-1);
     if (!gate) return fail(res, 404, '尚未生成质量门禁');
     try { return ok(res, { report: buildDeliveryReport(c, gate.id) }); } catch (error) { return fail(res, 400, error.message); }
@@ -376,7 +458,7 @@ export async function handleQualityRoutes({ req, res, url, body, store, broadcas
     const c = store.getProject(parts[2]);
     if (!c) return fail(res, 404, '项目不存在');
     try { const job = await runArtifactCleanup(c, parts[4]); store.touch(c); store.persist(); return ok(res, { job }); }
-    catch (error) { return fail(res, 400, error.message); }
+    catch (error) { store.touch(c); store.persist(); return fail(res, 400, error.message); }
   }
 
   return false;

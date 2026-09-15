@@ -22,11 +22,12 @@
 
 ### 0.4.0：证据与质量判断
 
-- 已实现终态运行的 staging → finalizing → final 原子 finalize、manifest、逐文件 SHA-256、篡改检测、并发幂等、恢复和 ID 安全下载。
+- 已实现终态运行的 staging → finalizing → final 原子 finalize、规范 manifest hash、逐文件 SHA-256、篡改检测、并发幂等、恢复和 ID 安全下载。
+- 已实现 EvidenceItem 的截图/trace/日志/附件类型、MIME、捕获时间和 text/image 预览；路径越界、符号链接和完整性失败不会进入门禁或被重新恢复为 ready。
 - 已实现单文件、单 bundle、项目累计配额；失败 finalize 会把 staging 恢复到可重试状态。
 - 已实现顶层项目删除清理任务、30 天保留策略、引用保护、失败重试、启动立即恢复、批量限制、孤立 staging 清理和停机钩子。
 - 已实现失败分析、人工确认后升级既有缺陷、重复提升冲突保护、确定性回归集、带操作者与理由的排除审计。
-- 已实现同一测试计划终态运行对比，输出 fixed/new-failure 并保留前后证据引用。
+- 已实现同一测试计划终态运行对比，输出 fixed/new-failure/unchanged 并保留前后证据引用。
 - 已实现质量门禁计算和阶段推进阻断，以及质量证据、故障分析、回归集、修复前后对比的双语页面。
 - 已实现 `quality.evidence.updated` SSE；浏览器按实体 revision 忽略重复或乱序事件，并刷新已打开的项目详情。
 
@@ -42,12 +43,14 @@
 |---|---|
 | 证据 finalize | `POST /api/projects/:projectId/test-runs/:runId/evidence/finalize`（首次要求 `expectedRunRevision`） |
 | 证据列表 | `GET /api/projects/:projectId/evidence` |
+| 单次运行证据 | `GET /api/projects/:projectId/test-runs/:runId/evidence` |
 | 证据下载 | `GET /api/projects/:projectId/evidence/:evidenceId/items/:itemId/download` |
 | 运行对比 | `POST /api/projects/:projectId/test-runs/:runId/compare` |
 | 运行对比（ID 路径） | `GET /api/projects/:projectId/test-runs/:beforeRunId/compare/:afterRunId` |
-| 失败分析 | `POST /api/projects/:projectId/test-runs/:runId/failure-analysis` |
+| 失败分析 | `POST /api/projects/:projectId/test-runs/:runId/failure-analyses`（兼容 singular 路径） |
 | 缺陷升级 | `POST /api/projects/:projectId/failure-analyses/:analysisId/promote-defect` |
 | 回归集 | `GET/POST /api/projects/:projectId/regression-sets` |
+| 计算回归集 | `POST /api/projects/:projectId/quality-tasks/:taskId/regression-sets`；重新计算使用 `/regression-sets/:id/recalculate` |
 | 质量门禁 | `GET /api/projects/:projectId/quality-gate` |
 | 清理任务 | `POST /api/projects/:projectId/artifact-cleanup` |
 

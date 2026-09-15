@@ -26,10 +26,22 @@ test('quality gate passes only when terminal runs and evidence are clean', () =>
   const project = makeProject();
   const run = makeTestRun({ projectId: project.id, status: 'passed' });
   project.testruns.push(run);
-  project.evidenceBundles.push({ id: 'ev-1', testRunId: run.id, state: 'ready' });
+  project.evidenceBundles.push({ id: 'ev-1', testRunId: run.id, state: 'ready', integrity: 'verified' });
   const result = evaluateQualityGate(project);
   assert.equal(result.status, 'passed');
   assert.deepEqual(result.blockers, []);
+});
+
+test('quality gate blocks ready evidence whose integrity is not verified', () => {
+  const project = makeProject();
+  const run = makeTestRun({ projectId: project.id, status: 'passed' });
+  project.testruns.push(run);
+  project.evidenceBundles.push({ id: 'ev-1', testRunId: run.id, state: 'ready', integrity: 'failed' });
+
+  const result = evaluateQualityGate(project);
+
+  assert.equal(result.status, 'blocked');
+  assert.deepEqual(result.blockers, ['存在未就绪证据包']);
 });
 
 test('evaluates deterministic computed gates from provenance, evidence, risk, and run facts', () => {
@@ -53,6 +65,10 @@ test('evaluates deterministic computed gates from provenance, evidence, risk, an
   const missingEvidence = evaluateGate({ latestRun: run, evidence: [], provenance, risks: [] }, rules);
   assert.equal(missingEvidence.verdict, 'BLOCK');
   assert.equal(missingEvidence.checks.find((check) => check.key === 'verified-evidence').waivable, false);
+
+  const failedIntegrity = evaluateGate({ latestRun: run, evidence: [{ ...evidence, integrity: 'failed' }], provenance, risks: [] }, rules);
+  assert.equal(failedIntegrity.verdict, 'BLOCK');
+  assert.equal(failedIntegrity.checks.find((check) => check.key === 'verified-evidence').status, 'failed');
 });
 
 test('gate exceptions only waive eligible warnings and never change the verdict to pass', () => {

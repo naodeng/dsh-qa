@@ -1050,11 +1050,16 @@
     const q = (zh, en) => currentLang() === 'en' ? en : zh;
     const tasks = p.qualityTasks || [];
     const evidence = p.evidenceBundles || [];
-    const evidenceDownload = evidence.filter((bundle) => bundle.state === 'ready').flatMap((bundle) => (bundle.items || []).map((item) => `<a class="btn sm" href="api/projects/${encodeURIComponent(p.id)}/evidence/${encodeURIComponent(bundle.id)}/items/${encodeURIComponent(item.id)}/download" download>${q('下载', 'Download')} ${esc(item.relativePath)}</a>`)).join('');
+    const evidenceItems = evidence.filter((bundle) => bundle.state === 'ready' && bundle.integrity === 'verified').flatMap((bundle) => (bundle.items || []).map((item) => {
+      const href = `api/projects/${encodeURIComponent(p.id)}/evidence/${encodeURIComponent(bundle.id)}/items/${encodeURIComponent(item.id)}/download`;
+      const previewable = ['text/plain', 'image/png', 'image/jpeg'].includes((item.mimeType || '').split(';')[0]);
+      const preview = item.type === 'screenshot' ? `<img class="evidence-preview" src="${href}" alt="${q('失败步骤截图', 'Failure step screenshot')}" loading="lazy">` : '';
+      return `<div class="evidence-item" data-evidence-type="${esc(item.type || 'artifact')}">${preview}<a class="btn sm" href="${href}"${previewable ? '' : ' download'}>${q(previewable ? '打开' : '下载', previewable ? 'Open' : 'Download')} ${esc(item.relativePath)} · ${esc(item.mimeType || 'application/octet-stream')}</a></div>`;
+    })).join('');
     const analyses = p.failureAnalyses || [];
     const regressions = p.regressionSets || [];
     const evidenceState = (item) => ({ ready: q('已验证', 'Verified'), finalizing: q('处理中', 'Finalizing'), expired: q('已过期', 'Expired'), 'integrity-failed': q('完整性失败', 'Integrity failed') }[item.state] || item.state || q('未知', 'Unknown'));
-    body.innerHTML = `<section class="detail-card" id="quality-gate-summary"><div class="detail-card-head"><div><span>QUALITY GATE</span><h3>${q('质量门禁', 'Quality gate')}</h3></div><span class="badge">${q('计算中', 'Checking')}</span></div><div class="li-sub">${q('正在检查测试运行、证据包和高风险项。', 'Checking test runs, evidence bundles, and high risks.')}</div></section><section class="detail-card quality-assets"><div class="detail-card-head"><div><span>QUALITY EVIDENCE</span><h3>${q('质量证据', 'Quality evidence')}</h3></div></div><div class="radar-grid"><div class="radar-stat"><b>${evidence.filter((item) => item.state === 'ready').length}</b><span>${q('就绪证据包', 'Ready bundles')}</span></div><div class="radar-stat"><b>${analyses.length}</b><span>${q('故障分析', 'Failure analyses')}</span></div><div class="radar-stat"><b>${regressions.length}</b><span>${q('回归集', 'Regression sets')}</span></div><div class="radar-stat"><b>${(p.testruns || []).length}</b><span>${q('测试运行', 'Test runs')}</span></div></div><div class="list quality-asset-list"><div class="list-item"><div class="li-title">${q('证据包', 'Evidence bundles')}</div><div class="li-sub">${evidence.map((item) => `${esc(item.id)} · ${esc(evidenceState(item))}`).join('、') || q('暂无证据包', 'No evidence bundles')}</div>${evidenceDownload ? `<div class="li-meta">${evidenceDownload}</div>` : ''}</div><div class="list-item"><div class="li-title">${q('故障分析', 'Failure analyses')}</div><div class="li-sub">${analyses.map((item) => `${esc(item.summary || item.id)} · ${esc(item.status || 'proposed')}`).join('、') || q('暂无故障分析', 'No failure analyses')}</div></div><div class="list-item"><div class="li-title">${q('回归集', 'Regression sets')}</div><div class="li-sub">${regressions.map((item) => `${esc(item.name || item.id)} · ${item.testCaseIds?.length || 0} ${q('个用例', 'cases')}`).join('、') || q('暂无回归集', 'No regression sets')}</div></div><div class="list-item"><div class="li-title">${q('修复前后对比', 'Before/after comparison')}</div><div class="li-sub">${q('选择同一测试计划的两个终态运行进行对比。', 'Compare two terminal runs from the same test plan.')}</div></div></div></section><div class="tab-toolbar"><div><b>${q('质量任务', 'Quality tasks')}</b><span>${q('记录验收标准、风险、测试范围和分析决策', 'Track acceptance criteria, risks, scope, and analysis decisions')}</span></div><button class="btn primary sm" id="qt-add" type="button">＋ ${q('新建质量任务', 'New quality task')}</button></div><div class="list">${tasks.map((task) => `<article class="list-item quality-task-card"><div class="li-title">${esc(task.title)} <span class="badge">v${task.version || 1}</span></div><div class="li-meta">${q('阶段', 'Stage')}：${esc(task.stage || 'intake')} · ${q('结果来源', 'Origin')}：${task.analysisOrigin === 'agent' ? 'DSH 分析' : q('人工录入', 'Manual')}</div><h4>${q('验收标准', 'Acceptance criteria')}</h4><div class="li-sub">${task.acceptanceCriteria?.map((item) => esc(item.condition || item)).join('、') || q('暂无验收标准', 'No acceptance criteria')}</div></article>`).join('') || emptyHtml(q('暂无质量任务', 'No quality tasks'))}</div><section class="detail-card execution-card"><div class="detail-card-head"><div><span>LOCAL EXECUTION</span><h3>${q('执行配置', 'Execution profiles')}</h3></div><button class="btn primary sm" id="ep-add" type="button">＋ ${q('新建执行配置', 'New execution profile')}</button></div><div class="list">${(p.executionProfiles || []).map((profile) => `<div class="list-item"><div class="li-title">${esc(profile.name)} · v${profile.currentVersion || profile.version || 1}</div></div>`).join('') || emptyHtml(q('暂无执行配置', 'No execution profiles'))}</div></section>`;
+    body.innerHTML = `<section class="detail-card" id="quality-gate-summary"><div class="detail-card-head"><div><span>QUALITY GATE</span><h3>${q('质量门禁', 'Quality gate')}</h3></div><span class="badge">${q('计算中', 'Checking')}</span></div><div class="li-sub">${q('正在检查测试运行、证据包和高风险项。', 'Checking test runs, evidence bundles, and high risks.')}</div></section><section class="detail-card quality-assets"><div class="detail-card-head"><div><span>QUALITY EVIDENCE</span><h3>${q('质量证据', 'Quality evidence')}</h3></div></div><div class="radar-grid"><div class="radar-stat"><b>${evidence.filter((item) => item.state === 'ready' && item.integrity === 'verified').length}</b><span>${q('就绪证据包', 'Ready bundles')}</span></div><div class="radar-stat"><b>${analyses.length}</b><span>${q('故障分析', 'Failure analyses')}</span></div><div class="radar-stat"><b>${regressions.length}</b><span>${q('回归集', 'Regression sets')}</span></div><div class="radar-stat"><b>${(p.testruns || []).length}</b><span>${q('测试运行', 'Test runs')}</span></div></div><div class="list quality-asset-list"><div class="list-item"><div class="li-title">${q('证据包', 'Evidence bundles')}</div><div class="li-sub">${evidence.map((item) => `${esc(item.id)} · ${esc(evidenceState(item))}`).join('、') || q('暂无证据包', 'No evidence bundles')}</div>${evidenceItems ? `<div class="li-meta evidence-items">${evidenceItems}</div>` : ''}</div><div class="list-item"><div class="li-title">${q('故障分析', 'Failure analyses')}</div><div class="li-sub">${analyses.map((item) => `${esc(item.summary || item.id)} · ${esc(item.status || 'proposed')}${item.failureStep ? ` · ${esc(item.failureStep)}` : ''}${item.confidence === null || item.confidence === undefined ? '' : ` · ${Math.round(Number(item.confidence) * 100)}%`}`).join('、') || q('暂无故障分析', 'No failure analyses')}</div></div><div class="list-item"><div class="li-title">${q('回归集', 'Regression sets')}</div><div class="li-sub">${regressions.map((item) => { const total = item.cases?.length || item.testCaseIds?.length || 0; const included = item.cases ? item.cases.filter((entry) => entry.included !== false).length : total; return `${esc(item.name || item.id)} · ${esc(item.status || 'manual')} · ${included}/${total} ${q('个用例', 'cases')}`; }).join('、') || q('暂无回归集', 'No regression sets')}</div></div><div class="list-item"><div class="li-title">${q('修复前后对比', 'Before/after comparison')}</div><div class="li-sub">${q('选择同一测试计划的两个终态运行进行对比。', 'Compare two terminal runs from the same test plan.')}</div></div></div></section><div class="tab-toolbar"><div><b>${q('质量任务', 'Quality tasks')}</b><span>${q('记录验收标准、风险、测试范围和分析决策', 'Track acceptance criteria, risks, scope, and analysis decisions')}</span></div><button class="btn primary sm" id="qt-add" type="button">＋ ${q('新建质量任务', 'New quality task')}</button></div><div class="list">${tasks.map((task) => `<article class="list-item quality-task-card"><div class="li-title">${esc(task.title)} <span class="badge">v${task.version || 1}</span></div><div class="li-meta">${q('阶段', 'Stage')}：${esc(task.stage || 'intake')} · ${q('结果来源', 'Origin')}：${task.analysisOrigin === 'agent' ? 'DSH 分析' : q('人工录入', 'Manual')}</div><h4>${q('验收标准', 'Acceptance criteria')}</h4><div class="li-sub">${task.acceptanceCriteria?.map((item) => esc(item.condition || item)).join('、') || q('暂无验收标准', 'No acceptance criteria')}</div></article>`).join('') || emptyHtml(q('暂无质量任务', 'No quality tasks'))}</div><section class="detail-card execution-card"><div class="detail-card-head"><div><span>LOCAL EXECUTION</span><h3>${q('执行配置', 'Execution profiles')}</h3></div><button class="btn primary sm" id="ep-add" type="button">＋ ${q('新建执行配置', 'New execution profile')}</button></div><div class="list">${(p.executionProfiles || []).map((profile) => `<div class="list-item"><div class="li-title">${esc(profile.name)} · v${profile.currentVersion || profile.version || 1}</div></div>`).join('') || emptyHtml(q('暂无执行配置', 'No execution profiles'))}</div></section>`;
     const gateCard = $('#quality-gate-summary', body);
     if (gateCard) {
       const actions = document.createElement('div');
@@ -1091,12 +1096,19 @@
     const assetHead = $('.quality-assets .detail-card-head', body);
     if (assetHead) {
       const actions = document.createElement('div');
-      actions.innerHTML = '<button class="btn sm" id="reg-add" type="button">＋ 新建回归集</button><button class="btn sm" id="analysis-add" type="button">＋ 新建故障分析</button><button class="btn sm" id="cleanup-add" type="button">清理过期证据</button>';
+      actions.innerHTML = `<button class="btn sm" id="reg-add" type="button">＋ ${q('新建回归集', 'New regression set')}</button><button class="btn sm" id="reg-calc" type="button">${q('计算回归集', 'Calculate regression set')}</button><button class="btn sm" id="analysis-add" type="button">＋ ${q('新建故障分析', 'New failure analysis')}</button><button class="btn sm" id="cleanup-add" type="button">${q('清理过期证据', 'Clean expired evidence')}</button>`;
       assetHead.append(actions);
       $('#reg-add', actions).addEventListener('click', async () => {
         const name = prompt('回归集名称');
         if (!name?.trim()) return;
         try { await api(`api/projects/${p.id}/regression-sets`, { method: 'POST', body: { name: name.trim(), testCaseIds: p.testcases.map((item) => item.id) } }); toast('回归集已创建', 'ok'); await refreshAfterMutation(p.id); } catch (error) { toast(error.message, 'err'); }
+      });
+      $('#reg-calc', actions).addEventListener('click', async () => {
+        const task = tasks[0];
+        if (!task) return toast(q('请先创建质量任务', 'Create a quality task first'), 'err');
+        const inputDigest = prompt(q('变更摘要（可选）', 'Change digest (optional)')) || '';
+        const name = prompt(q('回归集名称（可选）', 'Regression set name (optional)')) || '';
+        try { await api(`api/projects/${p.id}/quality-tasks/${task.id}/regression-sets`, { method: 'POST', body: { name: name.trim(), inputDigest: inputDigest.trim() } }); toast(q('计算回归集已保存', 'Calculated regression set saved'), 'ok'); await refreshAfterMutation(p.id); } catch (error) { toast(error.message, 'err'); }
       });
       $('#cleanup-add', actions).addEventListener('click', async () => {
         if (!confirm('确认创建过期证据清理任务？默认保留最近 30 天。')) return;
@@ -1114,7 +1126,7 @@
     const analysisList = $('.quality-asset-list .list-item:nth-child(2)', body);
     analyses.filter((item) => item.status === 'proposed').forEach((analysis) => {
       const button = document.createElement('button');
-      button.className = 'btn sm'; button.type = 'button'; button.textContent = '升级为缺陷';
+      button.className = 'btn sm'; button.type = 'button'; button.textContent = q('确认并创建缺陷', 'Confirm and create defect');
       button.addEventListener('click', async () => {
         const actor = prompt('确认人');
         if (!actor?.trim() || !confirm('确认将该故障分析升级为缺陷？')) return;
@@ -1124,7 +1136,7 @@
     });
     const regressionList = $('.quality-asset-list .list-item:nth-child(3)', body);
     regressions.forEach((set) => {
-      const available = (set.testCaseIds || []).find((id) => !(set.exclusions || []).some((item) => item.testCaseId === id));
+      const available = (set.cases || set.testCaseIds?.map((testCaseId) => ({ testCaseId, included: true })) || []).find((item) => item.included !== false)?.testCaseId;
       if (!available) return;
       const button = document.createElement('button');
       button.className = 'btn sm'; button.type = 'button'; button.textContent = q('排除回归项', 'Exclude regression case');
@@ -1136,6 +1148,15 @@
         try { await api(`api/projects/${p.id}/regression-sets/${set.id}/exclude`, { method: 'POST', body: { expectedRevision: set.version, testCaseId: available, actor: actor.trim(), reason: reason.trim() } }); toast(q('回归项已排除', 'Regression case excluded'), 'ok'); await refreshAfterMutation(p.id); } catch (error) { toast(error.message, 'err'); }
       });
       regressionList?.append(button);
+      if (set.status === 'calculated') {
+        const recalculate = document.createElement('button');
+        recalculate.className = 'btn sm'; recalculate.type = 'button'; recalculate.textContent = q('重新计算', 'Recalculate');
+        recalculate.addEventListener('click', async () => {
+          const inputDigest = prompt(q('新的变更摘要（可选）', 'New change digest (optional)'), set.inputDigest || '') || '';
+          try { await api(`api/projects/${p.id}/regression-sets/${set.id}/recalculate`, { method: 'POST', body: { expectedRevision: set.version, inputDigest: inputDigest.trim() } }); toast(q('回归集已重新计算', 'Regression set recalculated'), 'ok'); await refreshAfterMutation(p.id); } catch (error) { toast(error.message, 'err'); }
+        });
+        regressionList?.append(recalculate);
+      }
     });
     const runList = $('.quality-asset-list .list-item:nth-child(1)', body);
     const runs = p.testruns || [];

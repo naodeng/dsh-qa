@@ -9,6 +9,7 @@ import { sseHandler, broadcast } from './sse.js';
 import { getBoard, projectCard, computeStats, KANBAN_COLUMNS } from './board.js';
 import { evaluateQualityGate } from './quality/gate.js';
 import { handleQualityRoutes, publicEvidence } from './quality/http-routes.js';
+import { ensureEvidenceIntegrity } from './quality/evidence.js';
 
 const PUBLIC = path.join(ROOT, 'public');
 const SKILLS_ROOT = path.join(process.env.QA_SKILLS_ROOT || path.join(os.homedir(), 'awsomeCode', 'awesome-qa-skills'), 'skills');
@@ -227,7 +228,10 @@ async function api(req, res, url, body) {
   if (parts[1] === 'projects' && parts[2] && !parts[3]) {
     const c = store.getProject(parts[2]);
     if (!c) return fail(res, 404, '项目不存在');
-    if (m('GET')) { ok(res, { project: publicProject(c) }); return true; }
+    if (m('GET')) {
+      if (await ensureEvidenceIntegrity(c)) { store.touch(c); store.persist(); }
+      ok(res, { project: publicProject(c) }); return true;
+    }
     if (m('DELETE')) {
       store.deleteProject(c.id);
       broadcast('project.deleted', { projectId: c.id });
@@ -249,6 +253,7 @@ async function api(req, res, url, body) {
     if (!c) return fail(res, 404, '项目不存在');
     if (!KANBAN_COLUMNS.some((k) => k.id === body.to)) return fail(res, 400, '无效目标列');
     if (body.to === 'closed') {
+      if (await ensureEvidenceIntegrity(c)) store.persist();
       const gate = evaluateQualityGate(c);
       if (gate.status === 'blocked') return fail(res, 409, `质量门禁阻断：${gate.blockers.join('、')}`);
     }

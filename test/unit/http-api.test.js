@@ -131,8 +131,12 @@ test('computed gate API persists evaluations, protects revisions, and projects r
   const projectId = created.project.id;
   const task = (await (await fetch(`${base}/api/projects/${projectId}/quality-tasks`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '门禁任务' }) })).json()).task;
   const project = store.getProject(projectId);
-  project.testruns.push({ id: 'run_gate_api', projectId, status: 'passed', resultTrust: 'controlled-local', provenance: {} });
-  project.evidenceBundles.push({ id: 'evidence_gate_api', testRunId: 'run_gate_api', state: 'ready', integrity: 'verified', provenance: {} });
+  const staging = path.join(dataDir, 'artifacts', projectId, 'run_gate_api.staging');
+  fs.mkdirSync(staging, { recursive: true });
+  fs.writeFileSync(path.join(staging, 'process.log'), 'passed');
+  project.testruns.push({ id: 'run_gate_api', projectId, revision: 1, status: 'passed', resultTrust: 'controlled-local', provenance: {}, artifactDir: staging });
+  const evidenceResponse = await fetch(`${base}/api/projects/${projectId}/test-runs/run_gate_api/evidence/finalize`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRunRevision: 1 }) });
+  assert.equal(evidenceResponse.status, 201);
   const evaluated = await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/gates/evaluate`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
   assert.equal(evaluated.status, 201);
   const gate = (await evaluated.json()).gate;
@@ -144,6 +148,28 @@ test('computed gate API persists evaluations, protects revisions, and projects r
   assert.equal(rejected.status, 409);
   assert.equal((await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/reports`)).status, 200);
   assert.equal((await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/gate-trends`)).status, 200);
+});
+
+test('computed gate blocks a tampered evidence bundle and records its failed integrity state', async () => {
+  const created = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '篡改证据门禁项目', createWorkspace: false }) })).json();
+  const projectId = created.project.id;
+  const task = (await (await fetch(`${base}/api/projects/${projectId}/quality-tasks`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '篡改证据任务' }) })).json()).task;
+  const project = store.getProject(projectId);
+  const staging = path.join(dataDir, 'artifacts', projectId, 'run_tampered.staging');
+  fs.mkdirSync(staging, { recursive: true });
+  fs.writeFileSync(path.join(staging, 'process.log'), 'passed');
+  project.testruns.push({ id: 'run_tampered', projectId, revision: 1, status: 'passed', resultTrust: 'controlled-local', provenance: {}, artifactDir: staging });
+  const finalized = await fetch(`${base}/api/projects/${projectId}/test-runs/run_tampered/evidence/finalize`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRunRevision: 1 }) });
+  assert.equal(finalized.status, 201);
+  const evidence = (await finalized.json()).evidence;
+  fs.appendFileSync(path.join(dataDir, 'artifacts', projectId, 'evidence', evidence.id, 'process.log'), 'changed');
+
+  const evaluated = await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/gates/evaluate`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+  assert.equal(evaluated.status, 201);
+  assert.equal((await evaluated.json()).gate.verdict, 'BLOCK');
+  const listed = await (await fetch(`${base}/api/projects/${projectId}/evidence`)).json();
+  assert.equal(listed.evidence[0].state, 'integrity-failed');
+  assert.equal(listed.evidence[0].integrity, 'failed');
 });
 
 test('quality task API rejects six 1 MiB sources above the project capture limit', async () => {
@@ -367,6 +393,24 @@ test('quality APIs expose gate state and regression assets', async () => {
   assert.equal((await gate.json()).gate.status, 'passed');
 });
 
+test('calculated regression APIs persist and recalculate explainable sets', async () => {
+  const project = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '计算回归 API 项目', createWorkspace: false }) })).json();
+  const projectId = project.project.id;
+  const task = (await (await fetch(`${base}/api/projects/${projectId}/quality-tasks`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '计算回归任务' }) })).json()).task;
+  store.getProject(projectId).testcases.push({ id: 'tc_calculated', title: '计算回归用例', planIds: [] });
+
+  const calculated = await fetch(`${base}/api/projects/${projectId}/quality-tasks/${task.id}/regression-sets`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ inputDigest: 'sha256:api-change', name: '自动回归' }) });
+  assert.equal(calculated.status, 201);
+  const set = (await calculated.json()).regressionSet;
+  assert.equal(set.status, 'calculated');
+  assert.deepEqual(set.cases, [{ testCaseId: 'tc_calculated', included: true }]);
+  assert.deepEqual(set.reasonRefs, ['change:sha256:api-change']);
+
+  const recalculated = await fetch(`${base}/api/projects/${projectId}/regression-sets/${set.id}/recalculate`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 1, inputDigest: 'sha256:api-change-2' }) });
+  assert.equal(recalculated.status, 200);
+  assert.equal((await recalculated.json()).regressionSet.version, 2);
+});
+
 test('quality HTTP API keeps task, regression, and gate contracts available', async () => {
   const project = await (await fetch(`${base}/api/projects`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
@@ -394,9 +438,14 @@ test('failure analysis API requires confirmation before defect promotion', async
   const projectId = project.project.id;
   const current = store.getProject(projectId);
   current.testruns.push({ id: 'run_failure_api', projectId, status: 'failed', mode: 'local', resultTrust: 'controlled-local' });
-  const analysisResponse = await fetch(`${base}/api/projects/${projectId}/test-runs/run_failure_api/failure-analysis`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ summary: '提交失败', rootCause: '接口错误', category: 'product' }) });
+  const invalidAnalysis = await fetch(`${base}/api/projects/${projectId}/test-runs/run_failure_api/failure-analysis`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ summary: '提交失败', unexpected: '不应保存' }) });
+  assert.equal(invalidAnalysis.status, 400);
+  const analysisResponse = await fetch(`${base}/api/projects/${projectId}/test-runs/run_failure_api/failure-analysis`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ summary: '提交失败', rootCause: '接口错误', category: 'product', confidence: 0.9, decision: 'candidate', failureStep: '提交', errorSummary: 'HTTP 500', historicalDefectIds: ['def-old'] }) });
   assert.equal(analysisResponse.status, 201);
   const analysis = (await analysisResponse.json()).analysis;
+  assert.equal(analysis.confidence, 0.9);
+  assert.equal(analysis.decision, 'candidate');
+  assert.deepEqual(analysis.historicalDefectIds, ['def-old']);
   const rejected = await fetch(`${base}/api/projects/${projectId}/failure-analyses/${analysis.id}/promote-defect`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 1, confirmed: false }) });
   assert.equal(rejected.status, 400);
   const promoted = await fetch(`${base}/api/projects/${projectId}/failure-analyses/${analysis.id}/promote-defect`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 1, confirmed: true, actor: 'tester' }) });
@@ -404,6 +453,17 @@ test('failure analysis API requires confirmation before defect promotion', async
   assert.equal((await promoted.json()).defect.status, 'open');
   const duplicate = await fetch(`${base}/api/projects/${projectId}/failure-analyses/${analysis.id}/promote-defect`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: 2, confirmed: true, actor: 'tester' }) });
   assert.equal(duplicate.status, 409);
+});
+
+test('failure analysis API accepts the documented plural run route', async () => {
+  const project = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '复数故障分析 API 项目', createWorkspace: false }) })).json();
+  const projectId = project.project.id;
+  store.getProject(projectId).testruns.push({ id: 'run_failure_plural', projectId, status: 'failed', mode: 'local', resultTrust: 'controlled-local' });
+
+  const response = await fetch(`${base}/api/projects/${projectId}/test-runs/run_failure_plural/failure-analyses`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ summary: '复数路由故障' }) });
+
+  assert.equal(response.status, 201);
+  assert.equal((await response.json()).analysis.summary, '复数路由故障');
 });
 
 test('evidence API finalizes, lists, downloads, and rejects tampered files', async () => {
@@ -414,26 +474,65 @@ test('evidence API finalizes, lists, downloads, and rejects tampered files', asy
   fs.mkdirSync(staging, { recursive: true });
   fs.writeFileSync(path.join(staging, 'process.log'), 'passed');
   fs.writeFileSync(path.join(staging, 'trace.zip'), 'trace');
-  current.testruns.push({ id: 'run_evidence', projectId, revision: 1, status: 'passed', mode: 'local', resultTrust: 'controlled-local', artifactDir: staging });
+  current.testruns.push({
+    id: 'run_evidence',
+    projectId,
+    revision: 1,
+    status: 'passed',
+    mode: 'local',
+    resultTrust: 'controlled-local',
+    provenance: { sourceDigests: ['source-1'], commit: 'abc123', testPlanVersion: 2, regressionSetVersion: 1, profileId: 'profile-1', profileVersion: 1 },
+    artifactDir: staging,
+  });
   const missingRevision = await fetch(`${base}/api/projects/${projectId}/test-runs/run_evidence/evidence/finalize`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
   assert.equal(missingRevision.status, 409);
   const finalized = await fetch(`${base}/api/projects/${projectId}/test-runs/run_evidence/evidence/finalize`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRunRevision: 1 }) });
   assert.equal(finalized.status, 201);
   const evidence = (await finalized.json()).evidence;
   assert.equal('root' in evidence, false);
+  assert.equal(evidence.integrity, 'verified');
+  assert.match(evidence.manifestHash, /^[a-f0-9]{64}$/);
+  assert.equal(evidence.items.find((item) => item.relativePath === 'process.log').type, 'log');
+  assert.equal(evidence.items.find((item) => item.relativePath === 'process.log').mimeType, 'text/plain');
+  assert.deepEqual(evidence.provenance, { sourceDigests: ['source-1'], commit: 'abc123', testPlanVersion: 2, regressionSetVersion: 1, profileId: 'profile-1', profileVersion: 1 });
+  assert.equal(evidence.commit, 'abc123');
   const listed = await fetch(`${base}/api/projects/${projectId}/evidence`);
   assert.equal((await listed.json()).evidence[0].id, evidence.id);
+  const perRun = await fetch(`${base}/api/projects/${projectId}/test-runs/run_evidence/evidence`);
+  assert.equal(perRun.status, 200);
+  assert.equal((await perRun.json()).evidence[0].id, evidence.id);
   const legacyDownload = await fetch(`${base}/api/projects/${projectId}/evidence/${evidence.id}/download?path=process.log`);
   assert.equal(legacyDownload.status, 404);
   const itemDownload = await fetch(`${base}/api/projects/${projectId}/evidence/${evidence.id}/items/${evidence.items[0].id}/download`);
   assert.equal(itemDownload.status, 200);
+  assert.equal(itemDownload.headers.get('content-type'), 'text/plain');
+  assert.match(itemDownload.headers.get('content-disposition'), /^inline/);
   assert.ok(['passed', 'trace'].includes(await itemDownload.text()));
+  const traceItem = evidence.items.find((item) => item.relativePath === 'trace.zip');
+  const traceDownload = await fetch(`${base}/api/projects/${projectId}/evidence/${evidence.id}/items/${traceItem.id}/download`);
+  assert.equal(traceDownload.headers.get('content-type'), 'application/zip');
+  assert.match(traceDownload.headers.get('content-disposition'), /^attachment/);
   const repeated = await fetch(`${base}/api/projects/${projectId}/test-runs/run_evidence/evidence/finalize`, { method: 'POST' });
   assert.equal(repeated.status, 200);
   const processItem = evidence.items.find((item) => item.relativePath === 'process.log');
   fs.appendFileSync(path.join(dataDir, 'artifacts', projectId, 'evidence', evidence.id, 'process.log'), 'changed');
   const tampered = await fetch(`${base}/api/projects/${projectId}/evidence/${evidence.id}/items/${processItem.id}/download`);
   assert.equal(tampered.status, 409);
+});
+
+test('POST comparison accepts the documented otherRunId body', async () => {
+  const created = await (await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '运行对比 API 项目', createWorkspace: false }) })).json();
+  const projectId = created.project.id;
+  const project = store.getProject(projectId);
+  project.testruns.push(
+    { id: 'run_compare_before', projectId, status: 'passed', testPlanId: 'plan-compare', cases: [{ id: 'tc-compare', status: 'failed' }] },
+    { id: 'run_compare_after', projectId, status: 'passed', testPlanId: 'plan-compare', cases: [{ id: 'tc-compare', status: 'passed' }] },
+  );
+
+  const response = await fetch(`${base}/api/projects/${projectId}/test-runs/run_compare_after/compare`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ otherRunId: 'run_compare_before' }) });
+
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).comparison.changedCases[0].classification, 'fixed');
 });
 
 test('skills API returns language-specific catalog in website category order', async () => {

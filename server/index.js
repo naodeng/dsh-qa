@@ -4,7 +4,7 @@ import { loadConfig, publicSettings, DATA_DIR } from './config.js';
 import * as store from './store.js';
 import { seedIfEmpty } from './seed.js';
 import { handleRequest } from './routes.js';
-import { recoverEvidenceFinalization } from './quality/evidence.js';
+import { ensureEvidenceIntegrity, recoverEvidenceFinalization } from './quality/evidence.js';
 import { startArtifactCleanupWorker, recoverOrphanStaging } from './quality/evidence-retention.js';
 import { recoverInterruptedRuns } from './quality/test-runner.js';
 
@@ -19,15 +19,19 @@ const workers = new WeakMap();
  * @param {(msg: string) => void} [opts.log]
  * @returns {Promise<{port:number, server:import('node:http').Server, config:object}>}
  */
-export function startQaBench(opts = {}) {
+export async function startQaBench(opts = {}) {
   const { port: wantPort = 8899, openBrowser = true, log = console.log } = opts;
   const cfg = loadConfig();
   store.loadStore();
   seedIfEmpty();
   recoverInterruptedRuns(store.listProjects());
   store.flush();
-  recoverEvidenceFinalization(store.listProjects()).catch(() => {});
-  recoverOrphanStaging(store.listProjects()).catch(() => {});
+  await recoverEvidenceFinalization(store.listProjects());
+  let evidenceChanged = false;
+  for (const project of store.listProjects()) evidenceChanged = (await ensureEvidenceIntegrity(project)) || evidenceChanged;
+  if (evidenceChanged) store.flush();
+  await recoverOrphanStaging(store.listProjects());
+  store.flush();
   const cleanupWorker = startArtifactCleanupWorker({
     jobs: store.listArtifactCleanupJobs(),
     projectExists: (projectId) => Boolean(store.getProject(projectId)),

@@ -14,7 +14,13 @@ test('compares terminal runs under the same plan with deterministic case changes
     { caseId: 'a', before: 'failed', after: 'passed', classification: 'fixed' },
     { caseId: 'b', before: 'passed', after: 'failed', classification: 'new-failure' },
   ]);
+  assert.deepEqual(result.testcaseChanges, [
+    { caseId: 'a', before: 'failed', after: 'passed', classification: 'fixed' },
+    { caseId: 'b', before: 'passed', after: 'failed', classification: 'new-failure' },
+  ]);
   assert.deepEqual(result.evidenceRefs, ['ev-before', 'ev-after']);
+  assert.equal(result.status, 'completed');
+  assert.match(result.createdAt, /^\d{4}-\d{2}-\d{2}T/);
 });
 
 test('rejects non-terminal, cross-project, and cross-plan comparisons', () => {

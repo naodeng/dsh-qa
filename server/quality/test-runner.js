@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { spawn, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { now, persist, uid } from '../store.js';
 import { broadcast } from '../sse.js';
 import { createTestRun, normalizeTestRunProject } from './test-run.js';
@@ -25,6 +25,14 @@ const MAX_RUNNING_GLOBAL = 2;
 
 const digest = (value) => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
+function currentGitCommit(project) {
+  if (!project.workspacePath) return null;
+  try {
+    const commit = execFileSync('git', ['-C', project.workspacePath, 'rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    return /^[0-9a-f]{40}$/.test(commit) ? commit : null;
+  } catch { return null; }
+}
+
 function stalePreview(message = '运行预览已失效，请重新生成') {
   const error = new Error(message);
   error.code = 'QUALITY_RUN_PREVIEW_STALE';
@@ -43,8 +51,10 @@ function authorizationSnapshot(project, planId, profileId) {
   const cwd = path.resolve(project.workspacePath || '.', profileVersion.cwdRelative);
   const effects = { declaredWrites: ['artifact-root'], networkIntent: profileVersion.networkIntent, filesystemEnforced: false, networkEnforced: false };
   const task = project.qualityTasks?.find((item) => item.id === plan.qualityTaskId);
-  const sourceDigest = digest((task?.sources || []).map((source) => source.digest).sort());
-  const authorization = { planId, planVersion: plan.version, profileId, profileVersion: profileVersion.version, sourceDigest, cwd, argv, effects };
+  const sourceDigests = (task?.sources || []).map((source) => source.digest).sort();
+  const sourceDigest = digest(sourceDigests);
+  const commit = currentGitCommit(project);
+  const authorization = { planId, planVersion: plan.version, profileId, profileVersion: profileVersion.version, sourceDigest, sourceDigests, commit, cwd, argv, effects };
   return { ...authorization, testcaseIds: [...(plan.testcaseIds || [])], timeoutMs: profileVersion.timeoutMs, authorizationDigest: digest(authorization) };
 }
 
@@ -232,7 +242,7 @@ export async function cancelRun(project, runId, expectedRevision) {
 export async function startRun(project, previewToken, { defer = false, planId } = {}) {
   const preview = consumePreview(project, previewToken, planId);
   const profile = project.executionProfiles.find((item) => item.id === preview.profileId);
-  const run = createTestRun(project, { mode: 'local', executor: currentExecutionProfileVersion(profile).executor, summary: '', provenance: { planId: preview.planId, testPlanVersion: preview.planVersion, profileId: profile.id, profileVersion: preview.profileVersion, sourceDigest: preview.sourceDigest } });
+  const run = createTestRun(project, { mode: 'local', executor: currentExecutionProfileVersion(profile).executor, summary: '', provenance: { planId: preview.planId, testPlanVersion: preview.planVersion, profileId: profile.id, profileVersion: preview.profileVersion, sourceDigest: preview.sourceDigest, sourceDigests: preview.sourceDigests || [], commit: preview.commit ?? null } });
   try { reserveRunSlot(project.id, run.id); }
   catch (error) { project.testruns.pop(); throw error; }
   try {

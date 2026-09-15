@@ -27,13 +27,15 @@ export function normalizeGate(gate = {}) {
 export function evaluateGate(facts = {}, rules = {}) {
   const provenance = facts.provenance || {};
   const run = facts.latestRun;
-  const evidence = (facts.evidence || []).filter((bundle) => bundle.state === 'ready');
+  const evidence = facts.evidence || [];
+  const readyEvidence = evidence.filter((bundle) => bundle.state === 'ready');
   const checks = [];
-  const stale = !run || !equalProvenance(run.provenance, provenance) || evidence.some((bundle) => !equalProvenance(bundle.provenance, provenance));
+  const stale = !run || !equalProvenance(run.provenance, provenance) || readyEvidence.some((bundle) => !equalProvenance(bundle.provenance, provenance));
   checks.push(check('stale-evidence', stale ? 'failed' : 'passed', 'block', stale ? '测试运行或证据与当前输入不一致' : '执行来源与当前输入一致'));
-  const verified = evidence.filter((bundle) => bundle.integrity === 'verified' && (!run || bundle.testRunId === run.id));
-  const missingEvidence = Boolean(rules.requireVerifiedEvidence) && !verified.length;
-  checks.push(check('verified-evidence', missingEvidence ? 'failed' : 'passed', 'block', missingEvidence ? '缺少已验证的必需证据' : '必需证据已验证', { evidenceRefs: verified.map((bundle) => bundle.id) }));
+  const verified = readyEvidence.filter((bundle) => bundle.integrity === 'verified' && (!run || bundle.testRunId === run.id));
+  const invalidEvidence = readyEvidence.some((bundle) => bundle.integrity !== 'verified') || evidence.some((bundle) => bundle.state !== 'ready');
+  const missingEvidence = invalidEvidence || (Boolean(rules.requireVerifiedEvidence) && !verified.length);
+  checks.push(check('verified-evidence', missingEvidence ? 'failed' : 'passed', 'block', missingEvidence ? (invalidEvidence ? '存在未验证或完整性失败的证据' : '缺少已验证的必需证据') : '必需证据已验证', { evidenceRefs: verified.map((bundle) => bundle.id) }));
   const failedRun = !run || run.resultTrust !== 'controlled-local' || run.status !== 'passed';
   checks.push(check('critical-test-result', failedRun ? 'failed' : 'passed', 'block', failedRun ? '缺少受控且通过的关键测试运行' : '关键测试运行已通过', { evidenceRefs: run ? [run.id] : [] }));
   const criticalRisk = (facts.risks || []).some((risk) => risk.severity === 'critical' && risk.assessmentStatus !== 'dismissed' && !['mitigated', 'accepted', 'closed'].includes(risk.dispositionStatus || risk.status));
@@ -63,7 +65,7 @@ export function evaluateQualityGate(project) {
   const runs = project.testruns || [];
   if (runs.some((run) => run.status === 'failed')) blockers.push('存在失败测试运行');
   if (runs.some((run) => !TERMINAL.has(run.status))) blockers.push('存在未完成测试运行');
-  if ((project.evidenceBundles || []).some((bundle) => bundle.state !== 'ready')) blockers.push('存在未就绪证据包');
+  if ((project.evidenceBundles || []).some((bundle) => bundle.state !== 'ready' || bundle.integrity !== 'verified')) blockers.push('存在未就绪证据包');
   if ((project.risks || []).some((risk) => risk.severity === 'high' && risk.status !== 'closed' && risk.status !== 'accepted')) blockers.push('存在未关闭高风险');
   return { status: blockers.length ? 'blocked' : 'passed', blockers, evaluatedAt: new Date().toISOString() };
 }

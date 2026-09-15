@@ -1,3 +1,5 @@
+import { now } from '../store.js';
+
 const TERMINAL = new Set(['passed', 'failed', 'cancelled', 'timed-out', 'environment-error']);
 
 export function compareRuns(project, beforeId, afterId) {
@@ -11,14 +13,13 @@ export function compareRuns(project, beforeId, afterId) {
   const beforeCases = new Map((before.cases || []).map((item) => [item.id, item.status]));
   const afterCases = new Map((after.cases || []).map((item) => [item.id, item.status]));
   const ids = [...new Set([...beforeCases.keys(), ...afterCases.keys()])].sort();
-  const changedCases = ids
-    .filter((id) => beforeCases.get(id) !== afterCases.get(id))
-    .map((caseId) => {
-      const before = beforeCases.get(caseId) || 'missing';
-      const after = afterCases.get(caseId) || 'missing';
-      const classification = before === 'failed' && after === 'passed' ? 'fixed' : before === 'passed' && after === 'failed' ? 'new-failure' : 'changed';
-      return { caseId, before, after, classification };
+  const testcaseChanges = ids.map((caseId) => {
+      const beforeStatus = beforeCases.get(caseId) || 'missing';
+      const afterStatus = afterCases.get(caseId) || 'missing';
+      const classification = beforeStatus === afterStatus ? 'unchanged' : beforeStatus === 'failed' && afterStatus === 'passed' ? 'fixed' : beforeStatus === 'passed' && afterStatus === 'failed' ? 'new-failure' : 'changed';
+      return { caseId, before: beforeStatus, after: afterStatus, classification };
     });
   const evidenceRefs = [...new Set([...(before.evidenceRefs || []), ...(after.evidenceRefs || [])])];
-  return { beforeRunId: before.id, afterRunId: after.id, testPlanId: before.testPlanId, samePlan: true, changedCases, evidenceRefs };
+  const changedCases = testcaseChanges.filter((item) => item.classification !== 'unchanged');
+  return { beforeRunId: before.id, afterRunId: after.id, testPlanId: before.testPlanId, samePlan: true, testcaseChanges, changedCases, status: 'completed', evidenceRefs, createdAt: now() };
 }
