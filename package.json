@@ -1,6 +1,6 @@
 {
   "name": "dsh-qa",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "dsh-qa QA Workbench: a local software testing workbench plugin for DeepSeek Harness. Project/iteration dual-mode, full-flow requirements / test cases / defects / milestones / reports, native QA preset, themes, kanban and calendar.",
   "type": "module",
   "main": "lib/index.js",
@@ -52,6 +52,7 @@
     "cordis.patch.yml",
     "README.md",
     "README_EN.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "license": "PolyForm-Noncommercial-1.0.0",
