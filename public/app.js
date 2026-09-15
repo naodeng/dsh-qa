@@ -1,3 +1,5 @@
+import { createClientRequest, openFollowSnapshot } from './dsh-rpc-contract.js';
+
 // 质量工作台前端：测试首页、DSH 测试模式、项目看板、日历排期
 (() => {
   'use strict';
@@ -111,7 +113,7 @@
     const response = await fetch(`/api/${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'client-request', rpcId, method: endpoint, payload: { args } }),
+      body: JSON.stringify(createClientRequest(rpcId, endpoint, args)),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(`DSH 连接失败 (${response.status})`);
@@ -131,32 +133,7 @@
     if (!state.dshEmbedded) throw new Error('请从 DSH 侧边栏打开“质量工作台”');
     const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const streamId = globalThis.crypto?.randomUUID?.() || `dshqa-stream-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    return await new Promise((resolve, reject) => {
-      const socket = new WebSocket(`${scheme}//${location.host}/api`);
-      let settled = false;
-      const finish = (fn, value) => {
-        if (settled) return;
-        settled = true;
-        try { socket.close(); } catch { /* ignore */ }
-        fn(value);
-      };
-      const timer = setTimeout(() => finish(reject, new Error('DSH 会话快照超时')), 10000);
-      socket.addEventListener('open', () => socket.send(JSON.stringify({
-        type: 'open', streamId, endpoint: 'session/follow',
-        payload: { args: { request: { address: { kind: 'session', sessionId }, maxMessages } } },
-      })));
-      socket.addEventListener('message', (event) => {
-        let frame;
-        try { frame = JSON.parse(event.data); } catch { return; }
-        if (frame.streamId !== streamId) return;
-        if (frame.type === 'item' && frame.value?.type === 'snapshot') {
-          clearTimeout(timer); finish(resolve, frame.value); return;
-        }
-        if (frame.type === 'error') { clearTimeout(timer); finish(reject, new Error(frame.error?.message || 'DSH 会话快照失败')); }
-      });
-      socket.addEventListener('error', () => { clearTimeout(timer); finish(reject, new Error('DSH 会话 WebSocket 连接失败')); });
-      socket.addEventListener('close', () => { if (!settled) { clearTimeout(timer); finish(reject, new Error('DSH 会话 WebSocket 已关闭')); } });
-    });
+    return await openFollowSnapshot(new WebSocket(`${scheme}//${location.host}/api`), { streamId, sessionId, maxMessages });
   }
   async function dshHistory(sessionId, maxMessages) {
     const snapshot = await dshFollowSnapshot(sessionId, maxMessages);
@@ -737,7 +714,7 @@
       p.dshSessionId = sessionId;
       models = await dshRpc('session/modelCatalog', {});
     }
-    const [skillResult, commandResult] = await Promise.allSettled([
+    const [skillResult, commandResult] = await Promise.all([
       dshRpc('skills/list', { agentId: sessionId }),
       dshRpc('commands/list', { agentId: sessionId }),
     ]);
@@ -745,8 +722,8 @@
     state.dsh.projectId = projectId;
     state.dsh.sessionId = sessionId;
     state.dsh.models = models;
-    state.dsh.skills = skillResult.status === 'fulfilled' ? skillResult.value.skills || [] : [];
-    state.dsh.commands = commandResult.status === 'fulfilled' ? commandResult.value || [] : [];
+    state.dsh.skills = skillResult.skills || [];
+    state.dsh.commands = commandResult || [];
     await loadSkillCatalog().catch(() => {});
     populateDshModelSelect(models);
     updateDshChrome();
