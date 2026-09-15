@@ -33,7 +33,7 @@
 - id: persona
   name: '@deepseek-ai/dsh-persona'
   config:
-    text: >-
+    prefix: >-
       You are a software testing (QA) agent powered by the {{model}} model,
       working in {{cwd}}. You collaborate with the test team on requirements
       analysis, test case design, test execution, defect reporting, and test

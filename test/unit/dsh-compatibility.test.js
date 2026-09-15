@@ -49,3 +49,8 @@ test('QA preset uses the Harness 0.1.6 workflow engine package', () => {
   );
   assert.match(qaPreset, /- id: workflow-ptc\n\s+name: '@deepseek-ai\/dsh-workflow-ptc'/);
 });
+
+test('QA preset uses the Harness 0.1.6 persona config schema', () => {
+  assert.match(qaPreset, /- id: persona\n\s+name: '@deepseek-ai\/dsh-persona'\n\s+config:\n\s+prefix:/);
+  assert.doesNotMatch(qaPreset, /^(\s+)text:/m, 'QA persona still uses the retired text config key');
+});
