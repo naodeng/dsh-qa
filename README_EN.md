@@ -212,6 +212,7 @@ After installing, restart `dsh web` and type `/` in the workbench chat to see th
 - Environment: Node.js 18+; run `npm ci` before development or tests
 - Run: `npm start` for standalone; `npm run dev` for watch mode
 - Test: `npm test` runs unit/API tests (node:test) plus Chromium end-to-end tests (Playwright); `npm run test:unit` / `npm run test:e2e` run each separately
+- If the default test port is occupied: `QA_E2E_PORT=8900 npm test`; the default remains `8899`
 - Harness host smoke: `DSH_WEB_URL=<Harness Web URL> DSH_HOST_VERSION=dsh-v0.1.6-alpha.1 npm run test:host-smoke`; it explicitly requires an authenticated real host and is not part of standard `npm test`
 - Publish: after `npm publish`, install with `dsh plugin --profile web add dsh-qa`; models and keys are managed by the user's DSH configuration
 - Issues and PRs welcome (Conventional Commits)

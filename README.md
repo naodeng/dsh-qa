@@ -212,6 +212,7 @@ scripts/install-qa-skills.sh --dry-run           # 预览不写入
 - 环境：Node.js 18+；开发或运行测试前执行 `npm ci`
 - 运行：`npm start` 独立启动；`npm run dev` 监听重启
 - 测试：`npm test` 运行单元/API 测试（node:test）与 Chromium 端到端测试（Playwright）；`npm run test:unit` / `npm run test:e2e` 可单独执行
+- 测试端口冲突时：`QA_E2E_PORT=8900 npm test`；默认端口仍为 `8899`
 - Harness 宿主冒烟：`DSH_WEB_URL=<Harness Web URL> DSH_HOST_VERSION=dsh-v0.1.6-alpha.1 npm run test:host-smoke`；该命令显式依赖登录后的真实宿主，不属于标准 `npm test`
 - 发布：`npm publish` 后使用 `dsh plugin --profile web add dsh-qa` 安装；模型与密钥由使用者自己的 DSH 配置管理
 - 欢迎提交 Issue 与 PR（Conventional Commits）

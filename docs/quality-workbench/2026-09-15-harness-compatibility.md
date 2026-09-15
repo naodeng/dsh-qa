@@ -52,6 +52,7 @@
 | `node --test test/unit/dsh-rpc-contract.test.js test/unit/dsh-compatibility.test.js` | `9 passed` |
 | `npm run test:unit`（当前实现） | `131 passed` |
 | `npm test` | 单元阶段 `131 passed`；E2E 阶段被已有 `127.0.0.1:8899` 进程阻断 |
+| `QA_E2E_PORT=8900 npm test` | `131` 个单元/API + `22` 个本地 Chromium E2E 通过；host smoke 被默认配置排除 |
 | `npm run test:e2e -- test/e2e/skills.spec.js test/e2e/workbench-reconnect.spec.js` | 默认端口被已有进程占用；使用隔离数据目录和 8900 端口重跑后 `4 passed` |
 | 标准本地 E2E（同一 Playwright 项目配置，排除 opt-in host smoke） | `22 passed` |
 | `npm run test:host-smoke` 无环境变量 | 按设计在浏览器启动前失败，提示必须提供 `DSH_WEB_URL` 和 `DSH_HOST_VERSION` |
