@@ -4,7 +4,10 @@ import { authenticateHostPage, parseHostLaunchUrl } from '../support/dsh-host-au
 
 const hostVersion = process.env.DSH_HOST_VERSION;
 const { launchUrl } = parseHostLaunchUrl(process.env.DSH_WEB_URL);
+const WORKBENCH_IFRAME = 'iframe[src*="/api/dsh-qa/workbench"]';
 let sessionId = '';
+let promptQueued = false;
+let linkedProjectId = '';
 
 test.describe('DeepSeek Harness host compatibility', () => {
   test.describe.configure({ mode: 'serial' });
@@ -15,6 +18,14 @@ test.describe('DeepSeek Harness host compatibility', () => {
   });
 
   test.afterEach(async ({ page }, testInfo) => {
+    if (promptQueued && sessionId) {
+      try { await rpc(page, 'session/cancel', { request: { sessionId } }); } catch { /* keep the original test result */ }
+      promptQueued = false;
+    }
+    if (linkedProjectId) {
+      try { await page.request.delete(`/api/dsh-qa/workbench/api/projects/${encodeURIComponent(linkedProjectId)}`); } catch { /* keep the original test result */ }
+      linkedProjectId = '';
+    }
     if (testInfo.status === testInfo.expectedStatus) return;
     try {
       await testInfo.attach('host-smoke-failure.png', {
@@ -27,13 +38,7 @@ test.describe('DeepSeek Harness host compatibility', () => {
   });
 
   test('loads the plugin entry and Workbench iframe', async ({ page }) => {
-    await page.goto('/');
-    const entry = await qaEntry(page);
-    await expect(entry).toBeVisible();
-    await entry.click();
-    const iframe = page.locator('iframe[src*="/api/dsh-qa/workbench"]').first();
-    await expect(iframe).toBeVisible();
-    await expect(page.frameLocator('iframe[src*="/api/dsh-qa/workbench"]').locator('#metric-cards')).toBeVisible();
+    await openWorkbench(page);
   });
 
   test('discovers the QA preset and creates and renames a Session', async ({ page }) => {
@@ -52,7 +57,7 @@ test.describe('DeepSeek Harness host compatibility', () => {
 
   test('reads follow snapshot, model catalog, Skills, Commands and queues a harmless prompt', async ({ page }) => {
     test.skip(!sessionId, 'Session create case did not produce a session id');
-    await page.goto('/');
+    await openWorkbench(page);
 
     const snapshot = await followSnapshot(page, sessionId);
     expect(Array.isArray(snapshot.records)).toBe(true);
@@ -74,24 +79,86 @@ test.describe('DeepSeek Harness host compatibility', () => {
         clientTimeZone: 'UTC',
       },
     });
+    promptQueued = prompt.accepted === true;
     expect(prompt.accepted).toBe(true);
   });
 
-  test('refreshes the host page and reconnects to the same Session without duplicate entry', async ({ page }) => {
+  test('refreshes the host page and reconnects the embedded Workbench client to the same Session', async ({ page }) => {
     test.skip(!sessionId, 'Session create case did not produce a session id');
-    await page.goto('/');
-    const firstEntry = await qaEntry(page);
-    await expect(firstEntry).toBeVisible();
+    const linked = await createLinkedWorkbenchProject(page, sessionId);
+    linkedProjectId = linked.id;
+
+    const clientMethods = [];
+    const followSockets = [];
+    const observeRequest = (request) => {
+      if (request.method() !== 'POST') return;
+      try {
+        const body = request.postDataJSON();
+        if (body?.type === 'client-request') clientMethods.push(body.method);
+      } catch { /* non-JSON request */ }
+    };
+    const observeWebSocket = (socket) => {
+      if (socket.url().includes('/api/remote.mux')) followSockets.push(socket.url());
+    };
+    page.on('request', observeRequest);
+    page.on('websocket', observeWebSocket);
+
+    await bindEmbeddedProject(page, linked.title);
     await page.reload();
-    const entries = page.locator('[data-dsh-qa-entry]');
-    if (await entries.count()) expect(await entries.count()).toBe(1);
-    const entry = await qaEntry(page);
-    await entry.click();
-    await expect(page.locator('iframe[src*="/api/dsh-qa/workbench"]').first()).toBeVisible();
-    const snapshot = await followSnapshot(page, sessionId);
-    expect(Number.isInteger(snapshot.cursor)).toBe(true);
+    await expect(page.locator('[data-dsh-qa-entry]')).toHaveCount(1);
+    await bindEmbeddedProject(page, linked.title);
+
+    page.off('request', observeRequest);
+    page.off('websocket', observeWebSocket);
+    expect(clientMethods).toEqual(expect.arrayContaining([
+      'agentPresets/list', 'session/list', 'session/modelCatalog', 'skills/list', 'commands/list',
+    ]));
+    expect(followSockets.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+async function openWorkbench(page) {
+  await page.goto('/');
+  const entry = await qaEntry(page);
+  await expect(entry).toBeVisible();
+  await entry.click();
+  const iframe = page.locator(WORKBENCH_IFRAME).first();
+  await expect(iframe).toBeVisible();
+  const frame = page.frameLocator(WORKBENCH_IFRAME).first();
+  await expect(frame.locator('#metric-cards')).toBeVisible();
+  return frame;
+}
+
+async function createLinkedWorkbenchProject(page, id) {
+  const title = `QA 0.4.1 Embedded ${Date.now()}`;
+  const response = await page.request.post('/api/dsh-qa/workbench/api/projects', {
+    data: { title, summary: 'Host smoke client integration fixture', createWorkspace: true },
+  });
+  expect(response.ok()).toBe(true);
+  const created = await response.json();
+  const projectId = created.project?.id;
+  expect(projectId).toBeTruthy();
+
+  const linked = await page.request.patch(`/api/dsh-qa/workbench/api/projects/${encodeURIComponent(projectId)}`, {
+    data: { dshSessionId: id },
+  });
+  expect(linked.ok()).toBe(true);
+  return { id: projectId, title };
+}
+
+async function bindEmbeddedProject(page, title) {
+  const frame = await openWorkbench(page);
+  await frame.locator('[data-view="assistant"]').click();
+  await expect(frame.locator('#view-assistant')).toHaveClass(/active/);
+  const project = frame.locator('#case-list .case-item').filter({ hasText: title });
+  await expect(project).toHaveCount(1);
+  await expect(project).toBeVisible();
+  await project.click();
+  await expect(frame.locator('#chat-head-title')).toHaveText(title, { timeout: 30_000 });
+  await expect(frame.locator('body')).toHaveClass(/dsh-connected/, { timeout: 30_000 });
+  await expect(frame.locator('#capability-count')).toHaveText(/\d+\s*\/\s*\d+/, { timeout: 30_000 });
+  return frame;
+}
 
 async function rpc(page, method, args) {
   const response = await page.request.post(`/api/${method}`, {
@@ -115,52 +182,12 @@ async function qaEntry(page) {
 }
 
 async function followSnapshot(page, id) {
-  return page.evaluate(async (sessionId) => {
+  const frame = page.frames().find((candidate) => candidate.url().includes('/api/dsh-qa/workbench/'));
+  if (!frame) throw new Error('Workbench iframe is not available for follow verification');
+  return frame.evaluate(async (sessionId) => {
+    const { openFollowSnapshot } = await import('./dsh-rpc-contract.js');
     const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const streamId = `dsh-qa-0.4.1-${crypto.randomUUID()}`;
-    const socket = new WebSocket(`${scheme}//${location.host}/api/remote.mux`);
-    return await new Promise((resolve, reject) => {
-      let settled = false;
-      let timer;
-      const cleanup = () => {
-        clearTimeout(timer);
-        socket.removeEventListener('open', opened);
-        socket.removeEventListener('message', message);
-        socket.removeEventListener('error', failed);
-        socket.removeEventListener('close', closed);
-      };
-      const finish = (handler, value) => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        try { socket.close(); } catch {}
-        handler(value);
-      };
-      const opened = () => socket.send(JSON.stringify({
-        type: 'open',
-        streamId,
-        endpoint: 'session/follow',
-        payload: { args: { request: { address: { kind: 'session', sessionId }, maxMessages: 30 } } },
-      }));
-      const message = (event) => {
-        let frame;
-        try { frame = JSON.parse(event.data); } catch { return; }
-        if (!frame || frame.streamId !== streamId) return;
-        if (frame.type === 'item' && frame.value?.type === 'snapshot') {
-          finish(resolve, { records: frame.value.records || [], cursor: frame.value.cursor ?? -1 });
-        } else if (frame.type === 'error') {
-          finish(reject, new Error(frame.error?.message || 'session/follow failed'));
-        } else if (frame.type === 'end' || frame.type === 'done') {
-          finish(reject, new Error('session/follow ended before snapshot'));
-        }
-      };
-      const failed = () => finish(reject, new Error('session/follow WebSocket failed'));
-      const closed = () => finish(reject, new Error('session/follow WebSocket closed'));
-      socket.addEventListener('open', opened);
-      socket.addEventListener('message', message);
-      socket.addEventListener('error', failed);
-      socket.addEventListener('close', closed);
-      timer = setTimeout(() => finish(reject, new Error('session/follow snapshot timeout')), 10_000);
-    });
+    return openFollowSnapshot(new WebSocket(`${scheme}//${location.host}/api/remote.mux`), { streamId, sessionId, maxMessages: 30 });
   }, id);
 }

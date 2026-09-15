@@ -17,7 +17,7 @@
 ## 2. 0.4.1 开工步骤
 
 ```sh
-cd /Users/nao.deng/awsomeCode/dsh-qa
+cd /path/to/dsh-qa
 npm ci
 npm run test:unit
 npm run test:e2e

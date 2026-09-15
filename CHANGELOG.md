@@ -13,7 +13,7 @@
 
 ### 当前证据边界
 
-- `137` 个单元/API 测试、`22` 个独立 Chromium E2E 和 `4/4` 个真实 Harness host smoke 均通过；host smoke 针对 `dsh-v0.1.6-alpha.1` 执行。
+- `141` 个单元/API 测试、`22` 个独立 Chromium E2E 和 `4/4` 个真实 Harness host smoke 均通过；host smoke 针对 `dsh-v0.1.6-alpha.1` 执行。
 - 当前提交完成本地 `0.4.1` 版本准备；npm 包、Git tag 和 GitHub Release 尚未在本次变更中发布。
 
 ## English
@@ -27,7 +27,7 @@
 
 ### Evidence boundary
 
-- `137` unit/API tests, `22` standalone Chromium E2E tests, and `4/4` real Harness host-smoke cases passed against `dsh-v0.1.6-alpha.1`.
+- `141` unit/API tests, `22` standalone Chromium E2E tests, and `4/4` real Harness host-smoke cases passed against `dsh-v0.1.6-alpha.1`.
 - This commit prepares the local `0.4.1` version; npm, Git tag, and GitHub Release publication were not performed in this change.
 
 ## 0.4.0 - 2026-09-15

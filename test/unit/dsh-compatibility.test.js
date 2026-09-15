@@ -64,3 +64,8 @@ test('DSH skill catalog uses the Harness session request envelope', () => {
   assert.match(app, /dshRpc\('skills\/list', \{ request: \{ sessionId \} \}\)/);
   assert.equal(app.includes("dshRpc('skills/list', { agentId: sessionId })"), false, 'skills/list still uses the retired agentId envelope');
 });
+
+test('DSH command execution uses the Harness submittedAttachments field', () => {
+  assert.match(app, /createCommandExecuteArgs\(sessionId, text\)/);
+  assert.doesNotMatch(app, /commands\/execute'.*attachments\s*:/s, 'commands/execute still uses the retired attachments field');
+});

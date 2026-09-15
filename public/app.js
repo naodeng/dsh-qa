@@ -1,4 +1,4 @@
-import { createClientRequest, openFollowSnapshot } from './dsh-rpc-contract.js';
+import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './dsh-rpc-contract.js';
 
 // 质量工作台前端：测试首页、DSH 测试模式、项目看板、日历排期
 (() => {
@@ -64,6 +64,7 @@ import { createClientRequest, openFollowSnapshot } from './dsh-rpc-contract.js';
     calendarCursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), selectedDate: localDate(new Date()),
     refreshTimer: null,
   };
+  const dshRpc = createDshRpc(globalThis.fetch.bind(globalThis), { embedded: state.dshEmbedded });
 
   // ---------- helpers ----------
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -106,28 +107,6 @@ import { createClientRequest, openFollowSnapshot } from './dsh-rpc-contract.js';
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || `请求失败 (${response.status})`);
     return data;
-  }
-  async function dshRpc(endpoint, args = {}) {
-    if (!state.dshEmbedded) throw new Error('请从 DSH 侧边栏打开“质量工作台”后使用原生技能与命令');
-    const rpcId = globalThis.crypto?.randomUUID?.() || `dshqa-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    const response = await fetch(`/api/${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(createClientRequest(rpcId, endpoint, args)),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(`DSH 连接失败 (${response.status})`);
-    if (data.rpcId && data.rpcId !== rpcId) throw new Error('DSH 响应校验失败');
-    if (!data.result?.ok) throw new Error(data.result?.error?.message || 'DSH 调用失败');
-    const value = data.result.value;
-    if (endpoint === 'session/modelCatalog') {
-      return {
-        current: value.default,
-        groups: value.groups || [],
-        routable: (value.routableProviders || []).length > 0,
-      };
-    }
-    return value;
   }
   async function dshFollowSnapshot(sessionId, maxMessages = 30) {
     if (!state.dshEmbedded) throw new Error('请从 DSH 侧边栏打开“质量工作台”');
@@ -838,7 +817,7 @@ import { createClientRequest, openFollowSnapshot } from './dsh-rpc-contract.js';
       const command = commandName && state.dsh.commands.find((item) => item.name === commandName);
       if (command) {
         const pending = appendAiMsg(`/${command.name} 正在执行…`, true, 'command');
-        const execution = await dshRpc('commands/execute', { agentId: sessionId, line: text, attachments: [] });
+        const execution = await dshRpc('commands/execute', createCommandExecuteArgs(sessionId, text));
         const result = execution?.result;
         pending.textContent = result?.text || (result?.kind === 'error' ? '命令执行失败' : `/${command.name} 已执行`);
         if (result?.kind === 'error') throw new Error(result.text || '命令执行失败');

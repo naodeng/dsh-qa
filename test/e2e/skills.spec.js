@@ -5,6 +5,7 @@ test.describe('QA Skill 安装页', () => {
     await page.goto('/');
     await page.getByRole('button', { name: 'QA Skill安装' }).click();
     await expect(page.locator('#view-skills')).toBeVisible();
+    await expect(page.locator('.skill-card').first()).toBeVisible();
   }
 
   test('Skill Tab 可以访问并显示官网分类', async ({ page }) => {

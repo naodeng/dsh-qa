@@ -61,7 +61,7 @@ commands/execute
 
 ### 3.2 Follow stream envelope
 
-`session/follow` 继续通过 `/api` WebSocket mux 打开 stream：
+`session/follow` 继续通过 `/api/remote.mux` WebSocket mux 打开 stream：
 
 ```js
 {

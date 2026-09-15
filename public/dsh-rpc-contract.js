@@ -7,6 +7,38 @@ export function createClientRequest(rpcId, method, args = {}) {
   };
 }
 
+export function createCommandExecuteArgs(agentId, line, submittedAttachments = []) {
+  return { agentId, line, submittedAttachments };
+}
+
+export function createDshRpc(fetchImpl, {
+  embedded = true,
+  rpcIdFactory = () => globalThis.crypto?.randomUUID?.() || `dshqa-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+} = {}) {
+  return async function dshRpc(endpoint, args = {}) {
+    if (!embedded) throw new Error('请从 DSH 侧边栏打开“质量工作台”后使用原生技能与命令');
+    const rpcId = rpcIdFactory();
+    const response = await fetchImpl(`/api/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(createClientRequest(rpcId, endpoint, args)),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(`DSH 连接失败 (${response.status})`);
+    if (data.rpcId && data.rpcId !== rpcId) throw new Error('DSH 响应校验失败');
+    if (!data.result?.ok) throw new Error(data.result?.error?.message || 'DSH 调用失败');
+    const value = data.result.value;
+    if (endpoint === 'session/modelCatalog') {
+      return {
+        current: value.default,
+        groups: value.groups || [],
+        routable: (value.routableProviders || []).length > 0,
+      };
+    }
+    return value;
+  };
+}
+
 export function createFollowOpen(streamId, sessionId, maxMessages = 30) {
   return {
     type: 'open',

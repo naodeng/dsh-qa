@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
   createClientRequest,
+  createCommandExecuteArgs,
   createFollowOpen,
+  createDshRpc,
   openFollowSnapshot,
   parseFollowSnapshot,
 } from '../../public/dsh-rpc-contract.js';
@@ -49,6 +51,73 @@ test('builds the current client-request envelope', () => {
     method: 'agentPresets/list',
     payload: { args: { scope: 'web' } },
   });
+});
+
+test('builds the strict commands/execute argument names', () => {
+  assert.deepEqual(createCommandExecuteArgs('session_1', '/permission auto'), {
+    agentId: 'session_1',
+    line: '/permission auto',
+    submittedAttachments: [],
+  });
+});
+
+test('sends model selection and cancellation through the current RPC client', async () => {
+  const requests = [];
+  const rpc = createDshRpc(async (url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push({ url, body });
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return {
+          rpcId: body.rpcId,
+          result: {
+            ok: true,
+            value: body.method === 'session/selectModel'
+              ? { selected: { provider: 'openai', model: 'gpt-test' } }
+              : body.method === 'session/modelCatalog'
+                ? { default: { provider: 'openai', model: 'gpt-test' }, groups: [{ id: 'openai', models: [{ id: 'gpt-test' }] }], routableProviders: ['openai'] }
+              : { cancelled: true },
+          },
+        };
+      },
+    };
+  }, { rpcIdFactory: () => 'rpc_test' });
+
+  await rpc('session/selectModel', { request: { sessionId: 'session_1', provider: 'openai', model: 'gpt-test' } });
+  assert.deepEqual(await rpc('session/modelCatalog', {}), {
+    current: { provider: 'openai', model: 'gpt-test' },
+    groups: [{ id: 'openai', models: [{ id: 'gpt-test' }] }],
+    routable: true,
+  });
+  await rpc('session/cancel', { request: { sessionId: 'session_1' } });
+
+  assert.deepEqual(requests.map(({ url, body }) => ({ url, method: body.method, args: body.payload.args })), [
+    { url: '/api/session/selectModel', method: 'session/selectModel', args: { request: { sessionId: 'session_1', provider: 'openai', model: 'gpt-test' } } },
+    { url: '/api/session/modelCatalog', method: 'session/modelCatalog', args: {} },
+    { url: '/api/session/cancel', method: 'session/cancel', args: { request: { sessionId: 'session_1' } } },
+  ]);
+});
+
+test('surfaces rejected model selection and cancellation responses', async () => {
+  for (const method of ['session/modelCatalog', 'session/selectModel', 'session/cancel']) {
+    const rpc = createDshRpc(async (url, options) => {
+      const body = JSON.parse(options.body);
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return { rpcId: body.rpcId, result: { ok: false, error: { message: `${method} denied` } } };
+        },
+      };
+    }, { rpcIdFactory: () => 'rpc_error' });
+
+    await assert.rejects(
+      rpc(method, { request: { sessionId: 'session_1' } }),
+      new RegExp(`${method} denied`),
+    );
+  }
 });
 
 test('builds the session/follow WebSocket open envelope', () => {
