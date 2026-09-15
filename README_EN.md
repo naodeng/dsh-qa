@@ -22,12 +22,13 @@ Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
 - [Installation (DSH plugin)](#installation-dsh-plugin)
 - [Install and update with npm (standalone)](#install-and-update-with-npm-standalone)
 - [Quick Start (try without installing)](#quick-start-try-without-installing)
-- [QA Control Workbench](#qa-control-workbench-020)
+- [QA Control Workbench](#qa-control-workbench-0205-quality-domain)
 - [Standalone Mode](#standalone-mode)
 - [Architecture](#architecture)
 - [AI Toolset](#ai-toolset)
 - [Companion QA Skills](#companion-qa-skills)
 - [Development & Contributing](#development--contributing)
+- [Roadmap Documentation](#roadmap-documentation)
 - [License](#license)
 - [FAQ](#faq)
 
@@ -42,7 +43,7 @@ Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
 - **Local project directory**: Creating a project can auto-generate an 8-level workspace: `01_需求与范围 / 02_测试计划 / 03_测试用例 / 04_测试数据与脚本 / 05_测试执行 / 06_缺陷 / 07_测试报告 / 08_发布与归档`; deleting a project record never deletes the folder
 - **Gate governance**: Requirements review / strategy review / case review / report review / release / closure are requested by the AI and approved manually by the test owner (aligned with the 8-stage AI quality-analysis workflow)
 
-### QA Control Workbench (0.2.0)
+### QA Control Workbench (0.2–0.5 quality domain)
 
 - **Quality tasks and source snapshots**: Create a quality task for each test objective. The server captures and validates requirements, workspace files, or allowed Git revisions, then records summaries, digests, acceptance criteria, risks, test scope, and analysis decisions instead of trusting client-supplied paths or content.
 - **Test plans and controlled execution**: Maintain reviewed test plans and immutable execution-profile versions per quality task. A run preview token is issued only for the current reviewed plan, current profile version, and source digest before a controlled local run starts in a minimal environment.
@@ -211,6 +212,12 @@ After installing, restart `dsh web` and type `/` in the workbench chat to see th
 - Test: `npm test` runs unit/API tests (node:test) plus Chromium end-to-end tests (Playwright); `npm run test:unit` / `npm run test:e2e` run each separately
 - Publish: after `npm publish`, install with `dsh plugin --profile web add dsh-qa`; models and keys are managed by the user's DSH configuration
 - Issues and PRs welcome (Conventional Commits)
+
+## Roadmap Documentation
+
+- [Version semantics and route boundaries](./docs/quality-workbench/2026-09-15-version-map.md): explains the `0.2–0.5` quality domain, the `0.6–1.0` productization route, and formal release versions
+- [Quality Workbench documentation index](./docs/quality-workbench/README.md): requirements, solution design, technical design, and per-version implementation plans
+- [Post-1.0 Capability Roadmap](./docs/quality-workbench/post-1.0-capability-roadmap.md): the post-1.0 Quality Intelligence, Obligation, Graph, Agent, Adapter, and Policy direction
 
 ## License
 
