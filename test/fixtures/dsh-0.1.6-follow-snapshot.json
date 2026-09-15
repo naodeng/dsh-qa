@@ -1,0 +1,10 @@
+{
+  "snapshot": {
+    "type": "snapshot",
+    "records": [
+      { "event": { "seq": 6, "type": "user/message" } },
+      { "event": { "seq": 7, "type": "assistant/message" } }
+    ],
+    "cursor": 7
+  }
+}
