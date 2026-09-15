@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './test/e2e',
+  testIgnore: ['**/dsh-host-compatibility.spec.js'],
   fullyParallel: false,
   reporter: 'list',
   use: {

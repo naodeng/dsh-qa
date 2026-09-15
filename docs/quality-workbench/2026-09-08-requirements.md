@@ -1,4 +1,6 @@
-# DSH QA Workbench `0.6.0`—`1.0.0` 需求文档
+# DSH QA Workbench `0.6.0`—`1.0.0` 需求文档（历史草案）
+
+> **已被替代：** 当前路线改为 `0.4.1` 兼容性 → `0.5.0` Panel → `0.6.0` Native QA Execution → `0.7.0` AI Quality Intelligence → `1.0.0` AI-Native QA Workbench。请从 `2026-09-15-requirements.md` 开始。
 
 ## 1. 项目决策
 

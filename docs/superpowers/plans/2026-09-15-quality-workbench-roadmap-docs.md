@@ -1,14 +1,16 @@
-# QA Workbench Roadmap Documentation Integration Plan
+# QA Workbench Roadmap Documentation Integration Plan（历史完成记录）
+
+> **路线已更新：** 本计划记录上一轮 `0.6–1.0` / Post-1.0 文档整理的完成结果。当前版本路线已依据 Harness 0.1.6 对照调整，请以 `2026-09-15-workbench-iterations.md` 和 `2026-09-15-workbench-0.4.1.md` 为准。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 在既有 `0.2–0.5` 质量域之上整理并落地 `0.6–1.0` QA 工作台产品化路线，同时把附件中的长期能力收束为不改变当前版本语义的 `Post-1.0 Capability Roadmap`。
+**Goal（历史）：** 在既有 `0.2–0.5` 质量域之上整理并落地旧版 `0.6–1.0` QA 工作台产品化路线，同时把附件中的长期能力收束为不改变当时版本语义的 `Post-1.0 Capability Roadmap`。当前路线见 `2026-09-15-workbench-iterations.md`。
 
-**Architecture:** 只新增和整理 Markdown 文档，不改业务代码、数据模型、API 或发布版本。前序质量域文档继续作为事实和可信边界；`0.6–1.0` 作为当前产品路线；附件内容作为后续能力路线，使用能力阶段名称而不是新的 `0.4/0.5` 发布编号。
+**Architecture（历史）：** 只新增和整理 Markdown 文档，不改业务代码、数据模型、API 或发布版本。该计划的文档产物保留作历史记录；后续已依据 Harness 0.1.6 对照改为 `0.4.1` 兼容性 → `0.5` Panel → `0.6` 执行 → `0.7` 智能 → `1.0` AI-Native QA Workbench。
 
 **Tech Stack:** Markdown、现有 `docs/quality-workbench/` 文档结构、现有 `docs/superpowers/plans/` 计划结构。
 
-**Spec:** 用户确认的范围：`0.6–1.0` 继续完成现有 QA 工作台的产品化和稳定化；附件中的 Quality Intelligence、Obligation、Graph、Agent、Adapter 和 Policy 进入 `Post-1.0 Capability Roadmap`。
+**Spec（历史）：** 用户确认的范围曾是 `0.6–1.0` 产品化和 Post-1.0 能力整理；该范围已被新的 Harness 兼容性对照文档修订。
 
 ## Global Constraints
 

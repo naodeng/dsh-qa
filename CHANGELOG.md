@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.4.1 - Unreleased
+
+## 中文
+
+### 兼容性加固
+
+- 固化 `client-request` 与 `session/follow` WebSocket envelope，并统一读取 `snapshot.records` / `cursor`。
+- 为 Session follow 增加错误、关闭、超时和重复 frame 的边界处理；宿主能力列表失败会继续向工作台状态路径报告，不再静默显示为空。
+- 增加显式 opt-in 的 `dsh-v0.1.6-alpha.1` Harness host smoke 命令；真实宿主尚未运行，兼容矩阵保留 `NOT_RUN`。
+
+### 当前证据边界
+
+- 本地契约/单元测试和独立 Workbench 浏览器回归已覆盖；它们不等同于真实 Harness 宿主兼容性。
+- `package.json` 仍为 `0.4.0`，因为本节是未发布实施记录；正式发布前仍需完成目标 Harness 冒烟、DoD 和 package/release 核验。
+
+## English
+
+### Compatibility hardening
+
+- Locked the `client-request` and `session/follow` WebSocket envelopes and standardized reading `snapshot.records` / `cursor`.
+- Added bounded error, close, timeout, and duplicate-frame handling for Session follow; host capability-list failures now remain visible instead of becoming an empty success.
+- Added an explicit opt-in `dsh-v0.1.6-alpha.1` Harness host-smoke command; the real host run is still `NOT_RUN` and remains so in the compatibility matrix.
+
+### Evidence boundary
+
+- Local contract/unit tests and standalone Workbench browser regression are covered; neither is evidence of real Harness-host compatibility.
+- `package.json` remains at `0.4.0` because this is an unreleased implementation record; the target-host smoke, DoD, and package/release checks are still required before release.
+
 ## 0.4.0 - 2026-09-15
 
 ## 中文

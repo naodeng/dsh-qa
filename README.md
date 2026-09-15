@@ -11,6 +11,8 @@
 
 **dsh-qa** 是 DeepSeek Harness 的本地 QA 工作台：在一个项目空间中管理需求、测试用例、风险、执行、证据和交付决策。项目与迭代的对话复用 DSH 原生会话，并自动使用「测试模式」（preset id: `qa`）；业务数据保留在本机，运行时没有生产依赖。
 
+当前发布版本是 `v0.4.0`，兼容性徽章只表达已发布事实。`0.4.1` 正在针对 `dsh-v0.1.6-alpha.1` 做真实宿主验证，验证完成前不提前声明 tested/compatible。
+
 ```
 测试首页 → DSH 测试对话 → 项目看板 → 日历排期
 ```
@@ -43,7 +45,7 @@
 - **本地项目目录**：创建项目时可自动生成 `01_需求与范围 / 02_测试计划 / 03_测试用例 / 04_测试数据与脚本 / 05_测试执行 / 06_缺陷 / 07_测试报告 / 08_发布与归档` 八级工作目录；删除项目记录不会删除文件夹
 - **门禁治理**：需求评审/策略评审/用例评审/报告评审/发布/结项由 AI 提交申请，测试负责人人工审批（对齐 AI 研发质量分析 8 阶段工作流）
 
-### 研发质量控制工作台（0.2–0.5 质量域）
+### 研发质量控制工作台（0.2–0.5 质量域，已进入 v0.4.0 基线）
 
 - **质量任务与来源快照**：围绕单个测试目标创建质量任务，服务端采集并校验需求、工作区文件或允许的 Git 修订来源；记录摘要、指纹、验收标准、风险、测试范围和分析决策，避免把客户端提交的路径或内容当作可信输入
 - **测试计划与受控执行**：质量任务下维护可评审的测试计划和不可变执行配置版本；只允许基于当前已评审计划、当前配置版本和来源摘要生成预览令牌，再启动最小化环境中的本地受控测试运行
@@ -148,7 +150,7 @@ npm start          # 或双击 start.command
 
 ```
 lib/index.js      宿主半（cordis 插件）：进程内拉起工作台 + /api/dsh-qa 路由 + 系统提示播报
-lib/client.js     浏览器半：侧边栏入口（自愈 MutationObserver）+ 会话区 iframe（同源镜像）
+lib/client.js     浏览器半（v0.4.0）：DOM 侧边栏入口 + 会话区 iframe；0.5 计划迁移官方 Panel/Slot API
 cordis.patch.yml  profile bundle 补丁（插入插件行）
 server/           工作台服务（原生 http + SSE；项目、质量任务、执行、证据与门禁数据）
 public/           四视图前端（原生 JS，无构建步骤；相对路径，可挂任意前缀）
@@ -210,14 +212,16 @@ scripts/install-qa-skills.sh --dry-run           # 预览不写入
 - 环境：Node.js 18+；开发或运行测试前执行 `npm ci`
 - 运行：`npm start` 独立启动；`npm run dev` 监听重启
 - 测试：`npm test` 运行单元/API 测试（node:test）与 Chromium 端到端测试（Playwright）；`npm run test:unit` / `npm run test:e2e` 可单独执行
+- Harness 宿主冒烟：`DSH_WEB_URL=<Harness Web URL> DSH_HOST_VERSION=dsh-v0.1.6-alpha.1 npm run test:host-smoke`；该命令显式依赖登录后的真实宿主，不属于标准 `npm test`
 - 发布：`npm publish` 后使用 `dsh plugin --profile web add dsh-qa` 安装；模型与密钥由使用者自己的 DSH 配置管理
 - 欢迎提交 Issue 与 PR（Conventional Commits）
 
 ## 路线图文档
 
-- [版本语义与路线边界](./docs/quality-workbench/2026-09-15-version-map.md)：解释 `0.2–0.5` 质量域、`0.6–1.0` 产品化路线和正式发布版本之间的关系
+- [版本语义与路线边界](./docs/quality-workbench/2026-09-15-version-map.md)：解释 v0.4.0 基线、0.4.1→1.0 当前路线和正式发布版本之间的关系
 - [质量工作台文档索引](./docs/quality-workbench/README.md)：需求、方案、技术设计和分版实施计划
-- [Post-1.0 Capability Roadmap](./docs/quality-workbench/post-1.0-capability-roadmap.md)：`1.0` 之后的 Quality Intelligence、Obligation、Graph、Agent、Adapter 和 Policy 方向
+- [0.4.1 Harness 兼容性矩阵](./docs/quality-workbench/2026-09-15-harness-compatibility.md)：记录 `dsh-v0.1.6-alpha.1` 的目标验证和未完成证据
+- [Post-1.0 Capability Roadmap](./docs/quality-workbench/post-1.0-capability-roadmap.md)：Quality Intelligence 前移后，`1.0` 之后的 Obligation、Graph、Adapter、Policy、Multi-Agent 和 Autonomous QE 方向
 
 ## 许可证
 

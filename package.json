@@ -25,6 +25,7 @@
     "dev": "node --watch server/cli.js",
     "test:unit": "node scripts/run-unit-tests.js",
     "test:e2e": "playwright test",
+    "test:host-smoke": "playwright test --config=playwright.host.config.js",
     "test": "npm run test:unit && npm run test:e2e"
   },
   "engines": {

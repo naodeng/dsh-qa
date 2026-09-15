@@ -11,6 +11,8 @@
 
 **dsh-qa** is a local QA workbench for DeepSeek Harness. It keeps requirements, test cases, risks, execution, evidence, and delivery decisions in one project space. Project and iteration conversations reuse native DSH sessions with **Test Mode** (preset id: `qa`); business data stays local and the runtime has no production dependencies.
 
+The current release is `v0.4.0`, and the compatibility badge only states a published fact. `0.4.1` is validating `dsh-v0.1.6-alpha.1` against a real host; it will not be called tested/compatible before that evidence exists.
+
 ```
 Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
 ```
@@ -43,7 +45,7 @@ Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
 - **Local project directory**: Creating a project can auto-generate an 8-level workspace: `01_需求与范围 / 02_测试计划 / 03_测试用例 / 04_测试数据与脚本 / 05_测试执行 / 06_缺陷 / 07_测试报告 / 08_发布与归档`; deleting a project record never deletes the folder
 - **Gate governance**: Requirements review / strategy review / case review / report review / release / closure are requested by the AI and approved manually by the test owner (aligned with the 8-stage AI quality-analysis workflow)
 
-### QA Control Workbench (0.2–0.5 quality domain)
+### QA Control Workbench (0.2–0.5 quality domain, included in the v0.4.0 baseline)
 
 - **Quality tasks and source snapshots**: Create a quality task for each test objective. The server captures and validates requirements, workspace files, or allowed Git revisions, then records summaries, digests, acceptance criteria, risks, test scope, and analysis decisions instead of trusting client-supplied paths or content.
 - **Test plans and controlled execution**: Maintain reviewed test plans and immutable execution-profile versions per quality task. A run preview token is issued only for the current reviewed plan, current profile version, and source digest before a controlled local run starts in a minimal environment.
@@ -148,7 +150,7 @@ The standalone address lets you view and manage test projects, the kanban, and t
 
 ```
 lib/index.js      Host half (cordis plugin): starts the workbench in-process + /api/dsh-qa routes + system-prompt announcement
-lib/client.js     Browser half: sidebar entry (self-healing MutationObserver) + conversation-area iframe (same-origin mirror)
+lib/client.js     Browser half (v0.4.0): DOM sidebar entry + conversation-area iframe; 0.5 plans the official Panel/Slot migration
 cordis.patch.yml  Profile bundle patch (inserts the plugin line)
 server/           Workbench service (native http + SSE; projects, quality tasks, execution, evidence, and gates)
 public/           Four-view frontend (vanilla JS, no build step; relative paths, mountable under any prefix)
@@ -210,14 +212,16 @@ After installing, restart `dsh web` and type `/` in the workbench chat to see th
 - Environment: Node.js 18+; run `npm ci` before development or tests
 - Run: `npm start` for standalone; `npm run dev` for watch mode
 - Test: `npm test` runs unit/API tests (node:test) plus Chromium end-to-end tests (Playwright); `npm run test:unit` / `npm run test:e2e` run each separately
+- Harness host smoke: `DSH_WEB_URL=<Harness Web URL> DSH_HOST_VERSION=dsh-v0.1.6-alpha.1 npm run test:host-smoke`; it explicitly requires an authenticated real host and is not part of standard `npm test`
 - Publish: after `npm publish`, install with `dsh plugin --profile web add dsh-qa`; models and keys are managed by the user's DSH configuration
 - Issues and PRs welcome (Conventional Commits)
 
 ## Roadmap Documentation
 
-- [Version semantics and route boundaries](./docs/quality-workbench/2026-09-15-version-map.md): explains the `0.2–0.5` quality domain, the `0.6–1.0` productization route, and formal release versions
+- [Version semantics and route boundaries](./docs/quality-workbench/2026-09-15-version-map.md): explains the v0.4.0 baseline, the current 0.4.1→1.0 route, and formal release versions
 - [Quality Workbench documentation index](./docs/quality-workbench/README.md): requirements, solution design, technical design, and per-version implementation plans
-- [Post-1.0 Capability Roadmap](./docs/quality-workbench/post-1.0-capability-roadmap.md): the post-1.0 Quality Intelligence, Obligation, Graph, Agent, Adapter, and Policy direction
+- [0.4.1 Harness compatibility matrix](./docs/quality-workbench/2026-09-15-harness-compatibility.md): target validation and outstanding evidence for `dsh-v0.1.6-alpha.1`
+- [Post-1.0 Capability Roadmap](./docs/quality-workbench/post-1.0-capability-roadmap.md): after Quality Intelligence moves earlier, the post-1.0 Obligation, Graph, Adapter, Policy, Multi-Agent, and Autonomous QE direction
 
 ## License
 
