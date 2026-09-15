@@ -6,11 +6,11 @@
 
 | 项目 | 值 |
 | --- | --- |
-| dsh-qa 基线 | `v0.4.0` / implementation branch `codex/0.4.1` |
+| dsh-qa 版本 | `0.4.1` / implementation branch `codex/0.4.1` |
 | Harness 目标 | `dsh-v0.1.6-alpha.1` |
-| 0.4.1 状态 | `IMPLEMENTED_PENDING_HOST` |
-| 真实宿主冒烟 | `FAILED`：带完整启动 token 的最新运行已通过插件入口、preset/Session、follow snapshot 和 model catalog，但 `skills/list` 仍发送旧 `agentId` 参数；修复后待重跑 |
-| 兼容徽章 | 保持当前已发布事实，验证后再更新 |
+| 0.4.1 状态 | `VERIFIED_PENDING_PUBLICATION` |
+| 真实宿主冒烟 | `PASS`：使用完整启动 token 针对 `dsh-v0.1.6-alpha.1` 完成 4/4，耗时 `10.7s` |
+| 兼容徽章 | README 已更新为 `dsh-v0.1.6-alpha.1 tested`；npm/tag/GitHub Release 仍未发布 |
 
 ## 2. 核心兼容矩阵
 
@@ -21,12 +21,12 @@
 | `session/list` | slash endpoint + compatibility test | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
 | `session/create`、`session/rename` | slash endpoint + compatibility test | `PASS`：最新真实运行已发现 `qa` preset、创建并重命名 Session | `VERIFIED_LOCAL / VERIFIED_HOST` |
 | `session/modelCatalog` | slash endpoint + compatibility test | `PASS`：最新真实运行读取到默认模型目录 | `VERIFIED_LOCAL / VERIFIED_HOST` |
-| `skills/list`、`commands/list` | slash endpoint + local error propagation + browser regression | `FAIL`：`skills/list` 收到 Harness descriptor 错误，要求 `request`、拒绝 `agentId`；commands 尚未执行 | `VERIFIED_LOCAL / FAILED_HOST` |
+| `skills/list`、`commands/list` | slash endpoint + local error propagation + browser regression | `PASS`：最新真实运行读取 Skills 和 Commands | `VERIFIED_LOCAL / VERIFIED_HOST` |
 | `session/follow` | locked open envelope, `snapshot.records` parser, wrong-stream/error/close/timeout cleanup tests | `PASS`：最新真实运行通过 `/api/remote.mux` 建连并读取 snapshot | `VERIFIED_LOCAL / VERIFIED_HOST` |
-| `session/prompt` | slash endpoint + existing error UI path | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
+| `session/prompt` | slash endpoint + existing error UI path | `PASS`：最新真实运行成功排队 harmless prompt | `VERIFIED_LOCAL / VERIFIED_HOST` |
 | model select / cancel | slash endpoint + compatibility test | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
 | Workbench load | standalone Chromium E2E | `PASS`：插件入口和 `/api/dsh-qa/workbench` iframe 可见 | `VERIFIED_LOCAL / VERIFIED_HOST` |
-| refresh / reconnect | standalone Chromium reconnect regression | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
+| refresh / reconnect | standalone Chromium reconnect regression | `PASS`：最新真实运行刷新后保持同一 Session 且无重复入口 | `VERIFIED_LOCAL / VERIFIED_HOST` |
 | Remote Pair | 当前核心路径不再依赖 | 未运行 | `NOT_APPLICABLE` |
 | `agent/created` | 当前核心路径无直接依赖 | 未运行 | `FUTURE_CONCERN` |
 
@@ -65,6 +65,7 @@
 | `session/follow` Remote mux 路径修复 | `VERIFIED_LOCAL`：工作台和 Host smoke helper 均改为 `/api/remote.mux`，新增路径回归测试；真实宿主待重跑 |
 | 最新真实 `dsh-v0.1.6-alpha.1` host smoke（带启动 token） | `FAILED`：第 1、2 项通过；第 3 项已通过 follow snapshot 和 model catalog，但在 `skills/list` 失败，错误为 `missing "request"; unexpected "agentId"`；第 4 项因 serial suite 未运行。trace 位于 `test-results/dsh-host-compatibility-Dee-625f1-nd-queues-a-harmless-prompt/trace.zip` |
 | `skills/list` request envelope 修复 | `VERIFIED_LOCAL`：工作台和 Host smoke helper 均改为 `{ request: { sessionId } }`，新增兼容性回归测试；真实宿主待重跑 |
+| 最新真实 `dsh-v0.1.6-alpha.1` host smoke（带启动 token） | `PASS`：dsh-qa `a067c18` 上运行 4/4；插件入口、preset/Session、follow、model catalog、Skills、Commands、prompt、refresh/reconnect 全部通过，耗时 `10.7s`；无失败 trace |
 
 ## 5. 与 0.5 的边界
 

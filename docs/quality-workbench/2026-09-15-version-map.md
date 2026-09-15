@@ -4,7 +4,7 @@
 
 ## 1. 当前发布基线
 
-当前 `master` 和 package/tag 基线是 `v0.4.0`。该版本已经包含质量证据、失败分析、回归集、运行对比以及计算型质量门禁和交付报告；对应事实记录见 [2026-08-27-implementation-status.md](./2026-08-27-implementation-status.md) 和 [CHANGELOG.md](../../CHANGELOG.md)。
+当前 `master` 和最新 Git tag 基线是 `v0.4.0`。该版本已经包含质量证据、失败分析、回归集、运行对比以及计算型质量门禁和交付报告；对应事实记录见 [2026-08-27-implementation-status.md](./2026-08-27-implementation-status.md) 和 [CHANGELOG.md](../../CHANGELOG.md)。`codex/0.4.1` 分支已完成本地 `0.4.1` 版本准备和目标 Harness 宿主验证，但尚未创建 `v0.4.1` tag 或发布 npm/GitHub Release。
 
 下面这些事实不能混为一谈：
 
@@ -12,14 +12,14 @@
 - 本轮针对改动重新运行了哪些测试。
 - npm、Git tag、GitHub Release 或宿主兼容性是否已经交付。
 
-本轮启动的是 `0.4.1` 计划，不是对 `v0.4.0` 的补发，也不表示 `dsh-v0.1.6-alpha.1` 已经被当前仓库完整验证。
+本轮启动的是 `0.4.1` 计划，不是对 `v0.4.0` 的补发；当前计划的适用验收项已经在真实 `dsh-v0.1.6-alpha.1` 宿主完成验证，公开发布状态仍单独记录。
 
 ## 2. 当前有效路线
 
 ```text
 v0.4.0 已发布：Quality Evidence + Quality Gate
         ↓
-0.4.1 Harness 0.1.6 Compatibility
+0.4.1 Harness 0.1.6 Compatibility（本地验证完成，待公开发布）
         ↓
 0.5.0 Native Harness Panel Integration
         ↓
@@ -39,7 +39,7 @@ Post-1.0：Quality Obligation、Evidence Graph、Adapter、Policy、Multi-Agent�
 | 版本 | 状态 | 主题 | 本版核心问题 | 不提前承诺 |
 | --- | --- | --- | --- | --- |
 | `0.4.0` | Released | 质量证据与门禁 | 结果能否形成可信证据并支持交付判断？ | Harness 0.1.6 宿主兼容、官方 Panel API |
-| `0.4.1` | Planned | Harness 0.1.6 兼容性加固 | 当前 RPC、Session、Workbench 主路径能否在真实宿主跑通？ | 已验证兼容徽章、Panel API 迁移 |
+| `0.4.1` | Verified locally | Harness 0.1.6 兼容性加固 | 当前 RPC、Session、Workbench 主路径能否在真实宿主跑通？ | npm/tag/GitHub Release 公开交付、Panel API 迁移 |
 | `0.5.0` | Planned | Native Harness Panel Integration | 如何通过官方 Slot/Panel 进入工作台，而不是寻找宿主 DOM？ | 测试执行智能化、AI 自动结论 |
 | `0.6.0` | Planned | Native QA Execution | 如何把 Execution Profile 接到 Browser Use、Computer Use 或 MCP，并留下 TestRun/Evidence？ | 任意工具调用、无证据 PASS |
 | `0.7.0` | Planned | AI Quality Intelligence | 如何从 Evidence、Failure、Regression 和 Gate 事实给出可解释建议？ | AI 直接改 Gate 或替代人工审批 |
@@ -52,7 +52,7 @@ Post-1.0：Quality Obligation、Evidence Graph、Adapter、Policy、Multi-Agent�
 - 静态/契约检查：RPC 使用 slash endpoint 和当前 envelope，不重新引入已移除的 Remote Pair 或旧 API Proxy。
 - 本地 Workbench 测试：preset、Session、model catalog、skills、commands、follow、prompt 的调用与错误处理。
 - 真实 Harness 宿主冒烟：插件加载、QA preset 发现、Session create/rename/follow/prompt、模型、Skills、Commands、Workbench 加载、刷新和 reconnect。
-- 文档事实：只有真实宿主矩阵通过后，才能把 `dsh-v0.1.6-alpha.1 tested` 写入 README；此前保持 `NOT_RUN` 或明确的目标版本表述。
+- 文档事实：真实宿主矩阵已通过，因此 README 可以写入 `dsh-v0.1.6-alpha.1 tested`；这不等同于 npm、Git tag 或 GitHub Release 已公开发布。
 
 `agent/created` 当前没有被 dsh-qa 核心路径直接使用，记录为后续自动创建质量任务时的兼容性关注点，不作为 0.4.1 的阻断项。
 
