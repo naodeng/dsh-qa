@@ -9,23 +9,23 @@
 | dsh-qa 基线 | `v0.4.0` / implementation branch `codex/0.4.1` |
 | Harness 目标 | `dsh-v0.1.6-alpha.1` |
 | 0.4.1 状态 | `IMPLEMENTED_PENDING_HOST` |
-| 真实宿主冒烟 | `BLOCKED`：已访问 `127.0.0.1:3080`，但使用了裸 origin，缺少 `dsh web` 启动 token |
+| 真实宿主冒烟 | `FAILED`：带完整启动 token 的运行已通过插件入口和 Workbench 加载，但 `qa` preset 挂载仍因旧 workflow 包名失败；修复后待重跑 |
 | 兼容徽章 | 保持当前已发布事实，验证后再更新 |
 
 ## 2. 核心兼容矩阵
 
 | 能力 | 当前源代码/契约检查 | 真实 Harness 宿主冒烟 | 当前结论 |
 | --- | --- | --- | --- |
-| `agentPresets/list` | slash endpoint + compatibility/unit tests | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
+| `agentPresets/list` | slash endpoint + compatibility/unit tests | `PASS`：真实运行发现 `qa` preset | `VERIFIED_LOCAL / VERIFIED_HOST` |
 | `agentPresets/select` | slash endpoint + compatibility test | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
 | `session/list` | slash endpoint + compatibility test | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
-| `session/create`、`session/rename` | slash endpoint + compatibility test | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
+| `session/create`、`session/rename` | slash endpoint + compatibility test | `FAIL`：`session/create` 挂载 `qa` 时解析不到 `@deepseek-ai/dsh-workflow-worker-thread`；rename 未执行 | `VERIFIED_LOCAL / FAILED_HOST` |
 | `session/modelCatalog` | slash endpoint + compatibility test | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
 | `skills/list`、`commands/list` | slash endpoint + local error propagation + browser regression | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
 | `session/follow` | locked open envelope, `snapshot.records` parser, wrong-stream/error/close/timeout cleanup tests | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
 | `session/prompt` | slash endpoint + existing error UI path | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
 | model select / cancel | slash endpoint + compatibility test | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
-| Workbench load | standalone Chromium E2E | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
+| Workbench load | standalone Chromium E2E | `PASS`：插件入口和 `/api/dsh-qa/workbench` iframe 可见 | `VERIFIED_LOCAL / VERIFIED_HOST` |
 | refresh / reconnect | standalone Chromium reconnect regression | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
 | Remote Pair | 当前核心路径不再依赖 | 未运行 | `NOT_APPLICABLE` |
 | `agent/created` | 当前核心路径无直接依赖 | 未运行 | `FUTURE_CONCERN` |
@@ -49,15 +49,16 @@
 
 | 检查 | 结果 |
 | --- | --- |
-| `node --test test/unit/dsh-rpc-contract.test.js test/unit/dsh-compatibility.test.js` | `9 passed` |
-| `npm run test:unit`（当前实现） | `133 passed` |
-| `QA_E2E_PORT=8900 npm test`（当前重跑） | `133` 个单元/API + `22` 个本地 Chromium E2E 通过；host smoke 被默认配置排除 |
+| `node --test test/unit/dsh-rpc-contract.test.js test/unit/dsh-compatibility.test.js` | `10 passed` |
+| `npm run test:unit`（当前实现） | `134 passed` |
+| `QA_E2E_PORT=8900 npm test`（当前重跑） | `134` 个单元/API + `22` 个本地 Chromium E2E 通过；host smoke 被默认配置排除 |
 | `npm run test:e2e -- test/e2e/skills.spec.js test/e2e/workbench-reconnect.spec.js` | 默认端口被已有进程占用；使用隔离数据目录和 8900 端口重跑后 `4 passed` |
 | 标准本地 E2E（同一 Playwright 项目配置，排除 opt-in host smoke） | `22 passed` |
 | `npm run test:host-smoke` 无环境变量 | 按设计在浏览器启动前失败，提示必须提供 `DSH_WEB_URL` 和 `DSH_HOST_VERSION` |
 | 用户运行 `DSH_WEB_URL=http://127.0.0.1:3080/ ... npm run test:host-smoke` | `BLOCKED`：Harness 返回 `401 dsh web authentication required`; 第 1 项找不到入口，后 3 项因 serial suite 未运行；trace 位于 `test-results/dsh-host-compatibility-Dee-aeaac--entry-and-Workbench-iframe/trace.zip` |
 | 裸 origin 防误用保护（修复后） | `VERIFIED`：配置在浏览器启动前提示必须使用带 `?token=...` 的 `dsh web` 完整 URL |
-| 真实 `dsh-v0.1.6-alpha.1` host smoke（带启动 token） | `NOT_RUN`：需要重新启动或取得 `dsh web` 打印的完整认证 URL |
+| 真实 `dsh-v0.1.6-alpha.1` host smoke（带启动 token） | `FAILED`：第 1 项通过；第 2 项在 `session/create` 失败，错误为 `preset "qa" failed to mount: row "workflow-worker-thread" names a plugin that cannot be resolved: @deepseek-ai/dsh-workflow-worker-thread`；第 3、4 项因 serial suite 未运行。trace 位于 `test-results/dsh-host-compatibility-Dee-9173a-eates-and-renames-a-Session/trace.zip` |
+| `qa` preset workflow 依赖修复 | `VERIFIED_LOCAL`：切换为 Harness 0.1.6 当前的 `@deepseek-ai/dsh-workflow-ptc`；兼容性回归测试 `4 passed`，当前 web profile 可解析 preset 中的 23 个 Harness 包；尚未重新执行真实宿主 |
 
 ## 5. 与 0.5 的边界
 

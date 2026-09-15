@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const app = fs.readFileSync(path.join(root, 'public/app.js'), 'utf8');
 const rpcContract = fs.readFileSync(path.join(root, 'public/dsh-rpc-contract.js'), 'utf8');
+const qaPreset = fs.readFileSync(path.join(root, 'preset/qa/agent.cordis.yml'), 'utf8');
 const source = `${app}\n${rpcContract}`;
 
 test('DSH integration uses current slash RPC namespaces instead of retired API Proxy methods', () => {
@@ -38,4 +39,13 @@ test('DSH Remote UI and implementation are absent', () => {
 test('DSH capability failures remain visible instead of becoming empty success', () => {
   assert.equal(app.includes('Promise.allSettled'), false, 'DSH capability failures are silently downgraded');
   assert.match(app, /const \[skillResult, commandResult\] = await Promise\.all\(/);
+});
+
+test('QA preset uses the Harness 0.1.6 workflow engine package', () => {
+  assert.equal(
+    qaPreset.includes('@deepseek-ai/dsh-workflow-worker-thread'),
+    false,
+    'QA preset still references the removed worker-thread workflow package',
+  );
+  assert.match(qaPreset, /- id: workflow-ptc\n\s+name: '@deepseek-ai\/dsh-workflow-ptc'/);
 });
