@@ -1,14 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
+import { authenticateHostPage, parseHostLaunchUrl } from '../support/dsh-host-auth.js';
 
 const hostVersion = process.env.DSH_HOST_VERSION;
+const { launchUrl } = parseHostLaunchUrl(process.env.DSH_WEB_URL);
 let sessionId = '';
 
 test.describe('DeepSeek Harness host compatibility', () => {
   test.describe.configure({ mode: 'serial' });
 
-  test.beforeEach(async ({}, testInfo) => {
+  test.beforeEach(async ({ page }, testInfo) => {
     testInfo.annotations.push({ type: 'harness-version', description: hostVersion });
+    await authenticateHostPage(page, launchUrl);
   });
 
   test.afterEach(async ({ page }, testInfo) => {

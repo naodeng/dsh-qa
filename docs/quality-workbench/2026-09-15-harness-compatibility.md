@@ -9,7 +9,7 @@
 | dsh-qa 基线 | `v0.4.0` / implementation branch `codex/0.4.1` |
 | Harness 目标 | `dsh-v0.1.6-alpha.1` |
 | 0.4.1 状态 | `IMPLEMENTED_PENDING_HOST` |
-| 真实宿主冒烟 | `NOT_RUN` |
+| 真实宿主冒烟 | `BLOCKED`：已访问 `127.0.0.1:3080`，但使用了裸 origin，缺少 `dsh web` 启动 token |
 | 兼容徽章 | 保持当前已发布事实，验证后再更新 |
 
 ## 2. 核心兼容矩阵
@@ -50,13 +50,14 @@
 | 检查 | 结果 |
 | --- | --- |
 | `node --test test/unit/dsh-rpc-contract.test.js test/unit/dsh-compatibility.test.js` | `9 passed` |
-| `npm run test:unit`（当前实现） | `131 passed` |
-| `npm test` | 单元阶段 `131 passed`；E2E 阶段被已有 `127.0.0.1:8899` 进程阻断 |
-| `QA_E2E_PORT=8900 npm test` | `131` 个单元/API + `22` 个本地 Chromium E2E 通过；host smoke 被默认配置排除 |
+| `npm run test:unit`（当前实现） | `133 passed` |
+| `QA_E2E_PORT=8900 npm test`（当前重跑） | `133` 个单元/API + `22` 个本地 Chromium E2E 通过；host smoke 被默认配置排除 |
 | `npm run test:e2e -- test/e2e/skills.spec.js test/e2e/workbench-reconnect.spec.js` | 默认端口被已有进程占用；使用隔离数据目录和 8900 端口重跑后 `4 passed` |
 | 标准本地 E2E（同一 Playwright 项目配置，排除 opt-in host smoke） | `22 passed` |
 | `npm run test:host-smoke` 无环境变量 | 按设计在浏览器启动前失败，提示必须提供 `DSH_WEB_URL` 和 `DSH_HOST_VERSION` |
-| 真实 `dsh-v0.1.6-alpha.1` host smoke | `NOT_RUN`：当前没有可审计的登录宿主 URL/运行记录 |
+| 用户运行 `DSH_WEB_URL=http://127.0.0.1:3080/ ... npm run test:host-smoke` | `BLOCKED`：Harness 返回 `401 dsh web authentication required`; 第 1 项找不到入口，后 3 项因 serial suite 未运行；trace 位于 `test-results/dsh-host-compatibility-Dee-aeaac--entry-and-Workbench-iframe/trace.zip` |
+| 裸 origin 防误用保护（修复后） | `VERIFIED`：配置在浏览器启动前提示必须使用带 `?token=...` 的 `dsh web` 完整 URL |
+| 真实 `dsh-v0.1.6-alpha.1` host smoke（带启动 token） | `NOT_RUN`：需要重新启动或取得 `dsh web` 打印的完整认证 URL |
 
 ## 5. 与 0.5 的边界
 
