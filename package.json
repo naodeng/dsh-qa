@@ -1,6 +1,6 @@
 {
   "name": "dsh-qa",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "dsh-qa QA Workbench: a local software testing workbench plugin for DeepSeek Harness. Project/iteration dual-mode, full-flow requirements / test cases / defects / milestones / reports, native QA preset, themes, kanban and calendar.",
   "type": "module",
   "main": "lib/index.js",
@@ -25,6 +25,7 @@
     "dev": "node --watch server/cli.js",
     "test:unit": "node scripts/run-unit-tests.js",
     "test:e2e": "playwright test",
+    "test:host-smoke": "playwright test --config=playwright.host.config.js",
     "test": "npm run test:unit && npm run test:e2e"
   },
   "engines": {

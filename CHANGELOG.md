@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.4.1 - 2026-09-15
+
+## 中文
+
+### 兼容性加固
+
+- 固化当前 Harness `client-request` 与 `session/follow` WebSocket envelope，并统一读取 `snapshot.records` / `cursor`；follow 使用 Remote mux `/api/remote.mux`。
+- 为 Session follow 增加错误、关闭、超时和重复 frame 的边界处理；宿主能力列表失败会继续向工作台状态路径报告，不再静默显示为空。
+- 对齐 `dsh-v0.1.6-alpha.1` 的 QA preset workflow、persona `prefix` 和 `skills/list` request envelope。
+- 增加显式 opt-in 的 `dsh-v0.1.6-alpha.1` Harness host smoke 命令，并完成真实宿主 4/4 验收。
+
+### 当前证据边界
+
+- `141` 个单元/API 测试、`22` 个独立 Chromium E2E 和 `4/4` 个真实 Harness host smoke 均通过；host smoke 针对 `dsh-v0.1.6-alpha.1` 执行。
+- 当前提交完成本地 `0.4.1` 版本准备；npm 包、Git tag 和 GitHub Release 尚未在本次变更中发布。
+
+## English
+
+### Compatibility hardening
+
+- Locked the current Harness `client-request` and `session/follow` WebSocket envelopes, standardized reading `snapshot.records` / `cursor`, and used the Remote mux at `/api/remote.mux`.
+- Added bounded error, close, timeout, and duplicate-frame handling for Session follow; host capability-list failures now remain visible instead of becoming an empty success.
+- Aligned the QA preset workflow, persona `prefix`, and `skills/list` request envelope with `dsh-v0.1.6-alpha.1`.
+- Added an explicit opt-in `dsh-v0.1.6-alpha.1` Harness host-smoke command and completed all 4/4 real-host cases.
+
+### Evidence boundary
+
+- `141` unit/API tests, `22` standalone Chromium E2E tests, and `4/4` real Harness host-smoke cases passed against `dsh-v0.1.6-alpha.1`.
+- This commit prepares the local `0.4.1` version; npm, Git tag, and GitHub Release publication were not performed in this change.
+
 ## 0.4.0 - 2026-09-15
 
 ## 中文

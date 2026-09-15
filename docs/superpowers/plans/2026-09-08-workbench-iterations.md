@@ -1,4 +1,6 @@
-# DSH QA Workbench `0.6.0`—`1.0.0` Iterations Implementation Plan
+# DSH QA Workbench `0.6.0`—`1.0.0` Iterations Implementation Plan（历史草案）
+
+> **已被替代：** 当前执行顺序见 `2026-09-15-workbench-iterations.md`。本文件保留旧的行动台、对话工作台、变更与回归和证据交付路线。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement each **version plan** task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

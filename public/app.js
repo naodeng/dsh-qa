@@ -1,3 +1,5 @@
+import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './dsh-rpc-contract.js';
+
 // 质量工作台前端：测试首页、DSH 测试模式、项目看板、日历排期
 (() => {
   'use strict';
@@ -62,6 +64,7 @@
     calendarCursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), selectedDate: localDate(new Date()),
     refreshTimer: null,
   };
+  const dshRpc = createDshRpc(globalThis.fetch.bind(globalThis), { embedded: state.dshEmbedded });
 
   // ---------- helpers ----------
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -105,58 +108,11 @@
     if (!response.ok) throw new Error(data.error || `请求失败 (${response.status})`);
     return data;
   }
-  async function dshRpc(endpoint, args = {}) {
-    if (!state.dshEmbedded) throw new Error('请从 DSH 侧边栏打开“质量工作台”后使用原生技能与命令');
-    const rpcId = globalThis.crypto?.randomUUID?.() || `dshqa-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    const response = await fetch(`/api/${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'client-request', rpcId, method: endpoint, payload: { args } }),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(`DSH 连接失败 (${response.status})`);
-    if (data.rpcId && data.rpcId !== rpcId) throw new Error('DSH 响应校验失败');
-    if (!data.result?.ok) throw new Error(data.result?.error?.message || 'DSH 调用失败');
-    const value = data.result.value;
-    if (endpoint === 'session/modelCatalog') {
-      return {
-        current: value.default,
-        groups: value.groups || [],
-        routable: (value.routableProviders || []).length > 0,
-      };
-    }
-    return value;
-  }
   async function dshFollowSnapshot(sessionId, maxMessages = 30) {
     if (!state.dshEmbedded) throw new Error('请从 DSH 侧边栏打开“质量工作台”');
     const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const streamId = globalThis.crypto?.randomUUID?.() || `dshqa-stream-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    return await new Promise((resolve, reject) => {
-      const socket = new WebSocket(`${scheme}//${location.host}/api`);
-      let settled = false;
-      const finish = (fn, value) => {
-        if (settled) return;
-        settled = true;
-        try { socket.close(); } catch { /* ignore */ }
-        fn(value);
-      };
-      const timer = setTimeout(() => finish(reject, new Error('DSH 会话快照超时')), 10000);
-      socket.addEventListener('open', () => socket.send(JSON.stringify({
-        type: 'open', streamId, endpoint: 'session/follow',
-        payload: { args: { request: { address: { kind: 'session', sessionId }, maxMessages } } },
-      })));
-      socket.addEventListener('message', (event) => {
-        let frame;
-        try { frame = JSON.parse(event.data); } catch { return; }
-        if (frame.streamId !== streamId) return;
-        if (frame.type === 'item' && frame.value?.type === 'snapshot') {
-          clearTimeout(timer); finish(resolve, frame.value); return;
-        }
-        if (frame.type === 'error') { clearTimeout(timer); finish(reject, new Error(frame.error?.message || 'DSH 会话快照失败')); }
-      });
-      socket.addEventListener('error', () => { clearTimeout(timer); finish(reject, new Error('DSH 会话 WebSocket 连接失败')); });
-      socket.addEventListener('close', () => { if (!settled) { clearTimeout(timer); finish(reject, new Error('DSH 会话 WebSocket 已关闭')); } });
-    });
+    return await openFollowSnapshot(new WebSocket(`${scheme}//${location.host}/api/remote.mux`), { streamId, sessionId, maxMessages });
   }
   async function dshHistory(sessionId, maxMessages) {
     const snapshot = await dshFollowSnapshot(sessionId, maxMessages);
@@ -737,16 +693,16 @@
       p.dshSessionId = sessionId;
       models = await dshRpc('session/modelCatalog', {});
     }
-    const [skillResult, commandResult] = await Promise.allSettled([
-      dshRpc('skills/list', { agentId: sessionId }),
+    const [skillResult, commandResult] = await Promise.all([
+      dshRpc('skills/list', { request: { sessionId } }),
       dshRpc('commands/list', { agentId: sessionId }),
     ]);
     if (state.activeProjectId !== projectId) return sessionId;
     state.dsh.projectId = projectId;
     state.dsh.sessionId = sessionId;
     state.dsh.models = models;
-    state.dsh.skills = skillResult.status === 'fulfilled' ? skillResult.value.skills || [] : [];
-    state.dsh.commands = commandResult.status === 'fulfilled' ? commandResult.value || [] : [];
+    state.dsh.skills = skillResult.skills || [];
+    state.dsh.commands = commandResult || [];
     await loadSkillCatalog().catch(() => {});
     populateDshModelSelect(models);
     updateDshChrome();
@@ -861,7 +817,7 @@
       const command = commandName && state.dsh.commands.find((item) => item.name === commandName);
       if (command) {
         const pending = appendAiMsg(`/${command.name} 正在执行…`, true, 'command');
-        const execution = await dshRpc('commands/execute', { agentId: sessionId, line: text, attachments: [] });
+        const execution = await dshRpc('commands/execute', createCommandExecuteArgs(sessionId, text));
         const result = execution?.result;
         pending.textContent = result?.text || (result?.kind === 'error' ? '命令执行失败' : `/${command.name} 已执行`);
         if (result?.kind === 'error') throw new Error(result.text || '命令执行失败');

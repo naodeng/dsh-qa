@@ -5,6 +5,7 @@ test.describe('QA Skill 安装页', () => {
     await page.goto('/');
     await page.getByRole('button', { name: 'QA Skill安装' }).click();
     await expect(page.locator('#view-skills')).toBeVisible();
+    await expect(page.locator('.skill-card').first()).toBeVisible();
   }
 
   test('Skill Tab 可以访问并显示官网分类', async ({ page }) => {
@@ -26,5 +27,14 @@ test.describe('QA Skill 安装页', () => {
     await page.locator('#btn-lang').click();
     await expect(page.locator('#view-skills h1')).toHaveText('QA skills installer');
     await expect(page.locator('.skill-category').first()).toContainText('Testing types');
+  });
+
+  test('Skill 页面刷新后仍可用且不会重复渲染', async ({ page }) => {
+    await openSkills(page);
+    const initialCount = await page.locator('.skill-card').count();
+    await page.reload();
+    await openSkills(page);
+    await expect(page.locator('.skill-card')).toHaveCount(initialCount);
+    await expect(page.locator('.skill-category').first()).toBeVisible();
   });
 });

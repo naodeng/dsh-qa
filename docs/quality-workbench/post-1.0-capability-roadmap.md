@@ -1,13 +1,13 @@
 # Post-1.0 Capability Roadmap
 
-本文承接 `dsh-qa` 的 `0.6–1.0` QA 工作台产品化路线，整理附件中提出的长期能力方向。本文是能力路线，不是当前 Release 计划、实现状态或已批准的代码任务清单。
+本文承接 `dsh-qa` 的 `0.4.1–1.0` Harness 集成路线，整理仍然属于长期演进的 Quality Obligation、Evidence Graph、Adapter、Policy、Multi-Agent 和 Autonomous QE 方向。本文是能力路线，不是当前 Release 计划、实现状态或已批准的代码任务清单。
 
 ## 1. 定位
 
-`0.6–1.0` 先解决：
+`0.4.1–1.0` 先解决：
 
 ```text
-QA 能不能稳定、清楚、低成本地完成一次质量闭环？
+宿主接入、Panel、原生执行、Quality Intelligence 和受控 Agent 主路径能不能稳定完成一次质量闭环？
 ```
 
 Post-1.0 再解决：
@@ -26,7 +26,7 @@ Quality Control Plane
 Autonomous Quality Engineering
 ```
 
-能力阶段使用 `C1–C8` 标识，避免与当前质量域的 `0.4`、`0.5` 发生版本号冲突。只有在某个能力阶段完成独立需求、技术设计、实现和 Release 验收后，才决定是否映射到正式版本。
+能力阶段使用 `C1–C8` 标识。`C1 Quality Intelligence` 已前移为当前 `0.7.0` 的主线，`C4 QA Agent Loop` 在 `1.0.0` 建立受控基础；本文件只保留它们的长期扩展边界。只有在某个能力阶段完成独立需求、技术设计、实现和 Release 验收后，才决定是否映射到正式版本。
 
 ## 2. 共同原则
 
@@ -66,7 +66,7 @@ AI 可以提出风险、测试和行动建议；Policy Engine 和领域服务负
 
 | 阶段 | 名称 | 核心问题 | 直接依赖 |
 | --- | --- | --- | --- |
-| C1 | Quality Intelligence | 哪里存在质量缺口和风险？ | `0.2–0.5` 质量事实 |
+| C1 | Quality Intelligence | 哪里存在质量缺口和风险？ | `0.7.0`、`0.2–0.5` 质量事实 |
 | C2 | Change Intelligence & Quality Obligation | 这次变化必须证明什么？ | C1、Git/Requirement 来源 |
 | C3 | Quality Evidence Graph | 为什么这个结论成立？ | C2、Evidence、Gate |
 | C4 | QA Agent Loop | 如何组织一次可控的质量行动？ | C1–C3、DSH 工具 |
@@ -75,65 +75,11 @@ AI 可以提出风险、测试和行动建议；Policy Engine 和领域服务负
 | C7 | Multi-Agent QA | 多个专业 Agent 如何协同？ | C3、C4、C6 |
 | C8 | Autonomous Quality Engineering | 如何持续观察软件变化并反馈？ | C1–C7、外部信号 |
 
-## 4. C1：Quality Intelligence
+## 4. C1：Quality Intelligence（已前移至 0.7.0）
 
-### 目标
+`C1` 不再是本文件的首个 Post-1.0 交付目标。当前实现计划见 [2026-09-15-workbench-0.7.0.md](../superpowers/plans/2026-09-15-workbench-0.7.0.md)，范围是确定性 gap rules、schema-validated Auto Review、证据引用和人工动作边界。
 
-让系统从被动展示质量信息，进入主动发现质量缺口：
-
-```text
-Project State → Insight Rules → Quality Insight → Human Action
-```
-
-### 方案
-
-引入 `QualityInsight`，但不复制 Requirement、TestCase、Evidence 或 Gate。Insight 是对既有事实的可解释投影。
-
-首批确定性规则：
-
-- Requirement 没有 Acceptance Criteria → `requirement_gap`
-- Acceptance Criteria 没有关联 Test → `coverage_gap`
-- Critical Risk 没有可信 Evidence → `evidence_gap`
-- 失败 Critical Test 没有 Regression 验证 → `regression_gap`
-- 关键范围没有自动化执行路径 → `automation_gap`
-- 当前事实组合已经触发交付风险 → `release_risk`
-
-### 具体实现方向
-
-建议边界：
-
-```text
-server/quality/insights/
-├── engine.js
-├── repository.js
-└── rules/
-    ├── requirement-gap.js
-    ├── coverage-gap.js
-    ├── evidence-gap.js
-    ├── regression-gap.js
-    └── risk-gap.js
-```
-
-候选 API：
-
-```text
-GET  /api/projects/:id/insights
-POST /api/projects/:id/insights/analyze
-PATCH /api/insights/:id
-POST /api/insights/:id/resolve
-POST /api/insights/:id/ignore
-```
-
-AI Insight 只能读取结构化上下文并返回经过 Schema 校验的候选结果，不能直接写入 Store，也不能直接改变 Gate。
-
-### 完成标准
-
-- 规则输入和输出可单元测试。
-- 同一项目状态重复分析不会产生重复 Insight。
-- 每个 Insight 都能说明 target、reason、evidenceRefs 和 recommendation。
-- Resolve/Ignore 有操作者、时间和 revision 保护。
-- AI Insight 可以关闭，关闭不影响确定性规则。
-- 中英文 UI、空状态和无证据状态清楚区分。
+Post-1.0 只保留 C1 的长期扩展：跨项目质量模式、长期趋势、复杂上下文关联和经过审计的解释排序。扩展仍不能修改 Gate 事实，也不能把缺失证据推断为覆盖。
 
 ## 5. C2：Change Intelligence & Quality Obligation
 
@@ -275,6 +221,8 @@ UI 先做 Tree/Trace View，不先做复杂可视化。Gate 的 explain 结果�
 - Graph 版本迁移和旧数据兼容有测试。
 
 ## 7. C4：QA Agent Loop
+
+`1.0.0` 只交付受控 AgentRun 基础：状态、白名单动作、审批、预算、超时、redaction 和终止状态。本节描述跨项目编排、长期记忆和更复杂反思循环等 Post-1.0 扩展。
 
 ### 目标
 
@@ -522,21 +470,13 @@ C8 不是单纯增加一个自动化按钮，必须先具备：
 ## 12. 阶段依赖与实施顺序
 
 ```text
-0.6–1.0 工作台产品化
+0.4.1 Compatibility → 0.5 Panel → 0.6 Native Execution
           ↓
-C1 Insight
+0.7 C1 Quality Intelligence → 1.0 bounded Agent foundation
           ↓
-C2 Obligation
+C2 Obligation → C3 Evidence Graph
           ↓
-C3 Evidence Graph
-          ↓
-C4 Agent Loop
-          ↓
-C5 Adapter + C6 Policy
-          ↓
-C7 Multi-Agent
-          ↓
-C8 Autonomous QE
+C5 Adapter + C6 Policy → C7 Multi-Agent → C8 Autonomous QE
 ```
 
 C5 和 C6 在 C4 后可以并行设计，但都必须复用既有 TestRun、Evidence 和 Gate 契约。C7 不应在 C4、C5、C6 未稳定前提前开始。
@@ -577,4 +517,4 @@ release-notes.md
 | `Verified` | 有当前回合可检查的测试或交付证据 |
 | `Blocked` | 因依赖、权限、环境或外部系统未能验证 |
 
-Post-1.0 目前全部属于 `Proposed`，不应在 README、Release 或产品页面中描述为已具备能力。
+Post-1.0 的 C2/C3/C5/C6/C7/C8 以及 C1/C4 的长期扩展目前属于 `Proposed`，不应在 README、Release 或产品页面中描述为已具备能力。当前 `0.7.0` 和 `1.0.0` 的计划必须分别依据本轮实现和验证证据判断。
