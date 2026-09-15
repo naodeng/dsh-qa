@@ -54,3 +54,8 @@ test('QA preset uses the Harness 0.1.6 persona config schema', () => {
   assert.match(qaPreset, /- id: persona\n\s+name: '@deepseek-ai\/dsh-persona'\n\s+config:\n\s+prefix:/);
   assert.doesNotMatch(qaPreset, /^(\s+)text:/m, 'QA persona still uses the retired text config key');
 });
+
+test('DSH follow opens the Harness Remote stream WebSocket', () => {
+  assert.match(app, /new WebSocket\(`\$\{scheme\}\/\/\$\{location\.host\}\/api\/remote\.mux`\)/);
+  assert.equal(app.includes('`${scheme}//${location.host}/api`'), false, 'follow still uses the retired WebSocket path');
+});

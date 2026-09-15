@@ -118,7 +118,7 @@ async function followSnapshot(page, id) {
   return page.evaluate(async (sessionId) => {
     const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const streamId = `dsh-qa-0.4.1-${crypto.randomUUID()}`;
-    const socket = new WebSocket(`${scheme}//${location.host}/api`);
+    const socket = new WebSocket(`${scheme}//${location.host}/api/remote.mux`);
     return await new Promise((resolve, reject) => {
       let settled = false;
       let timer;

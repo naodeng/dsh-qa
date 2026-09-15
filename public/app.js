@@ -133,7 +133,7 @@ import { createClientRequest, openFollowSnapshot } from './dsh-rpc-contract.js';
     if (!state.dshEmbedded) throw new Error('请从 DSH 侧边栏打开“质量工作台”');
     const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const streamId = globalThis.crypto?.randomUUID?.() || `dshqa-stream-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    return await openFollowSnapshot(new WebSocket(`${scheme}//${location.host}/api`), { streamId, sessionId, maxMessages });
+    return await openFollowSnapshot(new WebSocket(`${scheme}//${location.host}/api/remote.mux`), { streamId, sessionId, maxMessages });
   }
   async function dshHistory(sessionId, maxMessages) {
     const snapshot = await dshFollowSnapshot(sessionId, maxMessages);
