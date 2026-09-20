@@ -95,6 +95,14 @@ registerDshQaPanel(ctx)
   → main keyed slot entry { key: 'dsh-qa', render, dispose }
 ```
 
+`lib/panel-contract.js` 固化这层语义边界：
+`createDshQaPanelDefinition({ id, label, icon, workbenchUrl })` 生成共享
+`dsh-qa` 身份；`registerDshQaPanel(ctx, definition)` 通过
+`ctx.slots.inject()` 等待 `sidebar.panellist` 和 `main` 的声明，并分别注册
+`{ name: 'sidebar.panellist', id, label }` 与 `{ name: 'main', key }`。
+`icon` 和 `workbenchUrl` 只由适配层用于渲染入口和 Workbench iframe，不扩散
+到 Harness 的 slot registration options。
+
 实际调用名以锁定的 `dsh-v0.1.6-alpha.1` 官方类型/实现为准，但适配层对本仓库暴露的语义固定为上面两项。实现必须：
 
 - 使用相同 `dsh-qa` ID 建立 sidebar entry 和 main keyed slot 的关联。
