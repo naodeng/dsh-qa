@@ -16,7 +16,7 @@ const { origin: hostOrigin } = parseHostLaunchUrl(hostUrl);
 
 export default defineConfig({
   testDir: './test/e2e',
-  testMatch: 'dsh-host-compatibility.spec.js',
+  testMatch: ['dsh-host-compatibility.spec.js', 'dsh-panel-lifecycle.spec.js'],
   fullyParallel: false,
   reporter: 'list',
   metadata: { dshHostVersion: hostVersion, dshHostOrigin: hostOrigin },

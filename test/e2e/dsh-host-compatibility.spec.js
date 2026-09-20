@@ -105,7 +105,7 @@ test.describe('DeepSeek Harness host compatibility', () => {
 
     await bindEmbeddedProject(page, linked.title);
     await page.reload();
-    await expect(page.locator('[data-dsh-qa-entry]')).toHaveCount(1);
+    await expect(page.getByRole('button', { name: '质量工作台', exact: true })).toHaveCount(1);
     await bindEmbeddedProject(page, linked.title);
 
     page.off('request', observeRequest);
@@ -176,9 +176,7 @@ async function rpc(page, method, args) {
 }
 
 async function qaEntry(page) {
-  const markedEntry = page.locator('[data-dsh-qa-entry]').first();
-  if (await markedEntry.count()) return markedEntry;
-  return page.getByText(/质量工作台|QA Workbench/).first();
+  return page.getByRole('button', { name: '质量工作台', exact: true });
 }
 
 async function followSnapshot(page, id) {

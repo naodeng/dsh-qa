@@ -5,7 +5,7 @@ const e2ePort = Number.isInteger(requestedPort) && requestedPort > 0 ? requested
 
 export default defineConfig({
   testDir: './test/e2e',
-  testIgnore: ['**/dsh-host-compatibility.spec.js'],
+  testIgnore: ['**/dsh-host-compatibility.spec.js', '**/dsh-panel-lifecycle.spec.js'],
   fullyParallel: false,
   reporter: 'list',
   use: {
