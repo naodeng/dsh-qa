@@ -90,8 +90,8 @@ commands/execute
 `lib/client.js` 提供一个唯一的宿主注册适配层：
 
 ```text
-registerDshQaPanel(ctx)
-  → sidebar.panellist entry { id: 'dsh-qa', label, icon, selection }
+registerDshQaPanel(ctx, definition)
+  → sidebar.panellist entry { id: 'dsh-qa', label, icon component }
   → main keyed slot entry { key: 'dsh-qa', render, dispose }
 ```
 
