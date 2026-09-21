@@ -15,6 +15,7 @@ function loadClientRuntime() {
   const listenerEvents = [];
   const effectCleanups = [];
   const alerts = [];
+  const openedPopups = [];
   const window = {
     __ModuleLoader__: {
       load(definition) {
@@ -24,6 +25,19 @@ function loadClientRuntime() {
     location: { origin: 'http://harness.test' },
     alert(message) {
       alerts.push(message);
+    },
+    open(url, target, features) {
+      const popup = {
+        url,
+        target,
+        features,
+        closed: false,
+        close() {
+          this.closed = true;
+        },
+      };
+      openedPopups.push(popup);
+      return popup;
     },
     addEventListener(type, listener) {
       listenerEvents.push({ action: 'add', type, listener });
@@ -52,7 +66,24 @@ function loadClientRuntime() {
     assert.equal(name, 'react');
     return React;
   });
-  return { runtime, window, alerts, listenerEvents, effectCleanups };
+  return { runtime, window, alerts, listenerEvents, effectCleanups, openedPopups };
+}
+
+function findRenderedElement(node, predicate) {
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const match = findRenderedElement(child, predicate);
+      if (match) return match;
+    }
+    return null;
+  }
+  if (!node || typeof node !== 'object') return null;
+  if (predicate(node)) return node;
+  for (const child of node.children || []) {
+    const match = findRenderedElement(child, predicate);
+    if (match) return match;
+  }
+  return null;
 }
 
 function createContext({ failOnInject } = {}) {
@@ -155,6 +186,24 @@ test('raw client main renderer removes its message listener on unmount', () => {
     { action: 'add', type: 'message' },
     { action: 'remove', type: 'message' },
   ]);
+});
+
+test('raw client main renderer closes opened popouts on unmount', () => {
+  const { runtime, effectCleanups, openedPopups } = loadClientRuntime();
+  const { ctx, registrations } = createContext();
+
+  runtime.registerDshQaPanel(ctx, runtime.createDshQaPanelDefinition({ icon: 'qa-icon' }));
+  const mainRegistration = registrations.find((entry) => entry.options?.name === 'main');
+  const tree = mainRegistration.component();
+  const popout = findRenderedElement(tree, (node) => node.props?.['aria-label'] === '在标签页打开');
+
+  assert.ok(popout, 'main renderer did not expose the popout button');
+  popout.props.onClick();
+  assert.equal(openedPopups.length, 1);
+  assert.equal(openedPopups[0].closed, false);
+
+  effectCleanups[0]();
+  assert.equal(openedPopups[0].closed, true);
 });
 
 test('raw client reports a Panel registration failure without leaving a registration', () => {

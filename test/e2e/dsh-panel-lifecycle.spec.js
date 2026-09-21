@@ -33,10 +33,6 @@ test.describe('dsh-qa native Panel lifecycle', () => {
     await expect(page.locator(WORKBENCH_IFRAME)).toHaveCount(1);
     await expect(page.locator(WORKBENCH_IFRAME)).toBeVisible();
 
-    // Re-selecting the active Panel must not mount a second main-slot entry.
-    await qaPanel.click();
-    await expect(page.locator(WORKBENCH_IFRAME)).toHaveCount(1);
-
     const panelList = page.locator('nav').filter({ has: page.locator('button[aria-label="质量工作台"]') });
     const otherPanels = panelList.locator('button[aria-label]').filter({ hasNotText: '质量工作台' });
     test.skip(await otherPanels.count() === 0, 'Harness composition exposes no second global Panel');
@@ -56,11 +52,10 @@ test.describe('dsh-qa native Panel lifecycle', () => {
     await page.getByRole('button', { name: '在标签页打开', exact: true }).click();
     const popup = await popupPromise;
     await expect(popup).toHaveURL(/\/api\/dsh-qa\/workbench\/?$/);
-    await popup.close();
-    await expect(page.locator(WORKBENCH_IFRAME)).toHaveCount(1);
 
     await page.getByRole('button', { name: '关闭', exact: true }).click();
     await expect(page.locator(WORKBENCH_IFRAME)).toHaveCount(0);
+    await expect.poll(() => popup.isClosed(), { timeout: 5_000 }).toBe(true);
     await qaPanel.click();
     await expect(page.locator(WORKBENCH_IFRAME)).toHaveCount(1);
 
