@@ -8,23 +8,23 @@
 | --- | --- |
 | dsh-qa 版本 | `0.5.0-dev` / implementation branch `codex/0.5.0` |
 | Harness 目标 | `dsh-v0.1.6-alpha.1` |
-| 0.5.0 状态 | `IMPLEMENTED_LOCAL / NOT_VERIFIED_HOST` |
-| 原生 Panel 生命周期冒烟 | `NOT_RUN`：本次执行没有可供 Playwright 换取 cookie 的带 `?token=...` `DSH_WEB_URL`；不能复用 0.4.1 旧挂载方式的通过结果 |
+| 0.5.0 状态 | `IMPLEMENTED_LOCAL / VERIFIED_HOST_WITH_LIMITATION` |
+| 原生 Panel 生命周期冒烟 | `PASS_WITH_LIMITATION`：2026-09-21 在 `dsh-v0.1.6-alpha.1` 上以 dsh-qa `1b8c3fc` 运行 `5 passed / 1 skipped`；skip 原因是当前 Harness 组合没有第二个全局 Panel，插件卸载仍未通过独立路径验证 |
 | 0.4.1 历史基线 | `PASS`：2026-09-15 的旧挂载方式在目标 alpha 上完成 4/4；仅作为 RPC/Workbench 基线 |
-| 兼容徽章 | README 保留目标 Harness 的历史基线徽章；0.5 原生 Panel 不宣称 tested |
+| 兼容徽章 | README 保留目标 Harness 的历史基线徽章；0.5 原生 Panel 标注为 `PASS_WITH_LIMITATION`，不隐藏插件卸载未验证项 |
 
 ## 2. 0.5.0 原生 Panel 矩阵
 
 | 能力 | 当前源代码/本地证据 | 真实 Harness 宿主冒烟 | 当前结论 |
 | --- | --- | --- | --- |
-| `sidebar.panellist` 注册 | raw `client.js` runtime test、client source boundary | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
-| root-scoped `main` keyed slot | raw `client.js` runtime test、client source boundary | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
-| 统一 `dsh-qa` ID 选择 | contract test 确认 sidebar 与 main key 一致 | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
-| Panel 重复选择不重复创建 iframe | 生命周期测试已编写，等待真实宿主 | 未运行 | `IMPLEMENTED / NOT_RUN_HOST` |
-| 选择其他 Panel / 返回 Conversation | 第二 global Panel 不存在时显式 skip；Conversation close/return 另测 | 未运行 | `IMPLEMENTED / NOT_RUN_HOST` |
-| popout、iframe `postMessage` 返回 | 生命周期测试已编写，等待真实宿主 | 未运行 | `IMPLEMENTED / NOT_RUN_HOST` |
-| host reload / plugin disposer | raw `client.js` runtime test 覆盖 disposer；真实插件卸载待宿主运行 | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
-| Workbench iframe 产品边界 | standalone Chromium E2E 通过 | 0.5 生命周期未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
+| `sidebar.panellist` 注册 | raw `client.js` runtime test、client source boundary | `PASS`：入口可见 | `VERIFIED_LOCAL / VERIFIED_HOST` |
+| root-scoped `main` keyed slot | raw `client.js` runtime test、client source boundary | `PASS`：Workbench iframe 可挂载 | `VERIFIED_LOCAL / VERIFIED_HOST` |
+| 统一 `dsh-qa` ID 选择 | contract test 确认 sidebar 与 main key 一致 | `PASS`：Panel 可选择并渲染对应 iframe | `VERIFIED_LOCAL / VERIFIED_HOST` |
+| Panel 重复选择不重复创建 iframe | 生命周期测试 | `PASS`：重复选择保持 1 个 iframe | `VERIFIED_LOCAL / VERIFIED_HOST` |
+| 选择其他 Panel / 返回 Conversation | 第二 global Panel 不存在时显式 skip；Conversation close/return 另测 | `SKIPPED`：无第二个全局 Panel；close/return `PASS` | `VERIFIED_HOST_WITH_LIMITATION` |
+| popout、iframe `postMessage` 返回 | 生命周期测试 | `PASS`：popout、close 和返回消息均通过 | `VERIFIED_LOCAL / VERIFIED_HOST` |
+| host reload / plugin disposer | raw `client.js` runtime test 覆盖 disposer；host reload 另测 | reload `PASS`；plugin unload `NOT_RUN` | `VERIFIED_HOST_WITH_LIMITATION` |
+| Workbench iframe 产品边界 | standalone Chromium E2E 通过 | `PASS`：Host smoke 可见 iframe | `VERIFIED_LOCAL / VERIFIED_HOST` |
 
 ## 3. 0.4.1 RPC 核心兼容矩阵（历史基线）
 
@@ -65,13 +65,13 @@
 | 检查 | 结果 |
 | --- | --- |
 | `node --test test/unit/dsh-rpc-contract.test.js test/unit/dsh-compatibility.test.js` | `17 passed` |
-| `node --test test/unit/client-panel-boundary.test.js test/unit/panel-contract.test.js test/unit/client-runtime.test.js` | `8 passed` |
-| `npm run test:unit`（当前 0.5 worktree） | `149 passed` |
-| `QA_E2E_PORT=8900 npm run test:e2e` | `22 passed` 个本地 Chromium E2E；host smoke 被默认配置排除 |
+| `node --test test/unit/client-panel-boundary.test.js test/unit/panel-contract.test.js test/unit/client-runtime.test.js` | `10 passed` |
+| `npm run test:unit`（当前 0.5 worktree） | `151 passed` |
+| `QA_E2E_PORT=8900 npm run test:e2e` | `23 passed` 个本地 Chromium E2E；host smoke 被默认配置排除 |
 | `npm pack --dry-run` | 通过；包仍包含 `lib/client.js`、`lib/index.js`、`public/` 与 `cordis.patch.yml`，没有新增生产依赖 |
-| 0.5 Panel lifecycle host smoke | `NOT_RUN`：缺少当前带 token 的 `DSH_WEB_URL`；运行命令见 README |
+| 0.5 Panel lifecycle host smoke | `PASS_WITH_LIMITATION`：2026-09-21，`dsh-v0.1.6-alpha.1`，dsh-qa `1b8c3fc`，`5 passed / 1 skipped`；第二个全局 Panel 缺失导致 skip，plugin unload 未运行 |
 | `QA_E2E_PORT=8903 npm run test:e2e -- test/e2e/skills.spec.js test/e2e/workbench-reconnect.spec.js` | `4 passed` |
-| 标准本地 E2E（同一 Playwright 项目配置，排除 opt-in host smoke） | `22 passed` |
+| 标准本地 E2E（同一 Playwright 项目配置，排除 opt-in host smoke） | `23 passed` |
 | `npm run test:host-smoke` 无环境变量 | 按设计在浏览器启动前失败，提示必须提供 `DSH_WEB_URL` 和 `DSH_HOST_VERSION` |
 | 用户运行 `DSH_WEB_URL=http://127.0.0.1:3080/ ... npm run test:host-smoke` | `BLOCKED`：Harness 返回 `401 dsh web authentication required`; 第 1 项找不到入口，后 3 项因 serial suite 未运行；trace 位于 `test-results/dsh-host-compatibility-Dee-aeaac--entry-and-Workbench-iframe/trace.zip` |
 | 裸 origin 防误用保护（修复后） | `VERIFIED`：配置在浏览器启动前提示必须使用带 `?token=...` 的 `dsh web` 完整 URL |

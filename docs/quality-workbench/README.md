@@ -1,6 +1,6 @@
 # 质量工作台文档索引
 
-当前路线以 [版本语义与路线边界](./2026-09-15-version-map.md) 为准。当前发布基线是 `v0.4.1`；`0.5.0` Native Harness Panel Integration 正在开发中，宿主生命周期证据仍待带 token 的 host smoke。
+当前路线以 [版本语义与路线边界](./2026-09-15-version-map.md) 为准。当前发布基线是 `v0.4.1`；`0.5.0` Native Harness Panel Integration 已在目标宿主完成 `5/6` 生命周期冒烟，第二个全局 Panel 场景按宿主能力跳过，插件卸载证据仍待单独验证。
 
 ## 已发布质量基线
 

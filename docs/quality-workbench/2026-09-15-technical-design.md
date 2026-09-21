@@ -104,6 +104,8 @@ registerDshQaPanel(ctx, definition)
 `{ name: 'sidebar.panellist', id, label }` 与 `{ name: 'main', key }`。
 `icon` 和 `workbenchUrl` 只由运行时适配层用于渲染入口和 Workbench iframe，
 不扩散到 Harness 的 slot registration options。
+Panel renderer 使用 Harness 提供的 `react` runtime；dsh-qa 不新增或打包 React
+生产依赖，`public/` Workbench 仍保持原生 iframe 应用边界。
 
 实际调用名以锁定的 `dsh-v0.1.6-alpha.1` 官方类型/实现为准，但适配层对本仓库暴露的语义固定为上面两项。实现必须：
 

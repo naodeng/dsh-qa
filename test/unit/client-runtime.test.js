@@ -14,6 +14,7 @@ function loadClientRuntime() {
   const listeners = new Map();
   const listenerEvents = [];
   const effectCleanups = [];
+  const alerts = [];
   const window = {
     __ModuleLoader__: {
       load(definition) {
@@ -21,6 +22,9 @@ function loadClientRuntime() {
       },
     },
     location: { origin: 'http://harness.test' },
+    alert(message) {
+      alerts.push(message);
+    },
     addEventListener(type, listener) {
       listenerEvents.push({ action: 'add', type, listener });
       listeners.set(type, listener);
@@ -48,16 +52,17 @@ function loadClientRuntime() {
     assert.equal(name, 'react');
     return React;
   });
-  return { runtime, window, listenerEvents, effectCleanups };
+  return { runtime, window, alerts, listenerEvents, effectCleanups };
 }
 
-function createContext() {
+function createContext({ failOnInject } = {}) {
   const registrations = [];
   const disposed = [];
   const effects = [];
   const ctx = {
     slots: {
       inject(name, callback) {
+        if (failOnInject === name) throw new Error(`${name} slot unavailable`);
         const disposeRegistration = callback();
         registrations.push({ name, disposeRegistration });
         return () => {
@@ -150,4 +155,44 @@ test('raw client main renderer removes its message listener on unmount', () => {
     { action: 'add', type: 'message' },
     { action: 'remove', type: 'message' },
   ]);
+});
+
+test('raw client reports a Panel registration failure without leaving a registration', () => {
+  const { runtime, alerts } = loadClientRuntime();
+  const { ctx, registrations, disposed, effects } = createContext({ failOnInject: 'main' });
+
+  runtime.apply(ctx);
+
+  assert.equal(effects.length, 0);
+  assert.equal(registrations.filter((entry) => entry.options).length, 1);
+  assert.deepEqual(disposed, [
+    'inject:sidebar.panellist',
+    'registration:sidebar.panellist',
+  ]);
+  assert.match(alerts[0], /Harness Panel/);
+});
+
+test('raw client and semantic contract keep the default Panel identity aligned', () => {
+  const { runtime } = loadClientRuntime();
+  const raw = runtime.createDshQaPanelDefinition();
+  const semantic = createDshQaPanelDefinition();
+
+  assert.deepEqual(
+    {
+      sidebarName: raw.sidebarSlot.name,
+      sidebarId: raw.sidebarSlot.id,
+      sidebarLabel: raw.sidebarSlot.label,
+      mainName: raw.mainSlot.name,
+      mainKey: raw.mainSlot.key,
+      workbenchUrl: raw.mainSlot.workbenchUrl,
+    },
+    {
+      sidebarName: semantic.sidebarSlot.name,
+      sidebarId: semantic.sidebarSlot.id,
+      sidebarLabel: semantic.sidebarSlot.label,
+      mainName: semantic.mainSlot.name,
+      mainKey: semantic.mainSlot.key,
+      workbenchUrl: semantic.mainSlot.workbenchUrl,
+    },
+  );
 });
