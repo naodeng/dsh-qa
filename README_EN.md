@@ -4,14 +4,14 @@
 <img width="2135" height="736" alt="image" src="https://github.com/user-attachments/assets/45d9f541-808e-46c0-993a-e1e9824464b5" />
 
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-0.4.1-informational)]()
+[![Version](https://img.shields.io/badge/version-0.5.0-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
 [![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.6--alpha.1%20baseline--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.6-alpha.1)
 
 **dsh-qa** is a local QA workbench for DeepSeek Harness. It keeps requirements, test cases, risks, execution, evidence, and delivery decisions in one project space. Project and iteration conversations reuse native DSH sessions with **Test Mode** (preset id: `qa`); business data stays local and the runtime has no production dependencies.
 
-The published baseline is `v0.4.1`; the `0.5.0` development line now uses Harness's official Panel/Slot API and completed `5/6` lifecycle smoke cases on a real `dsh-v0.1.6-alpha.1` host. The remaining case is intentionally skipped because the host exposes no second global Panel; plugin-unload evidence still needs a separate run. npm, Git tag, and GitHub Release publication remain separate delivery states and are not implied here.
+The published version is `v0.5.0`; it uses Harness's official Panel/Slot API and completed `5/6` lifecycle smoke cases on a real `dsh-v0.1.6-alpha.1` host. The remaining case is intentionally skipped because the host exposes no second global Panel; plugin unload and restore were manually verified on the real host.
 
 ```
 Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
@@ -222,7 +222,7 @@ After installing, restart `dsh web` and type `/` in the workbench chat to see th
 
 - [Version semantics and route boundaries](./docs/quality-workbench/2026-09-15-version-map.md): explains the v0.4.1 baseline, the current 0.5.0→1.0 route, and formal release versions
 - [Quality Workbench documentation index](./docs/quality-workbench/README.md): requirements, solution design, technical design, and per-version implementation plans
-- [0.5.0 Harness compatibility matrix](./docs/quality-workbench/2026-09-15-harness-compatibility.md): official Panel/Slot lifecycle implementation evidence, standalone browser results, and the real-host `5/6` result with its limitation; the historical 0.4.1 host evidence remains recorded
+- [0.5.0 Harness compatibility matrix](./docs/quality-workbench/2026-09-15-harness-compatibility.md): official Panel/Slot lifecycle implementation evidence, standalone browser results, the real-host `5/6` result, and manual unload verification; the historical 0.4.1 host evidence remains recorded
 - [Post-1.0 Capability Roadmap](./docs/quality-workbench/post-1.0-capability-roadmap.md): after Quality Intelligence moves earlier, the post-1.0 Obligation, Graph, Adapter, Policy, Multi-Agent, and Autonomous QE direction
 
 ## License

@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.5.0 - 2026-09-21
+
+## 中文
+
+### 新功能
+
+- 使用 Harness 官方 `sidebar.panellist` 与 root-scoped `main` keyed slot 挂载 QA Workbench，移除对宿主 DOM selector、`MutationObserver` 和自建 Panel 激活协议的依赖。
+- 保留 Workbench iframe、独立标签页打开、Panel 关闭和 `postMessage` 返回 DSH 的用户路径，并为 Panel 注册和 iframe listener 提供幂等 disposer。
+
+### 修复
+
+- 修复宿主刷新后恢复项目标题丢失的问题。
+- 修复 Panel 关闭或卸载时 popout 窗口未被清理的问题。
+- 增加 native Panel contract、raw client runtime 和 Panel lifecycle 回归测试。
+
+### 验证
+
+- `152` 个单元/API 测试和 `23` 个本地 Chromium E2E 测试通过。
+- `dsh-v0.1.6-alpha.1` Host smoke 为 `5 passed / 1 skipped`；唯一跳过项是宿主组合没有第二个全局 Panel，插件卸载与恢复已由真实宿主人工验证通过。
+
+## English
+
+### Features
+
+- Mount the QA Workbench through Harness's official `sidebar.panellist` and root-scoped keyed `main` slots, removing dependencies on host DOM selectors, `MutationObserver`, and the custom Panel activation protocol.
+- Preserve the Workbench iframe, tab popout, Panel close, and `postMessage` return-to-DSH flows with idempotent Panel registration and iframe-listener disposers.
+
+### Fixes
+
+- Preserve the restored project title after a host refresh.
+- Close popout windows when the Panel is closed or unloaded.
+- Add native Panel contract, raw client runtime, and Panel lifecycle regression coverage.
+
+### Verification
+
+- `152` unit/API tests and `23` local Chromium E2E tests passed.
+- The `dsh-v0.1.6-alpha.1` Host smoke completed with `5 passed / 1 skipped`; the only skipped case had no second global Panel, and plugin unload/restore was manually verified on the real host.
+
 ## 0.4.1 - 2026-09-15
 
 ## 中文

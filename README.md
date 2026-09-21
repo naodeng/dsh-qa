@@ -4,14 +4,14 @@
 <img width="2135" height="736" alt="image" src="https://github.com/user-attachments/assets/45d9f541-808e-46c0-993a-e1e9824464b5" />
 
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-0.4.1-informational)]()
+[![Version](https://img.shields.io/badge/version-0.5.0-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
 [![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.6--alpha.1%20baseline--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.6-alpha.1)
 
 **dsh-qa** 是 DeepSeek Harness 的本地 QA 工作台：在一个项目空间中管理需求、测试用例、风险、执行、证据和交付决策。项目与迭代的对话复用 DSH 原生会话，并自动使用「测试模式」（preset id: `qa`）；业务数据保留在本机，运行时没有生产依赖。
 
-当前已发布基线是 `v0.4.1`；`0.5.0` 开发线已切换到 Harness 官方 Panel/Slot API，并在 `dsh-v0.1.6-alpha.1` 真实宿主完成 `5/6` 生命周期冒烟，另 1 项因宿主没有第二个全局 Panel 按设计跳过；插件卸载证据仍需单独验证。npm 包、Git tag 和 GitHub Release 的发布状态仍分别以对应交付记录为准。
+当前发布版本是 `v0.5.0`；本版本已切换到 Harness 官方 Panel/Slot API，并在 `dsh-v0.1.6-alpha.1` 真实宿主完成 `5/6` 生命周期冒烟，另 1 项因宿主没有第二个全局 Panel 按设计跳过；插件卸载与恢复已由真实宿主人工验证通过。
 
 ```
 测试首页 → DSH 测试对话 → 项目看板 → 日历排期
@@ -222,7 +222,7 @@ scripts/install-qa-skills.sh --dry-run           # 预览不写入
 
 - [版本语义与路线边界](./docs/quality-workbench/2026-09-15-version-map.md)：解释 v0.4.1 基线、0.5.0→1.0 当前路线和正式发布版本之间的关系
 - [质量工作台文档索引](./docs/quality-workbench/README.md)：需求、方案、技术设计和分版实施计划
-- [0.5.0 Harness 兼容性矩阵](./docs/quality-workbench/2026-09-15-harness-compatibility.md)：记录官方 Panel/Slot 生命周期的本地实现证据、独立浏览器结果和真实宿主 `5/6` 通过及限制；文档保留 0.4.1 历史宿主证据
+- [0.5.0 Harness 兼容性矩阵](./docs/quality-workbench/2026-09-15-harness-compatibility.md)：记录官方 Panel/Slot 生命周期、本地实现证据、独立浏览器结果、真实宿主 `5/6` 通过及人工卸载验证；文档保留 0.4.1 历史宿主证据
 - [Post-1.0 Capability Roadmap](./docs/quality-workbench/post-1.0-capability-roadmap.md)：Quality Intelligence 前移后，`1.0` 之后的 Obligation、Graph、Adapter、Policy、Multi-Agent 和 Autonomous QE 方向
 
 ## 许可证

@@ -4,7 +4,7 @@
 
 ## 1. 当前发布基线
 
-当前 `master` 和最新 Git tag 基线是 `v0.4.1`。该版本已经包含质量证据、失败分析、回归集、运行对比以及计算型质量门禁和交付报告；对应事实记录见 [2026-08-27-implementation-status.md](./2026-08-27-implementation-status.md) 和 [CHANGELOG.md](../../CHANGELOG.md)。npm 与 GitHub Release 的公开状态仍单独记录；当前 `codex/0.5.0` 工作树承接该基线开始官方 Panel/Slot 集成。
+当前 `master` 和最新 Git tag 基线是 `v0.5.0`。该版本包含质量证据、失败分析、回归集、运行对比、计算型质量门禁和官方 Harness Panel/Slot 集成；对应事实记录见 [2026-08-27-implementation-status.md](./2026-08-27-implementation-status.md)、[2026-09-15-harness-compatibility.md](./2026-09-15-harness-compatibility.md) 和 [CHANGELOG.md](../../CHANGELOG.md)。npm、Git tag 和 GitHub Release 仍作为独立交付事实记录，但本版本已完成公开发布。
 
 下面这些事实不能混为一谈：
 
@@ -12,7 +12,7 @@
 - 本轮针对改动重新运行了哪些测试。
 - npm、Git tag、GitHub Release 或宿主兼容性是否已经交付。
 
-本轮启动的是 `0.5.0 Native Harness Panel Integration` 计划，不是对 `v0.4.1` 的补发；当前工作树已完成本地 Panel contract、client boundary、生命周期用例和文档，并在 `dsh-v0.1.6-alpha.1` 真实宿主完成 `5/6` 生命周期冒烟。第二个全局 Panel 场景因宿主组合不存在而跳过，插件卸载证据仍保持 `NOT_RUN`，公开发布状态仍单独记录。
+`0.5.0 Native Harness Panel Integration` 已完成并发布；当前实现通过本地 contract、client boundary、生命周期用例和文档验证，并在 `dsh-v0.1.6-alpha.1` 真实宿主完成 `5/6` 生命周期冒烟。第二个全局 Panel 场景因宿主组合不存在而跳过，插件卸载与恢复已由真实宿主人工验证。
 
 ## 2. 当前有效路线
 
@@ -21,7 +21,7 @@ v0.4.0 已发布：Quality Evidence + Quality Gate
         ↓
 v0.4.1 Harness 0.1.6 Compatibility（历史基线）
         ↓
-0.5.0 Native Harness Panel Integration（本地实现完成，宿主 `5/6` 通过；插件卸载证据待运行）
+0.5.0 Native Harness Panel Integration（已发布，宿主 `5/6` 通过；插件卸载与恢复已人工验证）
         ↓
 0.6.0 Native QA Execution
         ↓
@@ -40,7 +40,7 @@ Post-1.0：Quality Obligation、Evidence Graph、Adapter、Policy、Multi-Agent�
 | --- | --- | --- | --- | --- |
 | `0.4.0` | Released | 质量证据与门禁 | 结果能否形成可信证据并支持交付判断？ | Harness 0.1.6 宿主兼容、官方 Panel API |
 | `0.4.1` | Verified historical baseline | Harness 0.1.6 兼容性加固 | 当前 RPC、Session、Workbench 主路径能否在真实宿主跑通？ | 官方 Panel API 迁移 |
-| `0.5.0` | In progress: local implementation; host `PASS_WITH_LIMITATION` | Native Harness Panel Integration | 如何通过官方 Slot/Panel 进入工作台，而不是寻找宿主 DOM？ | 插件卸载证据、测试执行智能化、AI 自动结论 |
+| `0.5.0` | Released: host `PASS_WITH_LIMITATION` | Native Harness Panel Integration | 如何通过官方 Slot/Panel 进入工作台，而不是寻找宿主 DOM？ | 测试执行智能化、AI 自动结论 |
 | `0.6.0` | Planned | Native QA Execution | 如何把 Execution Profile 接到 Browser Use、Computer Use 或 MCP，并留下 TestRun/Evidence？ | 任意工具调用、无证据 PASS |
 | `0.7.0` | Planned | AI Quality Intelligence | 如何从 Evidence、Failure、Regression 和 Gate 事实给出可解释建议？ | AI 直接改 Gate 或替代人工审批 |
 | `1.0.0` | Planned | AI-Native QA Workbench | 如何把 Panel、执行、智能分析和受控 Agent Loop 收束成可依赖主路径？ | 自动生产发布、无限权限自治 |
