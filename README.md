@@ -151,7 +151,7 @@ npm start          # 或双击 start.command
 ```
 lib/index.js      宿主半（cordis 插件）：进程内拉起工作台 + /api/dsh-qa 路由 + 系统提示播报
 lib/client.js     浏览器半（0.5.0）：官方 Panel/Slot 侧边栏与 main keyed slot + Workbench iframe
-lib/panel-contract.js  Panel/Slot 语义契约与可测试注册适配层
+lib/panel-contract.js  Panel/Slot 语义契约（运行时适配层只在 client.js）
 cordis.patch.yml  profile bundle 补丁（插入插件行）
 server/           工作台服务（原生 http + SSE；项目、质量任务、执行、证据与门禁数据）
 public/           四视图前端（原生 JS，无构建步骤；相对路径，可挂任意前缀）
@@ -220,7 +220,7 @@ scripts/install-qa-skills.sh --dry-run           # 预览不写入
 
 ## 路线图文档
 
-- [版本语义与路线边界](./docs/quality-workbench/2026-09-15-version-map.md)：解释 v0.4.0 基线、0.4.1→1.0 当前路线和正式发布版本之间的关系
+- [版本语义与路线边界](./docs/quality-workbench/2026-09-15-version-map.md)：解释 v0.4.1 基线、0.5.0→1.0 当前路线和正式发布版本之间的关系
 - [质量工作台文档索引](./docs/quality-workbench/README.md)：需求、方案、技术设计和分版实施计划
 - [0.5.0 Harness 兼容性矩阵](./docs/quality-workbench/2026-09-15-harness-compatibility.md)：记录官方 Panel/Slot 生命周期的本地实现证据、独立浏览器结果和真实宿主待运行状态；文档保留 0.4.1 历史宿主证据
 - [Post-1.0 Capability Roadmap](./docs/quality-workbench/post-1.0-capability-roadmap.md)：Quality Intelligence 前移后，`1.0` 之后的 Obligation、Graph、Adapter、Policy、Multi-Agent 和 Autonomous QE 方向

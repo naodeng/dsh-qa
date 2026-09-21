@@ -17,13 +17,13 @@
 
 | 能力 | 当前源代码/本地证据 | 真实 Harness 宿主冒烟 | 当前结论 |
 | --- | --- | --- | --- |
-| `sidebar.panellist` 注册 | `panel-contract` 单元测试、client source boundary | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
-| root-scoped `main` keyed slot | `panel-contract` 单元测试、client source boundary | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
+| `sidebar.panellist` 注册 | raw `client.js` runtime test、client source boundary | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
+| root-scoped `main` keyed slot | raw `client.js` runtime test、client source boundary | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
 | 统一 `dsh-qa` ID 选择 | contract test 确认 sidebar 与 main key 一致 | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
 | Panel 重复选择不重复创建 iframe | 生命周期测试已编写，等待真实宿主 | 未运行 | `IMPLEMENTED / NOT_RUN_HOST` |
-| 选择其他 Panel / 返回 Conversation | 生命周期测试已编写，等待真实宿主；宿主无第二 global Panel 时记录限制 | 未运行 | `IMPLEMENTED / NOT_RUN_HOST` |
+| 选择其他 Panel / 返回 Conversation | 第二 global Panel 不存在时显式 skip；Conversation close/return 另测 | 未运行 | `IMPLEMENTED / NOT_RUN_HOST` |
 | popout、iframe `postMessage` 返回 | 生命周期测试已编写，等待真实宿主 | 未运行 | `IMPLEMENTED / NOT_RUN_HOST` |
-| host reload / plugin disposer | 注册 disposer 单测通过；真实页面卸载待宿主运行 | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
+| host reload / plugin disposer | raw `client.js` runtime test 覆盖 disposer；真实插件卸载待宿主运行 | 未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
 | Workbench iframe 产品边界 | standalone Chromium E2E 通过 | 0.5 生命周期未运行 | `VERIFIED_LOCAL / NOT_RUN_HOST` |
 
 ## 3. 0.4.1 RPC 核心兼容矩阵（历史基线）
@@ -65,8 +65,8 @@
 | 检查 | 结果 |
 | --- | --- |
 | `node --test test/unit/dsh-rpc-contract.test.js test/unit/dsh-compatibility.test.js` | `17 passed` |
-| `node --test test/unit/client-panel-boundary.test.js test/unit/panel-contract.test.js` | `3 passed` |
-| `npm run test:unit`（当前 0.5 worktree） | `144 passed` |
+| `node --test test/unit/client-panel-boundary.test.js test/unit/panel-contract.test.js test/unit/client-runtime.test.js` | `8 passed` |
+| `npm run test:unit`（当前 0.5 worktree） | `149 passed` |
 | `QA_E2E_PORT=8900 npm run test:e2e` | `22 passed` 个本地 Chromium E2E；host smoke 被默认配置排除 |
 | `npm pack --dry-run` | 通过；包仍包含 `lib/client.js`、`lib/index.js`、`public/` 与 `cordis.patch.yml`，没有新增生产依赖 |
 | 0.5 Panel lifecycle host smoke | `NOT_RUN`：缺少当前带 token 的 `DSH_WEB_URL`；运行命令见 README |

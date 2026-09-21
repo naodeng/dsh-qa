@@ -26,7 +26,7 @@ test.describe('dsh-qa native Panel lifecycle', () => {
     }
   });
 
-  test('keeps one iframe across Panel selection, popout, close, return message and host reload', async ({ page, context }) => {
+  test('keeps one iframe when switching to another Panel and returning', async ({ page }) => {
     const qaPanel = page.getByRole('button', QA_PANEL);
     await expect(qaPanel).toHaveCount(1);
     await qaPanel.click();
@@ -39,27 +39,29 @@ test.describe('dsh-qa native Panel lifecycle', () => {
 
     const panelList = page.locator('nav').filter({ has: page.locator('button[aria-label="质量工作台"]') });
     const otherPanels = panelList.locator('button[aria-label]').filter({ hasNotText: '质量工作台' });
-    if (await otherPanels.count()) {
-      await otherPanels.first().click();
-      await expect(page.locator(WORKBENCH_IFRAME)).toHaveCount(0);
-      await qaPanel.click();
-      await expect(page.locator(WORKBENCH_IFRAME)).toHaveCount(1);
-    } else {
-      test.info().annotations.push({
-        type: 'host-limitation',
-        description: 'Harness composition exposed no second global Panel; close-to-Conversation was used for the return path.',
-      });
-      await page.getByRole('button', { name: '关闭', exact: true }).click();
-      await expect(page.locator(WORKBENCH_IFRAME)).toHaveCount(0);
-      await qaPanel.click();
-      await expect(page.locator(WORKBENCH_IFRAME)).toHaveCount(1);
-    }
+    test.skip(await otherPanels.count() === 0, 'Harness composition exposes no second global Panel');
+    await otherPanels.first().click();
+    await expect(page.locator(WORKBENCH_IFRAME)).toHaveCount(0);
+    await qaPanel.click();
+    await expect(page.locator(WORKBENCH_IFRAME)).toHaveCount(1);
+  });
+
+  test('keeps one iframe across popout, close, return message and host reload', async ({ page, context }) => {
+    const qaPanel = page.getByRole('button', QA_PANEL);
+    await expect(qaPanel).toHaveCount(1);
+    await qaPanel.click();
+    await expect(page.locator(WORKBENCH_IFRAME)).toHaveCount(1);
 
     const popupPromise = page.waitForEvent('popup');
     await page.getByRole('button', { name: '在标签页打开', exact: true }).click();
     const popup = await popupPromise;
     await expect(popup).toHaveURL(/\/api\/dsh-qa\/workbench\/?$/);
     await popup.close();
+    await expect(page.locator(WORKBENCH_IFRAME)).toHaveCount(1);
+
+    await page.getByRole('button', { name: '关闭', exact: true }).click();
+    await expect(page.locator(WORKBENCH_IFRAME)).toHaveCount(0);
+    await qaPanel.click();
     await expect(page.locator(WORKBENCH_IFRAME)).toHaveCount(1);
 
     const workbenchFrame = page.frames().find((frame) => frame.url().includes('/api/dsh-qa/workbench/'));
@@ -69,7 +71,8 @@ test.describe('dsh-qa native Panel lifecycle', () => {
     });
     await expect(page.locator(WORKBENCH_IFRAME)).toHaveCount(0);
 
-    // A full host reload exercises the plugin fiber unload and fresh slot registration.
+    // A full host reload exercises fresh slot registration; disposer cleanup is
+    // covered by the raw client runtime test because this page remains loaded.
     await page.reload();
     await expect(page.getByRole('button', QA_PANEL)).toHaveCount(1);
     await page.getByRole('button', QA_PANEL).click();

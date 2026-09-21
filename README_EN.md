@@ -151,7 +151,7 @@ The standalone address lets you view and manage test projects, the kanban, and t
 ```
 lib/index.js      Host half (cordis plugin): starts the workbench in-process + /api/dsh-qa routes + system-prompt announcement
 lib/client.js     Browser half (0.5.0): official Panel/Slot sidebar + main keyed slot + Workbench iframe
-lib/panel-contract.js  Panel/Slot semantic contract and testable registration adapter
+lib/panel-contract.js  Panel/Slot semantic contract (runtime adapter stays in client.js)
 cordis.patch.yml  Profile bundle patch (inserts the plugin line)
 server/           Workbench service (native http + SSE; projects, quality tasks, execution, evidence, and gates)
 public/           Four-view frontend (vanilla JS, no build step; relative paths, mountable under any prefix)
@@ -220,7 +220,7 @@ After installing, restart `dsh web` and type `/` in the workbench chat to see th
 
 ## Roadmap Documentation
 
-- [Version semantics and route boundaries](./docs/quality-workbench/2026-09-15-version-map.md): explains the v0.4.0 baseline, the current 0.4.1→1.0 route, and formal release versions
+- [Version semantics and route boundaries](./docs/quality-workbench/2026-09-15-version-map.md): explains the v0.4.1 baseline, the current 0.5.0→1.0 route, and formal release versions
 - [Quality Workbench documentation index](./docs/quality-workbench/README.md): requirements, solution design, technical design, and per-version implementation plans
 - [0.5.0 Harness compatibility matrix](./docs/quality-workbench/2026-09-15-harness-compatibility.md): official Panel/Slot lifecycle implementation evidence, standalone browser results, and the pending real-host result; the historical 0.4.1 host evidence remains recorded
 - [Post-1.0 Capability Roadmap](./docs/quality-workbench/post-1.0-capability-roadmap.md): after Quality Intelligence moves earlier, the post-1.0 Obligation, Graph, Adapter, Policy, Multi-Agent, and Autonomous QE direction
