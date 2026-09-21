@@ -1,6 +1,6 @@
 # 质量工作台文档索引
 
-当前路线以 [版本语义与路线边界](./2026-09-15-version-map.md) 为准。当前发布基线是 `v0.4.0`；下一步只从 `0.4.1` 兼容性计划开始。
+当前路线以 [版本语义与路线边界](./2026-09-15-version-map.md) 为准。当前发布基线是 `v0.4.1`；`0.5.0` Native Harness Panel Integration 已在目标宿主完成 `5/6` 生命周期冒烟，第二个全局 Panel 场景按宿主能力跳过，插件卸载证据仍待单独验证。
 
 ## 已发布质量基线
 
@@ -14,7 +14,7 @@
 
 这些文档描述证据、失败分析、回归、运行对比、`PASS/WARN/BLOCK`、例外和交付报告；它们不证明 Harness 0.1.6 宿主兼容性，也不替代本轮验证。
 
-## 当前路线：`0.4.1`—`1.0.0`
+## 当前路线：`0.5.0`—`1.0.0`
 
 ### 需求、方案与技术契约
 
@@ -24,7 +24,7 @@
 | [2026-09-15-solution-design.md](./2026-09-15-solution-design.md) | Harness 集成与 Workbench 演进方案 |
 | [2026-09-15-technical-design.md](./2026-09-15-technical-design.md) | 兼容契约、Panel、执行、智能分析技术边界 |
 | [2026-09-15-getting-started.md](./2026-09-15-getting-started.md) | 从 0.4.1 开始实施和验证 |
-| [2026-09-15-harness-compatibility.md](./2026-09-15-harness-compatibility.md) | 0.4.1 兼容矩阵与证据记录 |
+| [2026-09-15-harness-compatibility.md](./2026-09-15-harness-compatibility.md) | 0.5.0 Panel/Slot 兼容矩阵与证据记录（含 0.4.1 历史基线） |
 
 ### 分版实施计划
 

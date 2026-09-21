@@ -1,18 +1,32 @@
-# Harness 兼容性矩阵：`dsh-qa 0.4.1`
+# Harness 兼容性矩阵：`dsh-qa 0.5.0`（开发中）
 
-本文是 0.4.1 的证据记录，不是兼容性宣传页。除非“真实 Harness 宿主冒烟”一列有当前可检查的结果，否则不能在 README 写成 `dsh-v0.1.6-alpha.1 compatible` 或 `tested`。
+本文记录 0.5.0 开发线的证据，不是兼容性宣传页。除非“真实 Harness 宿主冒烟”一列有当前可检查的结果，否则不能把官方 Panel/Slot 写成 `dsh-v0.1.6-alpha.1 compatible` 或 `tested`。0.4.1 的宿主通过记录在第 3 节保留为历史基线，不自动证明 0.5 的原生 Panel 生命周期。
 
 ## 1. 目标版本
 
 | 项目 | 值 |
 | --- | --- |
-| dsh-qa 版本 | `0.4.1` / implementation branch `codex/0.4.1` |
+| dsh-qa 版本 | `0.5.0-dev` / implementation branch `codex/0.5.0` |
 | Harness 目标 | `dsh-v0.1.6-alpha.1` |
-| 0.4.1 状态 | `VERIFIED_PENDING_PUBLICATION` |
-| 真实宿主冒烟 | `PASS`：2026-09-15 复审在 Harness source commit `0d1f50007f9bca3f52b06e1c3074fa14d5fb0720`（`dsh-v0.1.6-alpha.1`）上，用 dsh-qa 当前工作树（基于 `103f204`，含未提交复审修复）完成 4/4，耗时 `12.9s` |
-| 兼容徽章 | README 已更新为 `dsh-v0.1.6-alpha.1 tested`；npm/tag/GitHub Release 仍未发布 |
+| 0.5.0 状态 | `IMPLEMENTED_LOCAL / VERIFIED_HOST_WITH_LIMITATION` |
+| 原生 Panel 生命周期冒烟 | `PASS_WITH_LIMITATION`：2026-09-21 在 `dsh-v0.1.6-alpha.1` 上以 dsh-qa `1b8c3fc` 运行 `5 passed / 1 skipped`；skip 原因是当前 Harness 组合没有第二个全局 Panel，插件卸载仍未通过独立路径验证 |
+| 0.4.1 历史基线 | `PASS`：2026-09-15 的旧挂载方式在目标 alpha 上完成 4/4；仅作为 RPC/Workbench 基线 |
+| 兼容徽章 | README 保留目标 Harness 的历史基线徽章；0.5 原生 Panel 标注为 `PASS_WITH_LIMITATION`，不隐藏插件卸载未验证项 |
 
-## 2. 核心兼容矩阵
+## 2. 0.5.0 原生 Panel 矩阵
+
+| 能力 | 当前源代码/本地证据 | 真实 Harness 宿主冒烟 | 当前结论 |
+| --- | --- | --- | --- |
+| `sidebar.panellist` 注册 | raw `client.js` runtime test、client source boundary | `PASS`：入口可见 | `VERIFIED_LOCAL / VERIFIED_HOST` |
+| root-scoped `main` keyed slot | raw `client.js` runtime test、client source boundary | `PASS`：Workbench iframe 可挂载 | `VERIFIED_LOCAL / VERIFIED_HOST` |
+| 统一 `dsh-qa` ID 选择 | contract test 确认 sidebar 与 main key 一致 | `PASS`：Panel 可选择并渲染对应 iframe | `VERIFIED_LOCAL / VERIFIED_HOST` |
+| Panel 重复选择不重复创建 iframe | 生命周期测试 | `PASS`：重复选择保持 1 个 iframe | `VERIFIED_LOCAL / VERIFIED_HOST` |
+| 选择其他 Panel / 返回 Conversation | 第二 global Panel 不存在时显式 skip；Conversation close/return 另测 | `SKIPPED`：无第二个全局 Panel；close/return `PASS` | `VERIFIED_HOST_WITH_LIMITATION` |
+| popout、iframe `postMessage` 返回 | 生命周期测试 | `PASS`：popout、close 和返回消息均通过 | `VERIFIED_LOCAL / VERIFIED_HOST` |
+| host reload / plugin disposer | raw `client.js` runtime test 覆盖 disposer；host reload 另测 | reload `PASS`；plugin unload `NOT_RUN` | `VERIFIED_HOST_WITH_LIMITATION` |
+| Workbench iframe 产品边界 | standalone Chromium E2E 通过 | `PASS`：Host smoke 可见 iframe | `VERIFIED_LOCAL / VERIFIED_HOST` |
+
+## 3. 0.4.1 RPC 核心兼容矩阵（历史基线）
 
 | 能力 | 当前源代码/契约检查 | 真实 Harness 宿主冒烟 | 当前结论 |
 | --- | --- | --- | --- |
@@ -31,7 +45,7 @@
 | Remote Pair | 当前核心路径不再依赖 | 未运行 | `NOT_APPLICABLE` |
 | `agent/created` | 当前核心路径无直接依赖 | 未运行 | `FUTURE_CONCERN` |
 
-## 3. 0.4.1 真实冒烟清单
+## 4. 0.4.1 真实冒烟清单（历史记录）
 
 在明确运行的是 `dsh-v0.1.6-alpha.1` 后，按用户可观察路径记录：
 
@@ -46,15 +60,18 @@
 
 每项都记录时间、Harness commit/tag、dsh-qa commit、结果、截图/日志路径和失败原因。未执行项保持 `NOT_RUN`，依赖或权限问题保持 `BLOCKED`，不能折算为通过。
 
-## 4. 当前实施证据
+## 5. 当前 0.5 实施证据
 
 | 检查 | 结果 |
 | --- | --- |
 | `node --test test/unit/dsh-rpc-contract.test.js test/unit/dsh-compatibility.test.js` | `17 passed` |
-| `npm run test:unit`（当前实现） | `141 passed` |
-| `QA_E2E_PORT=8904 npm test`（当前复审） | `141` 个单元/API + `22` 个本地 Chromium E2E 通过；host smoke 被默认配置排除 |
+| `node --test test/unit/client-panel-boundary.test.js test/unit/panel-contract.test.js test/unit/client-runtime.test.js` | `10 passed` |
+| `npm run test:unit`（当前 0.5 worktree） | `151 passed` |
+| `QA_E2E_PORT=8900 npm run test:e2e` | `23 passed` 个本地 Chromium E2E；host smoke 被默认配置排除 |
+| `npm pack --dry-run` | 通过；包仍包含 `lib/client.js`、`lib/index.js`、`public/` 与 `cordis.patch.yml`，没有新增生产依赖 |
+| 0.5 Panel lifecycle host smoke | `PASS_WITH_LIMITATION`：2026-09-21，`dsh-v0.1.6-alpha.1`，dsh-qa `1b8c3fc`，`5 passed / 1 skipped`；第二个全局 Panel 缺失导致 skip，plugin unload 未运行 |
 | `QA_E2E_PORT=8903 npm run test:e2e -- test/e2e/skills.spec.js test/e2e/workbench-reconnect.spec.js` | `4 passed` |
-| 标准本地 E2E（同一 Playwright 项目配置，排除 opt-in host smoke） | `22 passed` |
+| 标准本地 E2E（同一 Playwright 项目配置，排除 opt-in host smoke） | `23 passed` |
 | `npm run test:host-smoke` 无环境变量 | 按设计在浏览器启动前失败，提示必须提供 `DSH_WEB_URL` 和 `DSH_HOST_VERSION` |
 | 用户运行 `DSH_WEB_URL=http://127.0.0.1:3080/ ... npm run test:host-smoke` | `BLOCKED`：Harness 返回 `401 dsh web authentication required`; 第 1 项找不到入口，后 3 项因 serial suite 未运行；trace 位于 `test-results/dsh-host-compatibility-Dee-aeaac--entry-and-Workbench-iframe/trace.zip` |
 | 裸 origin 防误用保护（修复后） | `VERIFIED`：配置在浏览器启动前提示必须使用带 `?token=...` 的 `dsh web` 完整 URL |
@@ -69,6 +86,6 @@
 | 提交版真实 `dsh-v0.1.6-alpha.1` host smoke（带启动 token） | `PASS`：dsh-qa `a067c18` 上运行 4/4；插件入口、preset/Session、follow、model catalog、Skills、Commands、prompt、refresh/reconnect 全部通过，耗时 `10.7s`；无失败 trace |
 | 复审后真实 `dsh-v0.1.6-alpha.1` host smoke（带启动 token） | `PASS`：Harness source commit `0d1f50007f9bca3f52b06e1c3074fa14d5fb0720`；dsh-qa 当前工作树基于 `103f204`；4/4、`12.9s`。除低层 RPC 检查外，实际嵌入式 Workbench client 观察到 `client-request` 和至少两条 `/api/remote.mux` follow 连接；测试结束会取消已排队 prompt 并删除临时 Workbench project。 |
 
-## 5. 与 0.5 的边界
+## 6. 与 0.4.1 的边界
 
-0.4.1 只验证现有挂载方式在目标 Harness 上能工作；它不把 DOM selector 注入升级为正式架构。`sidebar.panellist`、root-scoped `main` keyed slot、移除 MutationObserver 和 `dsh-panel-activate` 属于 0.5.0。
+0.4.1 只证明旧挂载方式在目标 Harness 上能工作；它不证明 0.5 的官方 Panel/Slot 生命周期。0.5 已移除 DOM selector 注入、`MutationObserver`、自定义 active attribute 和 `dsh-panel-activate`，改由 `sidebar.panellist` 与 root-scoped `main` keyed slot 承担面板选择；Workbench 仍保留为 iframe 产品边界。

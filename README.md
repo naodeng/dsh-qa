@@ -7,11 +7,11 @@
 [![Version](https://img.shields.io/badge/version-0.4.1-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
-[![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.6--alpha.1%20tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.6-alpha.1)
+[![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.6--alpha.1%20baseline--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.6-alpha.1)
 
 **dsh-qa** 是 DeepSeek Harness 的本地 QA 工作台：在一个项目空间中管理需求、测试用例、风险、执行、证据和交付决策。项目与迭代的对话复用 DSH 原生会话，并自动使用「测试模式」（preset id: `qa`）；业务数据保留在本机，运行时没有生产依赖。
 
-当前实现版本是 `v0.4.1`，已针对 `dsh-v0.1.6-alpha.1` 在真实宿主完成 4/4 host smoke。npm 包、Git tag 和 GitHub Release 的发布状态仍分别以对应交付记录为准。
+当前已发布基线是 `v0.4.1`；`0.5.0` 开发线已切换到 Harness 官方 Panel/Slot API，并在 `dsh-v0.1.6-alpha.1` 真实宿主完成 `5/6` 生命周期冒烟，另 1 项因宿主没有第二个全局 Panel 按设计跳过；插件卸载证据仍需单独验证。npm 包、Git tag 和 GitHub Release 的发布状态仍分别以对应交付记录为准。
 
 ```
 测试首页 → DSH 测试对话 → 项目看板 → 日历排期
@@ -150,7 +150,8 @@ npm start          # 或双击 start.command
 
 ```
 lib/index.js      宿主半（cordis 插件）：进程内拉起工作台 + /api/dsh-qa 路由 + 系统提示播报
-lib/client.js     浏览器半（v0.4.0）：DOM 侧边栏入口 + 会话区 iframe；0.5 计划迁移官方 Panel/Slot API
+lib/client.js     浏览器半（0.5.0）：官方 Panel/Slot 侧边栏与 main keyed slot + Workbench iframe
+lib/panel-contract.js  Panel/Slot 语义契约（运行时适配层只在 client.js）
 cordis.patch.yml  profile bundle 补丁（插入插件行）
 server/           工作台服务（原生 http + SSE；项目、质量任务、执行、证据与门禁数据）
 public/           四视图前端（原生 JS，无构建步骤；相对路径，可挂任意前缀）
@@ -213,15 +214,15 @@ scripts/install-qa-skills.sh --dry-run           # 预览不写入
 - 运行：`npm start` 独立启动；`npm run dev` 监听重启
 - 测试：`npm test` 运行单元/API 测试（node:test）与 Chromium 端到端测试（Playwright）；`npm run test:unit` / `npm run test:e2e` 可单独执行
 - 测试端口冲突时：`QA_E2E_PORT=8900 npm test`；默认端口仍为 `8899`
-- Harness 宿主冒烟：`DSH_WEB_URL='<dsh web 打印的完整 URL，包含 ?token=...>' DSH_HOST_VERSION=dsh-v0.1.6-alpha.1 npm run test:host-smoke`；必须使用启动时打印的带 token URL，让 Playwright 先换取浏览器会话 cookie；该命令不属于标准 `npm test`
+- Harness 宿主冒烟：`DSH_WEB_URL='<dsh web 打印的完整 URL，包含 ?token=...>' DSH_HOST_VERSION=dsh-v0.1.6-alpha.1 npm run test:host-smoke`；必须使用启动时打印的带 token URL，让 Playwright 先换取浏览器会话 cookie；面板生命周期可单独运行 `npm run test:host-smoke -- test/e2e/dsh-panel-lifecycle.spec.js`；这些命令不属于标准 `npm test`
 - 发布：`npm publish` 后使用 `dsh plugin --profile web add dsh-qa` 安装；模型与密钥由使用者自己的 DSH 配置管理
 - 欢迎提交 Issue 与 PR（Conventional Commits）
 
 ## 路线图文档
 
-- [版本语义与路线边界](./docs/quality-workbench/2026-09-15-version-map.md)：解释 v0.4.0 基线、0.4.1→1.0 当前路线和正式发布版本之间的关系
+- [版本语义与路线边界](./docs/quality-workbench/2026-09-15-version-map.md)：解释 v0.4.1 基线、0.5.0→1.0 当前路线和正式发布版本之间的关系
 - [质量工作台文档索引](./docs/quality-workbench/README.md)：需求、方案、技术设计和分版实施计划
-- [0.4.1 Harness 兼容性矩阵](./docs/quality-workbench/2026-09-15-harness-compatibility.md)：记录 `dsh-v0.1.6-alpha.1` 的本地契约、独立浏览器和真实宿主验证证据
+- [0.5.0 Harness 兼容性矩阵](./docs/quality-workbench/2026-09-15-harness-compatibility.md)：记录官方 Panel/Slot 生命周期的本地实现证据、独立浏览器结果和真实宿主 `5/6` 通过及限制；文档保留 0.4.1 历史宿主证据
 - [Post-1.0 Capability Roadmap](./docs/quality-workbench/post-1.0-capability-roadmap.md)：Quality Intelligence 前移后，`1.0` 之后的 Obligation、Graph、Adapter、Policy、Multi-Agent 和 Autonomous QE 方向
 
 ## 许可证
