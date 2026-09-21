@@ -1467,7 +1467,6 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
       '#view-dashboard .activity-panel h2': ['最近动态', 'Recent activity'],
       '#view-dashboard .activity-panel p': ['测试材料与 DSH 操作留痕', 'Test materials and DSH actions'],
       '#chat-head .chat-kicker': ['DSH 测试模式 · 项目协作空间', 'DSH Test Mode · Project collaboration space'],
-      '#chat-head-title': ['选择一个项目开始', 'Select a project to start'],
       '#context-panel .context-head b': ['项目雷达', 'Project radar'],
       '#context-panel .context-head span:not(.live-dot)': ['随对话实时更新', 'Updates live with the chat'],
       '.context-section-title': ['材料动态', 'Materials'],
@@ -1477,6 +1476,9 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
       '#view-calendar .page-head p:last-of-type': ['选中日期即可新增会议、发布、评审或里程碑截止日。', 'Select a date to add meetings, releases, reviews or milestone due dates.'],
     };
     for (const [selector, values] of Object.entries(text)) { const el = $(selector); if (el) el.textContent = currentLang() === 'en' ? values[1] : values[0]; }
+    if ($('#chat-head-title') && !state.activeProject) {
+      $('#chat-head-title').textContent = currentLang() === 'en' ? 'Select a project to start' : '选择一个项目开始';
+    }
     if (currentLang() === 'en') {
       const replacements = new Map([
         ['请从 DSH 打开', 'Open from DSH'], ['请从 DSH 侧边栏打开', 'Open from the DSH sidebar'], ['正在连接 DSH 测试模式、模型与原生能力…', 'Connecting to DSH Test Mode, model and native capabilities…'], ['DSH 测试模式正在连接本项目的 DSH 测试模式会话…', 'DSH Test Mode is connecting to this project session…'], ['当前处于独立项目管理模式；对话、模型、技能与命令请从 DSH 侧边栏进入', 'Standalone project mode; open the DSH sidebar for chat, models, skills and commands'], ['当前是独立项目管理模式；对话、模型、技能与命令请从 DSH 侧边栏进入', 'Standalone project mode; open the DSH sidebar for chat, models, skills and commands'],
