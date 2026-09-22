@@ -4,7 +4,7 @@
 
 ## 1. 当前发布基线
 
-当前 `master` 和最新 Git tag 基线是 `v0.5.0`。该版本包含质量证据、失败分析、回归集、运行对比、计算型质量门禁和官方 Harness Panel/Slot 集成；对应事实记录见 [2026-08-27-implementation-status.md](./2026-08-27-implementation-status.md)、[2026-09-15-harness-compatibility.md](./2026-09-15-harness-compatibility.md) 和 [CHANGELOG.md](../../CHANGELOG.md)。npm、Git tag 和 GitHub Release 仍作为独立交付事实记录，但本版本已完成公开发布。
+当前 `master` 和最新 Git tag 基线是 `v0.5.1`。该版本在 0.5.0 的质量域与官方 Harness Panel/Slot 集成之上，完成 Harness 0.1.7 preset bundle 迁移和 `qa` bundle 的真实宿主 `6 passed` 验证；对应事实记录见 [2026-08-27-implementation-status.md](./2026-08-27-implementation-status.md)、[2026-09-22-harness-0.1.7-impact-assessment.md](./2026-09-22-harness-0.1.7-impact-assessment.md) 和 [CHANGELOG.md](../../CHANGELOG.md)。npm、Git tag 和 GitHub Release 仍作为独立交付事实记录。
 
 下面这些事实不能混为一谈：
 
@@ -12,7 +12,7 @@
 - 本轮针对改动重新运行了哪些测试。
 - npm、Git tag、GitHub Release 或宿主兼容性是否已经交付。
 
-`0.5.0 Native Harness Panel Integration` 已完成并发布；当前实现通过本地 contract、client boundary、生命周期用例和文档验证，并在 `dsh-v0.1.6-alpha.1` 真实宿主完成 `5/6` 生命周期冒烟。第二个全局 Panel 场景因宿主组合不存在而跳过，插件卸载与恢复已由真实宿主人工验证。
+`0.5.0 Native Harness Panel Integration` 已完成并发布；`0.5.1` 作为兼容性修订版完成 Harness 0.1.7 preset bundle 迁移、Panel popout/frame readiness 修复，并在 `qa` bundle 上完成真实 Host Smoke `6 passed`。`quality-control` 独立 bundle 的真实宿主运行仍不在本次验证范围内。
 
 ## 2. 当前有效路线
 

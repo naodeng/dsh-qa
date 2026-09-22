@@ -1,6 +1,6 @@
 {
   "name": "dsh-qa-quality-control",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Optional quality-control agent preset bundle for DeepSeek Harness.",
   "type": "module",
   "main": "index.js",

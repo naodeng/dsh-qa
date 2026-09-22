@@ -1,6 +1,6 @@
 # 质量工作台文档索引
 
-当前路线以 [版本语义与路线边界](./2026-09-15-version-map.md) 为准。当前发布基线是 `v0.5.0`；Native Harness Panel Integration 已在目标宿主完成 `5/6` 生命周期冒烟，第二个全局 Panel 场景按宿主能力跳过，插件卸载与恢复已由真实宿主人工验证。
+当前路线以 [版本语义与路线边界](./2026-09-15-version-map.md) 为准。当前发布基线是 `v0.5.1`；本版本完成 Harness 0.1.7 preset bundle 迁移和 `qa` bundle `6 passed` 真实宿主验证，`quality-control` 运行验证仍未评估。
 
 ## 已发布质量基线
 
