@@ -51,7 +51,7 @@ test.describe('DeepSeek Harness host compatibility', () => {
     expect(created.sessionId).toBeTruthy();
     sessionId = created.sessionId;
     await rpc(page, 'session/rename', {
-      request: { sessionId, title: `QA 0.4.1 Smoke ${Date.now()}` },
+      request: { sessionId, title: `QA Harness Smoke ${Date.now()}` },
     });
   });
 
@@ -72,10 +72,10 @@ test.describe('DeepSeek Harness host compatibility', () => {
 
     const prompt = await rpc(page, 'session/prompt', {
       request: {
-        requestId: `dsh-qa-0.4.1-${randomUUID()}`,
+        requestId: `dsh-qa-host-${randomUUID()}`,
         sessionId,
         mode: 'queue',
-        content: [{ type: 'text', text: 'Reply with exactly DSH_QA_0_4_1_OK and nothing else.' }],
+        content: [{ type: 'text', text: 'Reply with exactly DSH_QA_HOST_OK and nothing else.' }],
         clientTimeZone: 'UTC',
       },
     });
@@ -130,7 +130,7 @@ async function openWorkbench(page) {
 }
 
 async function createLinkedWorkbenchProject(page, id) {
-  const title = `QA 0.4.1 Embedded ${Date.now()}`;
+  const title = `QA Harness Embedded ${Date.now()}`;
   const response = await page.request.post('/api/dsh-qa/workbench/api/projects', {
     data: { title, summary: 'Host smoke client integration fixture', createWorkspace: true },
   });
@@ -164,7 +164,7 @@ async function rpc(page, method, args) {
   const response = await page.request.post(`/api/${method}`, {
     data: {
       type: 'client-request',
-      rpcId: `dsh-qa-0.4.1-${randomUUID()}`,
+      rpcId: `dsh-qa-host-${randomUUID()}`,
       method,
       payload: { args },
     },
@@ -185,7 +185,7 @@ async function followSnapshot(page, id) {
   return frame.evaluate(async (sessionId) => {
     const { openFollowSnapshot } = await import('./dsh-rpc-contract.js');
     const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const streamId = `dsh-qa-0.4.1-${crypto.randomUUID()}`;
+    const streamId = `dsh-qa-host-${crypto.randomUUID()}`;
     return openFollowSnapshot(new WebSocket(`${scheme}//${location.host}/api/remote.mux`), { streamId, sessionId, maxMessages: 30 });
   }, id);
 }

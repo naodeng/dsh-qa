@@ -9,7 +9,7 @@ import { createDshQaPanelDefinition } from '../../lib/panel-contract.js';
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const clientSource = fs.readFileSync(path.join(root, '..', 'lib', 'client.js'), 'utf8');
 
-function loadClientRuntime() {
+function loadClientRuntime({ nullForNoopener = false } = {}) {
   let moduleDefinition;
   const listeners = new Map();
   const listenerEvents = [];
@@ -37,7 +37,7 @@ function loadClientRuntime() {
         },
       };
       openedPopups.push(popup);
-      return popup;
+      return nullForNoopener && String(features || '').includes('noopener') ? null : popup;
     },
     addEventListener(type, listener) {
       listenerEvents.push({ action: 'add', type, listener });
@@ -202,6 +202,21 @@ test('raw client main renderer closes opened popouts on unmount', () => {
   assert.equal(openedPopups.length, 1);
   assert.equal(openedPopups[0].closed, false);
 
+  effectCleanups[0]();
+  assert.equal(openedPopups[0].closed, true);
+});
+
+test('raw client keeps managed popouts closeable when noopener would hide the handle', () => {
+  const { runtime, effectCleanups, openedPopups } = loadClientRuntime({ nullForNoopener: true });
+  const { ctx, registrations } = createContext();
+
+  runtime.registerDshQaPanel(ctx, runtime.createDshQaPanelDefinition({ icon: 'qa-icon' }));
+  const mainRegistration = registrations.find((entry) => entry.options?.name === 'main');
+  const tree = mainRegistration.component();
+  const popout = findRenderedElement(tree, (node) => node.props?.['aria-label'] === '在标签页打开');
+
+  popout.props.onClick();
+  assert.equal(openedPopups.length, 1);
   effectCleanups[0]();
   assert.equal(openedPopups[0].closed, true);
 });

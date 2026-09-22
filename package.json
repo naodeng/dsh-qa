@@ -7,6 +7,8 @@
   "exports": {
     ".": "./lib/index.js",
     "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./preset/qa/cordis.patch.yml": "./preset/qa/cordis.patch.yml",
     "./package.json": "./package.json"
   },
   "bin": {
@@ -14,7 +16,10 @@
   },
   "dsh": {
     "bundle": {
-      "patch": "./cordis.patch.yml"
+      "patch": [
+        "./cordis.patch.yml",
+        "./preset/qa/cordis.patch.yml"
+      ]
     },
     "client": {
       "platform": "web"

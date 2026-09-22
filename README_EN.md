@@ -7,11 +7,11 @@
 [![Version](https://img.shields.io/badge/version-0.5.0-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
-[![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.6--alpha.1%20baseline--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.6-alpha.1)
+[![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.7--alpha.1%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-alpha.1)
 
 **dsh-qa** is a local QA workbench for DeepSeek Harness. It keeps requirements, test cases, risks, execution, evidence, and delivery decisions in one project space. Project and iteration conversations reuse native DSH sessions with **Test Mode** (preset id: `qa`); business data stays local and the runtime has no production dependencies.
 
-The published version is `v0.5.0`; it uses Harness's official Panel/Slot API and completed `5/6` lifecycle smoke cases on a real `dsh-v0.1.6-alpha.1` host. The remaining case is intentionally skipped because the host exposes no second global Panel; plugin unload and restore were manually verified on the real host.
+The published version is `v0.5.0`; it uses Harness's official Panel/Slot API and completed `5/6` lifecycle smoke cases on a real `dsh-v0.1.6-alpha.1` host. The remaining case is intentionally skipped because the host exposes no second global Panel; plugin unload and restore were manually verified on the real host. For Harness `dsh-v0.1.7-alpha.1`, presets now use declarative profile bundles, and the `qa` bundle completed the real Host Smoke with `6 passed`; runtime verification of the independent `quality-control` bundle and publication remain unassessed.
 
 ```
 Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
@@ -153,6 +153,7 @@ lib/index.js      Host half (cordis plugin): starts the workbench in-process + /
 lib/client.js     Browser half (0.5.0): official Panel/Slot sidebar + main keyed slot + Workbench iframe
 lib/panel-contract.js  Panel/Slot semantic contract (runtime adapter stays in client.js)
 cordis.patch.yml  Profile bundle patch (inserts the plugin line)
+preset/qa/cordis.patch.yml  Declarative QA preset bundle
 server/           Workbench service (native http + SSE; projects, quality tasks, execution, evidence, and gates)
 public/           Four-view frontend (vanilla JS, no build step; relative paths, mountable under any prefix)
 ```
@@ -176,15 +177,26 @@ The workbench ships 23 QA-domain tools that DSH sessions call through function c
 
 ## Test Mode Preset (plugin mode)
 
-In plugin mode, workbench chat automatically uses DSH's **Test Mode** (preset id: `qa`). Install the preset before first using DSH chat; standalone local-project management does not require it.
+In plugin mode, workbench chat automatically uses DSH's **Test Mode** (preset id: `qa`). Installing the `dsh-qa` main bundle declares this preset; standalone local-project management does not require it.
 
 ```bash
-# One-click install of the qa preset into ~/.dsh/.agent-presets/qa
+# Install the dsh-qa bundle from the current checkout into the web profile
 scripts/install-qa-preset.sh
-# or preview: scripts/install-qa-preset.sh --dry-run
+# Choose a profile or preview the command
+scripts/install-qa-preset.sh --profile web --dry-run
 ```
 
-The preset is based on DSH's official `standard` (full coding capabilities) with a QA-testing persona and built-in QA quality principles (executable, judgeable test cases covering positive/exception/boundary; defects separating facts from guesses; no fabricated data). No restart needed — `agentPresets/list` picks up id=`qa` immediately.
+The preset is based on DSH's official `standard` (full coding capabilities) with a QA-testing persona and built-in QA quality principles (executable, judgeable test cases covering positive/exception/boundary; defects separating facts from guesses; no fabricated data). Harness 0.1.7+ discovers id=`qa` from the active profile's bundle declarations.
+
+### Optional quality-control preset
+
+```bash
+# Install the repository's quality-control bundle into the web profile
+scripts/install-quality-control-preset.sh
+# Preview: scripts/install-quality-control-preset.sh --profile web --dry-run
+```
+
+This preset is now an independent bundle at `preset/quality-control`; it does not copy or mutate user preset directories.
 
 ## Companion QA Skills
 
@@ -214,7 +226,7 @@ After installing, restart `dsh web` and type `/` in the workbench chat to see th
 - Run: `npm start` for standalone; `npm run dev` for watch mode
 - Test: `npm test` runs unit/API tests (node:test) plus Chromium end-to-end tests (Playwright); `npm run test:unit` / `npm run test:e2e` run each separately
 - If the default test port is occupied: `QA_E2E_PORT=8900 npm test`; the default remains `8899`
-- Harness host smoke: `DSH_WEB_URL='<full URL printed by dsh web, including ?token=...>' DSH_HOST_VERSION=dsh-v0.1.6-alpha.1 npm run test:host-smoke`; Playwright exchanges the launch token for its browser-session cookie before testing. Run only the Panel lifecycle with `npm run test:host-smoke -- test/e2e/dsh-panel-lifecycle.spec.js`; these commands are not part of standard `npm test`
+- Harness host smoke: `DSH_WEB_URL='<full URL printed by dsh web, including ?token=...>' DSH_HOST_VERSION=dsh-v0.1.7-alpha.1 npm run test:host-smoke`; `dsh-v0.1.6-alpha.1` remains historical evidence only and is not the target host after this bundle migration; Playwright exchanges the launch token for its browser-session cookie before testing. Run only the Panel lifecycle with `npm run test:host-smoke -- test/e2e/dsh-panel-lifecycle.spec.js`; these commands are not part of standard `npm test`
 - Publish: after `npm publish`, install with `dsh plugin --profile web add dsh-qa`; models and keys are managed by the user's DSH configuration
 - Issues and PRs welcome (Conventional Commits)
 

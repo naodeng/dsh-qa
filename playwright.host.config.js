@@ -3,13 +3,16 @@ import { parseHostLaunchUrl } from './test/support/dsh-host-auth.js';
 
 const hostUrl = process.env.DSH_WEB_URL?.trim();
 const hostVersion = process.env.DSH_HOST_VERSION?.trim();
-const expectedHostVersion = 'dsh-v0.1.6-alpha.1';
+const supportedHostVersions = new Set([
+  'dsh-v0.1.7-alpha.1',
+]);
+const expectedHostVersions = [...supportedHostVersions].join(' or ');
 
 if (!hostUrl || !hostVersion) {
-  throw new Error(`Host smoke requires DSH_WEB_URL and DSH_HOST_VERSION=${expectedHostVersion}`);
+  throw new Error(`Host smoke requires DSH_WEB_URL and DSH_HOST_VERSION (${expectedHostVersions})`);
 }
-if (hostVersion !== expectedHostVersion) {
-  throw new Error(`Host smoke is pinned to ${expectedHostVersion}; received ${hostVersion}`);
+if (!supportedHostVersions.has(hostVersion)) {
+  throw new Error(`Host smoke supports ${expectedHostVersions}; received ${hostVersion}`);
 }
 
 const { origin: hostOrigin } = parseHostLaunchUrl(hostUrl);

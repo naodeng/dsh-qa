@@ -58,6 +58,10 @@ test.describe('dsh-qa native Panel lifecycle', () => {
     await expect.poll(() => popup.isClosed(), { timeout: 5_000 }).toBe(true);
     await qaPanel.click();
     await expect(page.locator(WORKBENCH_IFRAME)).toHaveCount(1);
+    await expect.poll(
+      () => page.frames().some((frame) => frame.url().includes('/api/dsh-qa/workbench/')),
+      { timeout: 5_000 },
+    ).toBe(true);
 
     const workbenchFrame = page.frames().find((frame) => frame.url().includes('/api/dsh-qa/workbench/'));
     if (!workbenchFrame) throw new Error('Workbench iframe frame is not available');

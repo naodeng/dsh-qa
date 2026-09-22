@@ -1,16 +1,16 @@
 # 研发质量控制模式
 
-这是一个覆盖研发全流程的 DSH 用户 preset。它保留完整编码、文件、技能、计划、协作和浏览能力，并通过角色协议提供 BA、PM、Product、QA、Developer、Tech Lead、Automation、UX、Security、DevOps/SRE、Data 和 Release 视角。
+这是一个覆盖研发全流程的 DSH profile bundle。它保留完整编码、文件、技能、计划、协作和浏览能力，并通过角色协议提供 BA、PM、Product、QA、Developer、Tech Lead、Automation、UX、Security、DevOps/SRE、Data 和 Release 视角。
 
 ## 安装
 
 ```sh
 scripts/install-quality-control-preset.sh
 # 预览：
-scripts/install-quality-control-preset.sh --dry-run
+scripts/install-quality-control-preset.sh --profile web --dry-run
 ```
 
-安装后，DSH preset id 为 `quality-control`，名称为“研发质量控制模式”。
+脚本通过 `dsh plugin --profile web add link:.../preset/quality-control` 安装 bundle；Harness 0.1.7+ 随后从当前 profile 提供 preset id `quality-control`，名称为“研发质量控制模式”。
 
 ## 使用方式
 

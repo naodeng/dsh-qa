@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased
+
+## 中文
+
+### Harness 0.1.7 兼容性优化
+
+- 将 `qa` preset 从旧目录复制模型迁移为主插件 profile bundle 声明，并将 `quality-control` 提供为可独立安装的 bundle。
+- 安装脚本改为调用 `dsh plugin --profile ... add link:...`，支持 profile、DSH executable 和 dry-run 参数，不再写入旧 preset 目录。
+- 对齐 `quality-control` 的 persona `prefix` 与 `workflow-ptc`，并允许 Host Smoke 显式接受 `dsh-v0.1.7-alpha.1`。
+- 根据真实 0.1.7 Host Smoke 发现并修复 popout 生命周期问题：Chromium 对 `window.open(..., 'noopener')` 返回空句柄，Panel 卸载时无法关闭同源工作台标签页；现在保留可关闭的 `WindowProxy`，并增加回归测试。
+- 修复 Host Smoke 在 Panel 重新挂载后过早读取 Workbench frame 的测试时序：先等待目标 iframe URL 出现，再发送 `postMessage` 返回宿主。
+
+### 验证
+
+- 兼容性聚焦测试 `14/14`、全量单元/API 测试 `159/159`、隔离端口上的完整 `QA_E2E_PORT=8900 npm test`（159 单元/API + 23 Chromium E2E）、YAML 解析、bundle dry-run、npm pack dry-run 和脚本语法检查均通过；真实 `dsh-v0.1.7-alpha.1` `qa` bundle Host Smoke 最终为 `6 passed`。
+
+## English
+
+### Harness 0.1.7 compatibility optimization
+
+- Migrated the `qa` preset from legacy directory copying to a main-plugin profile bundle, and made `quality-control` an independently installable bundle.
+- Updated installers to call `dsh plugin --profile ... add link:...` with profile, DSH executable, and dry-run options instead of writing legacy preset directories.
+- Aligned `quality-control` with the `prefix` persona field and `workflow-ptc`, and let Host Smoke explicitly accept `dsh-v0.1.7-alpha.1`.
+- Fixed the popout lifecycle issue found by the real 0.1.7 Host Smoke: Chromium returns a null handle for `window.open(..., 'noopener')`, preventing Panel unmount from closing the same-origin workbench tab; the implementation now retains a closeable `WindowProxy` and has a regression test.
+- Fixed the Host Smoke timing race after Panel remount: wait for the target Workbench frame URL before posting the return-to-host message.
+
+### Verification
+
+- Focused compatibility tests `14/14`, the full unit/API suite `159/159`, the complete `QA_E2E_PORT=8900 npm test` gate (159 unit/API + 23 Chromium E2E), YAML parsing, bundle dry-runs, npm pack dry-run, and shell syntax checks pass; the real `dsh-v0.1.7-alpha.1` `qa` bundle Host Smoke finally completed with `6 passed`.
+
 ## 0.5.0 - 2026-09-21
 
 ## 中文

@@ -1,49 +1,71 @@
 #!/usr/bin/env bash
-# 安装 dsh-qa 的「研发质量控制模式」（preset id: quality-control）。
-# 用法：scripts/install-quality-control-preset.sh [--dest PATH] [--dry-run]
+# Install the optional quality-control profile bundle.
+# Harness 0.1.7+ owns preset declarations in profile bundles; this script
+# installs the bundle package shipped inside the current dsh-qa checkout.
+#
+# Usage:
+#   scripts/install-quality-control-preset.sh [--profile NAME] [--dsh PATH] [--dry-run]
+#
+# Environment:
+#   DSH_PROFILE         default profile name (web)
+#   DSH_BIN             DSH executable (dsh)
+#   DSH_QC_BUNDLE       bundle spec override (local bundle by default)
+#   DSH_HOME            forwarded to DSH when set
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-SRC_DIR="$REPO_ROOT/preset/quality-control"
-QC_DEST="${QC_DEST:-$HOME/.dsh/.agent-presets/quality-control}"
-QC_DRY_RUN="${QC_DRY_RUN:-0}"
+PROFILE="${DSH_PROFILE:-web}"
+DSH_BIN="${DSH_BIN:-dsh}"
+BUNDLE_SPEC="${DSH_QC_BUNDLE:-link:$REPO_ROOT/preset/quality-control}"
+DRY_RUN=0
 
 usage() {
-  sed -n '2,4p' "$0" | sed 's/^# \{0,1\}//'
-  exit 0
+  sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --dest) QC_DEST="${2:-}"; shift 2 ;;
-    --dry-run) QC_DRY_RUN=1; shift ;;
-    -h|--help) usage ;;
-    *) echo "未知参数: $1" >&2; usage ;;
+    --profile)
+      if [[ $# -lt 2 || -z "${2:-}" || "${2}" == -* ]]; then
+        echo "✗ --profile 需要一个非空值" >&2
+        exit 2
+      fi
+      PROFILE="$2"
+      shift 2
+      ;;
+    --dsh)
+      if [[ $# -lt 2 || -z "${2:-}" || "${2}" == -* ]]; then
+        echo "✗ --dsh 需要一个非空值" >&2
+        exit 2
+      fi
+      DSH_BIN="$2"
+      shift 2
+      ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "未知参数: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
 
-for source_file in agent.cordis.yml preset.yml; do
-  if [[ ! -f "$SRC_DIR/$source_file" ]]; then
-    echo "✗ 未找到 preset 源文件: $SRC_DIR/$source_file" >&2
-    exit 1
-  fi
-done
-
-echo "来源: $SRC_DIR"
-echo "目标: ${QC_DEST}（DSH 用户 preset：quality-control / 研发质量控制模式）"
-echo "----------------------------------------"
-
-if [[ "$QC_DRY_RUN" == "1" ]]; then
-  echo "[DRY-RUN] 创建 $QC_DEST/"
-  echo "[DRY-RUN] 复制 agent.cordis.yml"
-  echo "[DRY-RUN] 复制 preset.yml"
-else
-  mkdir -p "$QC_DEST"
-  cp "$SRC_DIR/agent.cordis.yml" "$QC_DEST/agent.cordis.yml"
-  cp "$SRC_DIR/preset.yml" "$QC_DEST/preset.yml"
-  echo "✔ 已安装 quality-control preset：$QC_DEST"
+if [[ -z "$PROFILE" || -z "$DSH_BIN" ]]; then
+  echo "✗ profile 和 dsh executable 不能为空" >&2
+  exit 2
 fi
 
+echo "来源 bundle: ${BUNDLE_SPEC}"
+echo "目标 profile: ${PROFILE}"
 echo "----------------------------------------"
-echo "完成。DSH 的 agentPreset.list 将包含 id=quality-control（研发质量控制模式）。"
+
+if [[ "$DRY_RUN" == "1" ]]; then
+  printf '[DRY-RUN] %q plugin --profile %q add %q\n' "$DSH_BIN" "$PROFILE" "$BUNDLE_SPEC"
+else
+  if ! command -v "$DSH_BIN" >/dev/null 2>&1; then
+    echo "✗ 未找到 DSH executable: $DSH_BIN（可用 --dsh 或 DSH_BIN 指定）" >&2
+    exit 1
+  fi
+  "$DSH_BIN" plugin --profile "$PROFILE" add "$BUNDLE_SPEC"
+  echo "✔ 已将 quality-control bundle 安装到 profile：${PROFILE}"
+fi
+
+echo "完成。Harness 将从当前 profile 的声明中提供 id=quality-control。"

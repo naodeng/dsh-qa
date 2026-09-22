@@ -7,11 +7,11 @@
 [![Version](https://img.shields.io/badge/version-0.5.0-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
-[![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.6--alpha.1%20baseline--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.6-alpha.1)
+[![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.7--alpha.1%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-alpha.1)
 
 **dsh-qa** 是 DeepSeek Harness 的本地 QA 工作台：在一个项目空间中管理需求、测试用例、风险、执行、证据和交付决策。项目与迭代的对话复用 DSH 原生会话，并自动使用「测试模式」（preset id: `qa`）；业务数据保留在本机，运行时没有生产依赖。
 
-当前发布版本是 `v0.5.0`；本版本已切换到 Harness 官方 Panel/Slot API，并在 `dsh-v0.1.6-alpha.1` 真实宿主完成 `5/6` 生命周期冒烟，另 1 项因宿主没有第二个全局 Panel 按设计跳过；插件卸载与恢复已由真实宿主人工验证通过。
+当前发布版本是 `v0.5.0`；本版本已切换到 Harness 官方 Panel/Slot API，并在 `dsh-v0.1.6-alpha.1` 真实宿主完成 `5/6` 生命周期冒烟，另 1 项因宿主没有第二个全局 Panel 按设计跳过；插件卸载与恢复已由真实宿主人工验证通过。针对 Harness `dsh-v0.1.7-alpha.1`，preset 已迁移到声明式 profile bundle，`qa` bundle 已在真实宿主完成 `6 passed` Host Smoke；`quality-control` 独立 bundle 的真实运行和正式发布仍未评估。
 
 ```
 测试首页 → DSH 测试对话 → 项目看板 → 日历排期
@@ -153,6 +153,7 @@ lib/index.js      宿主半（cordis 插件）：进程内拉起工作台 + /api
 lib/client.js     浏览器半（0.5.0）：官方 Panel/Slot 侧边栏与 main keyed slot + Workbench iframe
 lib/panel-contract.js  Panel/Slot 语义契约（运行时适配层只在 client.js）
 cordis.patch.yml  profile bundle 补丁（插入插件行）
+preset/qa/cordis.patch.yml  声明式 QA preset bundle
 server/           工作台服务（原生 http + SSE；项目、质量任务、执行、证据与门禁数据）
 public/           四视图前端（原生 JS，无构建步骤；相对路径，可挂任意前缀）
 ```
@@ -176,15 +177,26 @@ public/           四视图前端（原生 JS，无构建步骤；相对路径�
 
 ## 测试模式 preset（插件模式）
 
-插件模式下，质量工作台对话自动使用 DSH 的「测试模式」（preset id: `qa`）。首次使用 DSH 对话前安装该 preset；仅使用独立模式管理本地项目时无需安装。
+插件模式下，质量工作台对话自动使用 DSH 的「测试模式」（preset id: `qa`）。安装 `dsh-qa` 主 bundle 时会一并声明该 preset；仅使用独立模式管理本地项目时无需安装。
 
 ```bash
-# 一键安装 qa preset 到 ~/.dsh/.agent-presets/qa
+# 从当前 checkout 将 dsh-qa bundle 安装到 web profile
 scripts/install-qa-preset.sh
-# 或预览：scripts/install-qa-preset.sh --dry-run
+# 指定 profile 或预览命令
+scripts/install-qa-preset.sh --profile web --dry-run
 ```
 
-preset 基于 DSH 官方 `standard`（完整编码能力），persona 定制为 QA 测试助手，并内置 QA 质量原则（用例可执行可判定、覆盖正向/异常/边界、缺陷区分事实与猜测、不编造数据）。安装后无需重启，DSH 的 `agentPresets/list` 即可发现 id=`qa`。
+preset 基于 DSH 官方 `standard`（完整编码能力），persona 定制为 QA 测试助手，并内置 QA 质量原则（用例可执行可判定、覆盖正向/异常/边界、缺陷区分事实与猜测、不编造数据）。Harness 0.1.7+ 从当前 profile 的 bundle 声明发现 id=`qa`。
+
+### 可选研发质量控制 preset
+
+```bash
+# 将仓库内的 quality-control bundle 安装到 web profile
+scripts/install-quality-control-preset.sh
+# 预览：scripts/install-quality-control-preset.sh --profile web --dry-run
+```
+
+该 preset 现在是独立 bundle `preset/quality-control`，不会修改或复制用户目录中的 preset 文件。
 
 ## 配套 QA 技能库
 
@@ -214,7 +226,7 @@ scripts/install-qa-skills.sh --dry-run           # 预览不写入
 - 运行：`npm start` 独立启动；`npm run dev` 监听重启
 - 测试：`npm test` 运行单元/API 测试（node:test）与 Chromium 端到端测试（Playwright）；`npm run test:unit` / `npm run test:e2e` 可单独执行
 - 测试端口冲突时：`QA_E2E_PORT=8900 npm test`；默认端口仍为 `8899`
-- Harness 宿主冒烟：`DSH_WEB_URL='<dsh web 打印的完整 URL，包含 ?token=...>' DSH_HOST_VERSION=dsh-v0.1.6-alpha.1 npm run test:host-smoke`；必须使用启动时打印的带 token URL，让 Playwright 先换取浏览器会话 cookie；面板生命周期可单独运行 `npm run test:host-smoke -- test/e2e/dsh-panel-lifecycle.spec.js`；这些命令不属于标准 `npm test`
+- Harness 宿主冒烟：`DSH_WEB_URL='<dsh web 打印的完整 URL，包含 ?token=...>' DSH_HOST_VERSION=dsh-v0.1.7-alpha.1 npm run test:host-smoke`；`dsh-v0.1.6-alpha.1` 仅保留为历史证据，不属于当前 bundle 迁移后的目标宿主；必须使用启动时打印的带 token URL，让 Playwright 先换取浏览器会话 cookie；面板生命周期可单独运行 `npm run test:host-smoke -- test/e2e/dsh-panel-lifecycle.spec.js`；这些命令不属于标准 `npm test`
 - 发布：`npm publish` 后使用 `dsh plugin --profile web add dsh-qa` 安装；模型与密钥由使用者自己的 DSH 配置管理
 - 欢迎提交 Issue 与 PR（Conventional Commits）
 

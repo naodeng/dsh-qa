@@ -1,0 +1,23 @@
+{
+  "name": "dsh-qa-quality-control",
+  "version": "0.5.0",
+  "description": "Optional quality-control agent preset bundle for DeepSeek Harness.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "license": "PolyForm-Noncommercial-1.0.0"
+}
