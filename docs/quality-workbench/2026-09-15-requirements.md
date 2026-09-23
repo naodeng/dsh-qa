@@ -5,7 +5,7 @@
 - `v0.4.0` 是当前已发布基线，已有证据、回归和质量门禁能力不重做。
 - `0.4.1` 先锁定 Harness `dsh-v0.1.6-alpha.1` 的真实兼容性；不能用本地 Workbench 测试替代真实宿主冒烟。
 - `0.5.0` 迁移到 Harness 官方 Panel/Slot API；保留 Workbench iframe，不重写整个前端。
-- `0.6.0` 把 Execution Profile 接到 Harness Browser Use、Computer Use 或 MCP，并把结果映射回现有 TestRun/EvidenceBundle。
+- `0.6.0` 把 Execution Profile 接到 Harness Browser Use、Computer Use 或 MCP，把结果映射回现有 TestRun/EvidenceBundle，并通过 Action Desk 暴露需要处理的执行与质量状态。
 - `0.7.0` 做 Evidence-first 的 AI Quality Intelligence；AI 只生成可解释建议，不能直接改变 Gate。
 - `1.0.0` 收束为可审计、可终止、可人工审批的 AI-Native QA Workbench。
 - `0.8.0` 和 `0.9.0` 暂不作为当前 Release 节点；原有计划只保留历史记录。
@@ -25,7 +25,7 @@
 | --- | --- | --- |
 | `0.4.1` | Harness 0.1.6 Compatibility | 验证 RPC、Session、Workbench 主路径，并明确未验证边界 |
 | `0.5.0` | Native Harness Panel Integration | 用 `sidebar.panellist` 和 root-scoped `main` keyed slot 取代 DOM 注入 |
-| `0.6.0` | Native QA Execution | Execution Profile → Harness Browser/Computer/MCP → TestRun → EvidenceBundle |
+| `0.6.0` | Native QA Execution & Action Desk | Execution Profile → Harness Browser/Computer/MCP → TestRun → EvidenceBundle → Action Queue |
 | `0.7.0` | AI Quality Intelligence | Evidence → Auto Review → Failure Analysis → Regression Recommendation → Gate Recommendation |
 | `1.0.0` | AI-Native QA Workbench | 把 Panel、执行、智能分析和受控 Agent Loop 收束成可依赖主路径 |
 
@@ -48,13 +48,16 @@
 - 保留 Workbench iframe、独立模式、打开标签页、返回 DSH 和同源 API 边界。
 - 真实宿主验证切换 Panel、刷新、重复加载和卸载后不留悬挂 listener/iframe。
 
-### 4.3 `0.6.0` Native QA Execution
+### 4.3 `0.6.0` Native QA Execution & Action Desk
 
 - Execution Profile 明确 provider、工具能力、权限、超时、artifact 目录和 provenance。
 - 只允许白名单的 Browser Use、Computer Use、MCP 能力进入执行请求。
 - Harness 返回的执行状态、日志、截图、trace 和结果映射到现有 TestRun/EvidenceBundle；不能绕过 finalize 和完整性校验。
 - 失败、取消、超时、断线和重试都留下可审计状态；没有 Evidence 不能产生 PASS。
 - 独立模式使用 fake adapter 做确定性测试，不伪造真实 Harness 执行。
+- 首页“需要你处理”使用只读 Action Queue 聚合执行失败、超时、证据不完整、Gate `BLOCK/WARN`、待审批和既有提醒；不建立第二套质量事实。
+- Action Queue 只返回服务端生成的稳定行动项、reason code、双语参数和受控跳转目标；重试只显示逻辑执行组的最新需要处理项。
+- HostExecution 记录和 `quality.host-execution.updated` 事件契约固定；Action Queue API、旧 `reminders` 兼容投影和首页 SSE 刷新分别测试。
 
 ### 4.4 `0.7.0` AI Quality Intelligence
 

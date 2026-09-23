@@ -23,6 +23,7 @@
 | [2026-09-15-requirements.md](./2026-09-15-requirements.md) | 新路线的分版目标与验收范围 |
 | [2026-09-15-solution-design.md](./2026-09-15-solution-design.md) | Harness 集成与 Workbench 演进方案 |
 | [2026-09-15-technical-design.md](./2026-09-15-technical-design.md) | 兼容契约、Panel、执行、智能分析技术边界 |
+| [2026-09-23-workbench-0.6-native-execution-action-desk-design.md](../superpowers/specs/2026-09-23-workbench-0.6-native-execution-action-desk-design.md) | 0.6 Native QA Execution & Action Desk 设计规格 |
 | [2026-09-15-getting-started.md](./2026-09-15-getting-started.md) | 从 0.4.1 开始实施和验证 |
 | [2026-09-15-harness-compatibility.md](./2026-09-15-harness-compatibility.md) | 0.5.0 Panel/Slot 兼容矩阵与证据记录（含 0.4.1 历史基线） |
 
@@ -33,7 +34,7 @@
 | [2026-09-15-workbench-iterations.md](../superpowers/plans/2026-09-15-workbench-iterations.md) | 当前路线总计划 |
 | [2026-09-15-workbench-0.4.1.md](../superpowers/plans/2026-09-15-workbench-0.4.1.md) | Harness 0.1.6 兼容性加固 |
 | [2026-09-15-workbench-0.5.0.md](../superpowers/plans/2026-09-15-workbench-0.5.0.md) | Native Harness Panel Integration |
-| [2026-09-15-workbench-0.6.0.md](../superpowers/plans/2026-09-15-workbench-0.6.0.md) | Native QA Execution |
+| [2026-09-15-workbench-0.6.0.md](../superpowers/plans/2026-09-15-workbench-0.6.0.md) | Native QA Execution & Action Desk |
 | [2026-09-15-workbench-0.7.0.md](../superpowers/plans/2026-09-15-workbench-0.7.0.md) | AI Quality Intelligence |
 | [2026-09-15-workbench-1.0.0.md](../superpowers/plans/2026-09-15-workbench-1.0.0.md) | AI-Native QA Workbench 收口 |
 

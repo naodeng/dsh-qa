@@ -25,7 +25,7 @@ v0.4.1 Harness 0.1.6 Compatibility（历史基线）
         ↓
 0.5.0 Native Harness Panel Integration（已发布，宿主 `5/6` 通过；插件卸载与恢复已人工验证）
         ↓
-0.6.0 Native QA Execution
+0.6.0 Native QA Execution & Action Desk
         ↓
 0.7.0 AI Quality Intelligence
         ↓
@@ -34,7 +34,7 @@ v0.4.1 Harness 0.1.6 Compatibility（历史基线）
 Post-1.0：Quality Obligation、Evidence Graph、Adapter、Policy、Multi-Agent、Autonomous QE
 ```
 
-`0.8.0` 和 `0.9.0` 暂不作为当前发布节点。此前的行动台、对话工作台、变更与回归、证据与交付体验计划保留为历史草案，不应从这些文件直接开工。
+`0.8.0` 和 `0.9.0` 暂不作为当前发布节点。此前独立的行动台、对话工作台、变更与回归、证据与交付体验计划仍保留为历史草案；Action Desk 只以本路线中定义的受控 Action Queue 子集进入 `0.6.0`，不从旧文件直接开工。
 
 ## 3. 版本边界
 
@@ -44,7 +44,7 @@ Post-1.0：Quality Obligation、Evidence Graph、Adapter、Policy、Multi-Agent�
 | `0.4.1` | Verified historical baseline | Harness 0.1.6 兼容性加固 | 当前 RPC、Session、Workbench 主路径能否在真实宿主跑通？ | 官方 Panel API 迁移 |
 | `0.5.0` | Released: host `PASS_WITH_LIMITATION` | Native Harness Panel Integration | 如何通过官方 Slot/Panel 进入工作台，而不是寻找宿主 DOM？ | 测试执行智能化、AI 自动结论 |
 | `0.5.2` | Released | Bilingual settings and release history | 如何让项目元信息、版本提醒和迭代记录在工作台内可见且可追踪？ | 主题与工作区宽度预设、测试执行智能化、AI 自动结论 |
-| `0.6.0` | Planned | Native QA Execution | 如何把 Execution Profile 接到 Browser Use、Computer Use 或 MCP，并留下 TestRun/Evidence？ | 任意工具调用、无证据 PASS |
+| `0.6.0` | Planned | Native QA Execution & Action Desk | 如何把 Execution Profile 接到 Browser Use、Computer Use 或 MCP，留下 TestRun/Evidence，并让用户立即看到需要处理的执行状态？ | 任意工具调用、无证据 PASS、AI 自动分析 |
 | `0.7.0` | Planned | AI Quality Intelligence | 如何从 Evidence、Failure、Regression 和 Gate 事实给出可解释建议？ | AI 直接改 Gate 或替代人工审批 |
 | `1.0.0` | Planned | AI-Native QA Workbench | 如何把 Panel、执行、智能分析和受控 Agent Loop 收束成可依赖主路径？ | 自动生产发布、无限权限自治 |
 

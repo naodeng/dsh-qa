@@ -43,7 +43,7 @@ npm run test:e2e
         ↓
 0.5 Panel
         ↓
-0.6 Native Execution
+0.6 Native Execution & Action Desk
         ↓
 0.7 AI Quality Intelligence
         ↓

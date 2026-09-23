@@ -62,7 +62,7 @@ sidebar.panellist: { id: "dsh-qa", ... }
 
 `lib/client.js` 只负责注册 Panel、渲染/卸载 iframe 和桥接返回消息，不再查询 Harness 具体 DOM。面板激活状态由宿主选择状态负责，不能由多个插件通过自定义 document event 互相清理。
 
-### 3.3 `0.6.0`：Native QA Execution
+### 3.3 `0.6.0`：Native QA Execution & Action Desk
 
 Execution Profile 增加 host provider 维度，但仍归属于现有 Quality Task：
 
@@ -74,9 +74,15 @@ QualityTask
   → HostExecutionResult
   → TestRun provenance
   → EvidenceBundle finalize + verify
+  → Action Queue
+  → Workbench 首页“需要你处理”
 ```
 
 每个 provider 都通过统一 adapter contract。工具名、目标、读写范围、超时和 artifact 能力在请求中显式声明；不允许从模型文本直接拼任意 host command。
+
+Action Queue 只读聚合 HostExecution、TestRun、EvidenceBundle、Gate 和现有提醒，
+通过稳定的 ActionItem、reason code 和受控 target 提供首页行动入口；它不写入
+质量事实，也不替代 Gate 或人工审批。
 
 ### 3.4 `0.7.0`：AI Quality Intelligence
 

@@ -20,7 +20,7 @@
 
 - 0.4.1 的静态、独立模式和真实宿主证据分开记录；host smoke 未运行不算兼容。
 - 0.5 删除 DOM injection 技术债；iframe Workbench 保留。
-- 0.6 的 HostExecution 只能使用 profile 白名单并落到 TestRun/EvidenceBundle。
+- 0.6 的 HostExecution 只能使用 profile 白名单并落到 TestRun/EvidenceBundle；Action Desk 只读投影这些事实，不建立第二套质量模型。
 - 0.7 的 AI 只提供建议；确定性 Gate、人工确认和 provenance 不被覆盖。
 - 1.0 的 Agent 有工具白名单、审批、预算、超时、重试、redaction 和终止状态。
 - `0.8.0`、`0.9.0` 不作为当前执行节点；旧计划仅供历史追溯。
@@ -30,7 +30,7 @@
 
 1. [0.4.1 Harness 0.1.6 兼容性加固](./2026-09-15-workbench-0.4.1.md)
 2. [0.5.0 Native Harness Panel Integration](./2026-09-15-workbench-0.5.0.md)
-3. [0.6.0 Native QA Execution](./2026-09-15-workbench-0.6.0.md)
+3. [0.6.0 Native QA Execution & Action Desk](./2026-09-15-workbench-0.6.0.md)
 4. [0.7.0 AI Quality Intelligence](./2026-09-15-workbench-0.7.0.md)
 5. [1.0.0 AI-Native QA Workbench](./2026-09-15-workbench-1.0.0.md)
 

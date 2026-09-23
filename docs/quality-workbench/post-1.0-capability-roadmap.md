@@ -470,7 +470,7 @@ C8 不是单纯增加一个自动化按钮，必须先具备：
 ## 12. 阶段依赖与实施顺序
 
 ```text
-0.4.1 Compatibility → 0.5 Panel → 0.6 Native Execution
+0.4.1 Compatibility → 0.5 Panel → 0.6 Native Execution & Action Desk
           ↓
 0.7 C1 Quality Intelligence → 1.0 bounded Agent foundation
           ↓

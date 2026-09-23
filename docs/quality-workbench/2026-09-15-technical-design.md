@@ -114,7 +114,7 @@ Panel renderer 使用 Harness 提供的 `react` runtime；dsh-qa 不新增或打
 - iframe 创建、加载、卸载、popout 和 `postMessage` 返回 DSH 都有 disposer。
 - 源码中不再出现 `MutationObserver`、`sidebarCol`、`centerCol`、`logoRow`、`newSession` 和 `dsh-panel-activate`。
 
-## 5. `0.6.0` Host execution contract
+## 5. `0.6.0` Host execution and Action Desk contract
 
 ### 5.1 Request
 
@@ -145,6 +145,28 @@ HostExecutionResult
 ```
 
 Host 错误、取消、断线、重试和部分产物都保存状态。`imported-summary` 或未经验证的 host summary 不能满足 Gate 的 required evidence。
+
+### 5.3 Action Queue
+
+`buildActionQueue(snapshot, { now, limit })` 是只读纯函数，返回稳定排序的
+`ActionItem[]`。Action Item 使用 `kind`、`priority`、`status`、`actionRequired`、
+`reasonCode/reasonArgs`、`source` 和受控 `target`；不返回客户端 verdict，也不
+持久化第二套 `actionItems` 模型。
+
+`GET /api/action-queue?limit=1..50` 返回 `{ ok, items, generatedAt }`；非法 `limit`
+返回 `400`，数据源不可用返回 `503`，不能用空队列掩盖故障。排序键固定为
+`priorityRank(desc) → actionRequired(desc) → statusRank(desc) → dueAt(asc,
+null-last) → projectId(asc) → entityId(asc)`，优先级和状态等级沿用 0.6 设计规格。
+旧 `GET /api/board` 的 `reminders` 由唯一的 `toLegacyReminders(items)` 兼容投影
+提供，保留 `type/title/date/severity/days/projectId/projectTitle` 字段；首页不依赖
+这些旧字段。
+
+HostExecution 记录必须包含 `attemptGroupId`；重试开始后，Action Queue 隐藏旧
+attempt 的 terminal action，只展示该逻辑执行组的最新状态。Host 状态变化发送
+`quality.host-execution.updated`，映射到 TestRun 后继续发送
+`quality.test-run.updated`。Workbench 在这些质量事件和 SSE `hello` 后重新拉取
+Action Queue；标题和原因由前端 i18n 的 key/code/args 渲染，不直接传输单一语言
+文案。
 
 ## 6. `0.7.0` Quality Intelligence contract
 
