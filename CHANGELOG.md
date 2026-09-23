@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+## 0.5.2 - 2026-09-23
+
+## 中文
+
+### 新功能
+
+- 在设置弹窗中集中提供中英文切换、当前/最新版本、兼容 DSH 版本、GitHub 仓库和项目官网链接。
+- 在品牌区域展示当前版本和更新提示；打开版本号查看按发布时间倒序排列、支持分页的版本迭代记录。
+- 版本迭代记录按当前语言展示中文或英文更新描述，并提供 GitHub 详细更新链接。
+
+### 修复
+
+- 提升设置按钮在浅色背景下的对比度，并移除不再需要的主题和工作区宽度预设。
+
+### 验证
+
+- `npm test`：160 个单元/API 测试和 25 个 Chromium E2E 测试通过。
+
+## English
+
+### Features
+
+- Add a settings dialog with bilingual language switching, installed/latest versions, compatible DSH version, GitHub repository, and project website links.
+- Show the installed version and update indicator beside the brand; open it to browse paginated release history sorted newest first.
+- Localize release summaries to the active language and provide a GitHub link for detailed updates.
+
+### Fixes
+
+- Improve settings-button contrast on light backgrounds and remove the unused theme and workspace-width presets.
+
+### Verification
+
+- `npm test`: 160 unit/API tests and 25 Chromium E2E tests passed.
+
 ## 0.5.1 - 2026-09-22
 
 ## 中文

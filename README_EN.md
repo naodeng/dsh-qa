@@ -4,14 +4,14 @@
 <img width="2135" height="736" alt="image" src="https://github.com/user-attachments/assets/45d9f541-808e-46c0-993a-e1e9824464b5" />
 
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-0.5.1-informational)]()
+[![Version](https://img.shields.io/badge/version-0.5.2-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
 [![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.7--alpha.1%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-alpha.1)
 
 **dsh-qa** is a local QA workbench for DeepSeek Harness. It keeps requirements, test cases, risks, execution, evidence, and delivery decisions in one project space. Project and iteration conversations reuse native DSH sessions with **Test Mode** (preset id: `qa`); business data stays local and the runtime has no production dependencies.
 
-The published version is `v0.5.1`; it continues to use Harness's official Panel/Slot API and adds the Harness `dsh-v0.1.7-alpha.1` preset-bundle migration, Panel popout lifecycle fix, and a `6 passed` real Host Smoke for the `qa` bundle. Runtime verification of the independent `quality-control` bundle remains unassessed.
+The published version is `v0.5.2`; it continues to use Harness's official Panel/Slot API and adds a settings dialog, bilingual version information, and paginated release history while retaining `dsh-v0.1.7-alpha.1` compatibility. Runtime verification of the independent `quality-control` bundle remains unassessed.
 
 ```
 Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
@@ -69,9 +69,9 @@ The diagram makes the control boundary explicit: a run that is not terminal or l
 
 ### UI & Connectivity
 
-- **Language switching (zh / en)**: the "中 / EN" toggle in the top bar switches the UI language on the fly — Chinese by default, persisted in your local browser; navigation, dashboard, kanban, lists, calendar, radar and drawer/modal titles are all bilingual
-- **Adjustable workspace**: Main nav, project rail, and project radar widths are draggable and collapsible; double-click edges to reset; compact / standard / focus-chat presets persist in your local browser
-- **Four QA themes**: QA Dashboard, Terminal, Minimal, and Cyber — full skins; the Cyber theme can trigger a "BUILD PASSED" scene at any time
+- **Language switching (zh / en)**: switch the UI language from the settings dialog — Chinese by default and persisted in your local browser; navigation, dashboard, kanban, lists, calendar, radar and drawer/modal titles are all bilingual
+- **Settings and release information**: the settings dialog shows installed/latest versions, compatible DSH version, GitHub repository, and project website; the brand version button opens bilingual, paginated release history
+- **Adjustable workspace**: Main nav, project rail, and project radar widths are draggable and collapsible; double-click edges to reset; layout presets are no longer exposed in the settings dialog
 - Overdue milestones in red, due-within-7-days in yellow, pending gates in purple — live counts in the top bar
 
 ## Installation (DSH plugin)
@@ -150,7 +150,7 @@ The standalone address lets you view and manage test projects, the kanban, and t
 
 ```
 lib/index.js      Host half (cordis plugin): starts the workbench in-process + /api/dsh-qa routes + system-prompt announcement
-lib/client.js     Browser half (0.5.1): official Panel/Slot sidebar + main keyed slot + Workbench iframe
+lib/client.js     Browser half (0.5.2): official Panel/Slot sidebar + main keyed slot + Workbench iframe
 lib/panel-contract.js  Panel/Slot semantic contract (runtime adapter stays in client.js)
 cordis.patch.yml  Profile bundle patch (inserts the plugin line)
 preset/qa/cordis.patch.yml  Declarative QA preset bundle

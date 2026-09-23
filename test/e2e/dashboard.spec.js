@@ -79,7 +79,7 @@ test.describe('首页', () => {
 
   test('设置弹窗承载语言和关于信息，版本历史支持倒序分页', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('#app-version')).toContainText('v0.5.1');
+    await expect(page.locator('#app-version')).toContainText('v0.5.2');
     await expect(page.locator('.avatar')).toHaveCount(0);
     await expect(page.locator('.theme-toggle')).toHaveCount(0);
     await expect(page.locator('#btn-lang')).toHaveCount(0);
@@ -98,12 +98,12 @@ test.describe('首页', () => {
     await page.locator('#st-close').click();
     await page.locator('#app-version').click();
     await expect(page.locator('#release-modal')).toBeVisible();
-    await expect(page.locator('#release-list .release-row').first()).toContainText('v0.5.1');
-    await expect(page.locator('#release-list .release-row').first()).toContainText('Migrated the');
+    await expect(page.locator('#release-list .release-row').first()).toContainText('v0.5.2');
+    await expect(page.locator('#release-list .release-row').first()).toContainText('Add a settings dialog');
     await expect(page.locator('#release-list .release-row')).toHaveCount(5);
     await expect(page.locator('#release-next')).toBeEnabled();
     await page.locator('#release-next').click();
     await expect(page.locator('#release-page-label')).toContainText('2');
-    await expect(page.locator('#release-list .release-row').first()).not.toContainText('v0.5.1');
+    await expect(page.locator('#release-list .release-row').first()).not.toContainText('v0.5.2');
   });
 });

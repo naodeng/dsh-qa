@@ -1,7 +1,7 @@
 {
   "name": "dsh-qa",
-  "version": "0.5.1",
-  "description": "dsh-qa QA Workbench: a local software testing workbench plugin for DeepSeek Harness. Project/iteration dual-mode, full-flow requirements / test cases / defects / milestones / reports, native QA preset, themes, kanban and calendar.",
+  "version": "0.5.2",
+  "description": "dsh-qa QA Workbench: a local software testing workbench plugin for DeepSeek Harness. Project/iteration dual-mode, full-flow requirements / test cases / defects / milestones / reports, native QA preset, settings, release history, kanban and calendar.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {

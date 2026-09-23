@@ -4,14 +4,14 @@
 <img width="2135" height="736" alt="image" src="https://github.com/user-attachments/assets/45d9f541-808e-46c0-993a-e1e9824464b5" />
 
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-0.5.1-informational)]()
+[![Version](https://img.shields.io/badge/version-0.5.2-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
 [![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.7--alpha.1%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-alpha.1)
 
 **dsh-qa** 是 DeepSeek Harness 的本地 QA 工作台：在一个项目空间中管理需求、测试用例、风险、执行、证据和交付决策。项目与迭代的对话复用 DSH 原生会话，并自动使用「测试模式」（preset id: `qa`）；业务数据保留在本机，运行时没有生产依赖。
 
-当前发布版本是 `v0.5.1`；本版本继续使用 Harness 官方 Panel/Slot API，并针对 `dsh-v0.1.7-alpha.1` 完成 preset bundle 迁移、Panel popout 生命周期修复和 `qa` bundle `6 passed` 真实 Host Smoke。`quality-control` 独立 bundle 的真实运行验证仍未评估。
+当前发布版本是 `v0.5.2`；本版本继续使用 Harness 官方 Panel/Slot API，并新增设置弹窗、双语版本信息和可分页版本迭代记录，同时保持 `dsh-v0.1.7-alpha.1` 兼容性。`quality-control` 独立 bundle 的真实运行验证仍未评估。
 
 ```
 测试首页 → DSH 测试对话 → 项目看板 → 日历排期
@@ -69,9 +69,9 @@
 
 ### 界面与连接
 
-- **中英文语言切换**：顶栏「中 / EN」按钮一键切换，默认中文，选择在本机浏览器中持久保存；导航、首页、看板、列表、日历、雷达与抽屉/模态框标题均双语化
-- **可调工作区**：主导航、项目栏与项目雷达均可拖动边缘改变宽度，可分别收起；双击边缘恢复默认，提供紧凑、标准与专注对话预设，选择在本机浏览器中持久保存
-- **四套 QA 主题**：质量仪表、终端、极简与赛博四套完整皮肤；赛博主题可随时触发“BUILD PASSED”场景
+- **中英文语言切换**：在设置弹窗中切换，默认中文，选择在本机浏览器中持久保存；导航、首页、看板、列表、日历、雷达与抽屉/模态框标题均双语化
+- **设置与版本信息**：设置弹窗展示当前/最新版本、兼容 DSH 版本、GitHub 仓库和项目官网；品牌区域的版本号可打开双语、分页的版本迭代记录
+- **可调工作区**：主导航、项目栏与项目雷达均可拖动边缘改变宽度，可分别收起；双击边缘恢复默认，布局预设不再放在设置弹窗中
 - 逾期里程碑红标、7 日内临期黄标、待批门禁紫标，顶栏实时统计
 
 ## 安装（DSH 插件）
@@ -150,7 +150,7 @@ npm start          # 或双击 start.command
 
 ```
 lib/index.js      宿主半（cordis 插件）：进程内拉起工作台 + /api/dsh-qa 路由 + 系统提示播报
-lib/client.js     浏览器半（0.5.1）：官方 Panel/Slot 侧边栏与 main keyed slot + Workbench iframe
+lib/client.js     浏览器半（0.5.2）：官方 Panel/Slot 侧边栏与 main keyed slot + Workbench iframe
 lib/panel-contract.js  Panel/Slot 语义契约（运行时适配层只在 client.js）
 cordis.patch.yml  profile bundle 补丁（插入插件行）
 preset/qa/cordis.patch.yml  声明式 QA preset bundle

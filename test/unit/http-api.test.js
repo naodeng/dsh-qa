@@ -29,11 +29,11 @@ test('app info exposes the installed version, compatibility, links, and descendi
   assert.equal(payload.websiteEnUrl, 'https://inaodeng.com/en/dsh-qa/');
   assert.ok(Array.isArray(payload.releases));
   assert.ok(payload.releases.length >= 3);
-  assert.equal(payload.releases[0].version, '0.5.1');
-  assert.match(payload.releases[0].date, /^2026-09-22$/);
-  assert.match(payload.releases[0].summaryZh, /将|迁移/);
-  assert.match(payload.releases[0].summaryEn, /Migrated|bundle/);
-  assert.match(payload.releases[0].detailUrl, /github\.com\/naodeng\/dsh-qa\/releases\/tag\/v0\.5\.1$/);
+  assert.equal(payload.releases[0].version, '0.5.2');
+  assert.match(payload.releases[0].date, /^2026-09-23$/);
+  assert.match(payload.releases[0].summaryZh, /设置|版本/);
+  assert.match(payload.releases[0].summaryEn, /settings|release history/i);
+  assert.match(payload.releases[0].detailUrl, /github\.com\/naodeng\/dsh-qa\/releases\/tag\/v0\.5\.2$/);
   for (let index = 1; index < payload.releases.length; index += 1) {
     assert.ok(payload.releases[index - 1].version >= payload.releases[index].version, 'releases should be sorted newest first');
   }
