@@ -43,22 +43,26 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
   };
   const langModeCN = (mode) => (currentLang() === 'en' ? MODE_CN_EN[mode] || mode : MODE_CN[mode] || mode);
   const langModeDesc = (mode) => (currentLang() === 'en' ? MODE_DESC_EN[mode] || MODE_DESC_EN.full : MODE_DESC[mode] || MODE_DESC.full);
-  const THEMES = {
-    dashboard: { label: '质量仪表', motto: 'QA Workbench · 质量第一' },
-    terminal: { label: '终端', motto: 'ALL TESTS PASS' },
-    minimal: { label: '极简', motto: 'LESS, BUT SHIPPED' },
-    cyber: { label: '赛博', motto: 'QUALITY ASSURANCE // ALL SYSTEMS GO' },
-  };
   const DEFAULT_LAYOUT = { rail: 184, cases: 220, context: 260, railCollapsed: false, casesCollapsed: false, contextCollapsed: false };
   const LAYOUT_RANGES = { rail: [150, 280], cases: [180, 360], context: [220, 420] };
+  const RELEASE_PAGE_SIZE = 5;
+  const RELEASE_SEEN_KEY = 'dsh-qa-release-seen';
+  const DEFAULT_APP_INFO = {
+    currentVersion: '0.5.1', latestVersion: '0.5.1', isOutdated: false,
+    dshVersion: 'dsh-v0.1.7-alpha.1',
+    repositoryUrl: 'https://github.com/naodeng/dsh-qa',
+    websiteZhUrl: 'https://inaodeng.com/zh-cn/dsh-qa/',
+    websiteEnUrl: 'https://inaodeng.com/en/dsh-qa/',
+    releases: [],
+  };
 
   const state = {
     view: 'dashboard', columns: [], cards: new Map(), feed: [], schedule: [], reminders: [], stats: {}, settings: {},
     activeProjectId: null, activeProject: null, drawerProject: null, drawerTab: 'overview', detailProject: null, detailTab: 'overview', detailReturnView: 'board',
     streams: new Map(), evidenceRevisions: new Map(), busy: new Set(), justDragged: false, search: '', caseFilter: 'all',
     dshEmbedded: location.pathname.startsWith('/api/dsh-qa/workbench'),
-    theme: 'dashboard',
     layout: { ...DEFAULT_LAYOUT },
+    appInfo: { ...DEFAULT_APP_INFO }, releasePage: 1,
     dsh: { projectId: null, sessionId: '', skills: [], commands: [], models: null, qaPreset: null, busy: false, turnToken: 0 },
     skillCatalog: { lang: '', categories: [], groups: [], skills: [] }, skillSearch: '', installingSkill: '', uninstallingSkill: '',
     calendarCursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), selectedDate: localDate(new Date()),
@@ -107,6 +111,58 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || `请求失败 (${response.status})`);
     return data;
+  }
+  function compareVersions(left, right) {
+    const a = String(left || '0.0.0').replace(/^v/, '').split('.').map((part) => Number.parseInt(part, 10) || 0);
+    const b = String(right || '0.0.0').replace(/^v/, '').split('.').map((part) => Number.parseInt(part, 10) || 0);
+    for (let index = 0; index < 3; index += 1) {
+      if ((a[index] || 0) !== (b[index] || 0)) return (a[index] || 0) - (b[index] || 0);
+    }
+    return 0;
+  }
+  function releaseDate(iso) {
+    if (!iso) return '';
+    const date = new Date(`${iso.slice(0, 10)}T00:00:00`);
+    return date.toLocaleDateString(currentLang() === 'en' ? 'en-US' : 'zh-CN', { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+  function updateVersionIndicator() {
+    const info = state.appInfo || DEFAULT_APP_INFO;
+    const currentVersion = info.currentVersion || DEFAULT_APP_INFO.currentVersion;
+    const latestVersion = info.latestVersion || currentVersion;
+    const outdated = Boolean(info.isOutdated) || compareVersions(currentVersion, latestVersion) < 0;
+    const seen = (() => { try { return localStorage.getItem(RELEASE_SEEN_KEY) === latestVersion; } catch { return false; } })();
+    const alert = $('#app-version-alert');
+    const label = $('#app-version-label');
+    const button = $('#app-version');
+    if (label) label.textContent = `v${currentVersion}`;
+    if (alert) {
+      alert.classList.toggle('hidden', !outdated || seen);
+      alert.setAttribute('aria-hidden', String(!outdated || seen));
+    }
+    if (button) {
+      button.classList.toggle('is-outdated', outdated && !seen);
+      button.setAttribute('aria-label', t('release.open'));
+    }
+  }
+  function markVersionSeen() {
+    const latestVersion = state.appInfo?.latestVersion;
+    if (latestVersion) {
+      try { localStorage.setItem(RELEASE_SEEN_KEY, latestVersion); } catch { /* ignore */ }
+    }
+    updateVersionIndicator();
+  }
+  async function loadAppInfo() {
+    try {
+      const info = await api('api/app-info');
+      state.appInfo = { ...DEFAULT_APP_INFO, ...info, releases: Array.isArray(info.releases) ? info.releases : [] };
+      updateVersionIndicator();
+      if ($('#release-modal')) renderReleasePage($('#release-modal'));
+      return state.appInfo;
+    } catch (error) {
+      updateVersionIndicator();
+      if (!state.appInfo.releases.length) toast(error.message, 'err');
+      return state.appInfo;
+    }
   }
   async function dshFollowSnapshot(sessionId, maxMessages = 30) {
     if (!state.dshEmbedded) throw new Error('请从 DSH 侧边栏打开“质量工作台”');
@@ -1362,45 +1418,71 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
     if (state.activeProjectId === p.id) state.dsh = { projectId: null, sessionId: '', skills: [], commands: [], models: null, qaPreset, busy: false, turnToken: state.dsh.turnToken + 1 };
     return created.sessionId;
   }
-  function showPassScene() {
-    const scene = $('#theme-scene');
-    scene.classList.remove('active');
-    void scene.offsetWidth;
-    scene.classList.add('active');
-    setTimeout(() => scene.classList.remove('active'), 1450);
-  }
-  function applyTheme(theme, persist = true) {
-    state.theme = THEMES[theme] ? theme : 'dashboard';
-    document.body.dataset.theme = state.theme;
-    $('#theme-label').textContent = t(`theme.${state.theme}`);
-    if (persist) localStorage.setItem('dsh-qa-theme', state.theme);
-    if (persist && state.theme === 'cyber') setTimeout(showPassScene, 120);
-  }
   function openSettings() {
-    const modal = modalShell('界面风格与布局', '四套皮肤只改变工作台外观；模型、技能和测试模式仍完全来自 DSH。', `
-      <div class="theme-picker">
-        <button class="theme-option ${state.theme === 'dashboard' ? 'active' : ''}" data-theme-option="dashboard" aria-pressed="${state.theme === 'dashboard'}" type="button"><span class="theme-preview dashboard"><i></i><i></i><i></i></span><b>质量仪表</b><small>清爽 QA 面板蓝、通过率绿与测试徽章，默认外观。</small><em>当前</em></button>
-        <button class="theme-option ${state.theme === 'terminal' ? 'active' : ''}" data-theme-option="terminal" aria-pressed="${state.theme === 'terminal'}" type="button"><span class="theme-preview terminal"><i></i><i></i><i></i></span><b>终端</b><small>深色终端绿与等宽字体，命令行质感。</small><em>当前</em></button>
-        <button class="theme-option ${state.theme === 'minimal' ? 'active' : ''}" data-theme-option="minimal" aria-pressed="${state.theme === 'minimal'}" type="button"><span class="theme-preview minimal"><i></i><i></i><i></i></span><b>极简</b><small>纯白留白、细线与安静的黑灰层次。</small><em>当前</em></button>
-        <button class="theme-option ${state.theme === 'cyber' ? 'active' : ''}" data-theme-option="cyber" aria-pressed="${state.theme === 'cyber'}" type="button"><span class="theme-preview cyber"><i></i><i></i><i></i></span><b>赛博</b><small>霓虹紫、深空黑与发光描边，附带可触发的 BUILD PASSED 场景。</small><em>当前</em></button>
-      </div>
-      <div class="layout-settings"><h4>工作区宽度</h4><p>主导航、项目栏与项目雷达的边缘均可拖动；双击边缘恢复默认，箭头键可微调。</p><div class="layout-presets"><button class="layout-preset" data-layout-preset="compact" type="button"><b>紧凑</b><span>170 / 190 / 230</span></button><button class="layout-preset" data-layout-preset="standard" type="button"><b>标准</b><span>184 / 220 / 260</span></button><button class="layout-preset" data-layout-preset="focus" type="button"><b>专注对话</b><span>收起项目栏与雷达</span></button></div></div>
-      <p class="theme-hint">模型只从 DSH 当前会话的模型目录读取；如需新增服务商或模型，请在 DSH 设置中配置。</p>
-      <div class="modal-foot"><button class="btn" id="st-pass" type="button" ${state.theme === 'cyber' ? '' : 'disabled'}>BUILD PASSED</button><button class="btn primary" id="st-close" type="button">完成</button></div>`, true);
-    $$('[data-theme-option]', modal).forEach((button) => button.addEventListener('click', () => {
-      applyTheme(button.dataset.themeOption);
-      $$('[data-theme-option]', modal).forEach((item) => { item.classList.toggle('active', item === button); item.setAttribute('aria-pressed', String(item === button)); });
-      $('#st-pass', modal).disabled = state.theme !== 'cyber';
+    const info = state.appInfo || DEFAULT_APP_INFO;
+    const outdated = Boolean(info.isOutdated) || compareVersions(info.currentVersion, info.latestVersion) < 0;
+    const websiteUrl = currentLang() === 'en' ? info.websiteEnUrl : info.websiteZhUrl;
+    const modal = modalShell(t('settings.title'), t('settings.sub'), `
+      <section class="settings-section settings-language" aria-labelledby="settings-language-title">
+        <div class="settings-section-head"><div><h4 id="settings-language-title">${esc(t('settings.language'))}</h4><p>${esc(t('settings.languageTip'))}</p></div><div class="language-picker" role="group" aria-label="${esc(t('settings.language'))}"><button class="language-option ${currentLang() === 'zh' ? 'active' : ''}" data-settings-lang="zh" aria-pressed="${currentLang() === 'zh'}" type="button">中文</button><button class="language-option ${currentLang() === 'en' ? 'active' : ''}" data-settings-lang="en" aria-pressed="${currentLang() === 'en'}" type="button">English</button></div></div>
+      </section>
+      <section class="settings-section about-section" aria-labelledby="settings-about-title">
+        <div class="settings-section-head"><div><h4 id="settings-about-title">${esc(t('settings.about'))}</h4><p>${esc(t('settings.aboutTip'))}</p></div></div>
+        <dl class="about-grid">
+          <div class="about-item"><dt>${esc(t('settings.currentVersion'))}</dt><dd><code>v${esc(info.currentVersion)}</code><span class="about-status ${outdated ? 'outdated' : ''}">${esc(outdated ? t('settings.outdated') : t('settings.current'))}</span></dd></div>
+          <div class="about-item"><dt>${esc(t('settings.latestVersion'))}</dt><dd><code>v${esc(info.latestVersion)}</code><span class="about-status latest">${esc(t('settings.latest'))}</span></dd></div>
+          <div class="about-item"><dt>${esc(t('settings.compatibleDsh'))}</dt><dd><code>${esc(info.dshVersion)}</code></dd></div>
+          <div class="about-item"><dt>${esc(t('settings.repository'))}</dt><dd><a href="${esc(info.repositoryUrl)}" target="_blank" rel="noreferrer">github.com/naodeng/dsh-qa</a></dd></div>
+          <div class="about-item about-item-wide"><dt>${esc(t('settings.website'))}</dt><dd><a href="${esc(websiteUrl)}" target="_blank" rel="noreferrer">${esc(websiteUrl)}</a></dd></div>
+        </dl>
+      </section>
+      <div class="modal-foot"><button class="btn primary" id="st-close" type="button">${esc(t('settings.done'))}</button></div>`, true);
+    modal.id = 'settings-modal';
+    $$('[data-settings-lang]', modal).forEach((button) => button.addEventListener('click', () => {
+      const next = button.dataset.settingsLang;
+      if (next === currentLang()) return;
+      setLang(next);
+      applyLang();
+      openSettings();
     }));
-    $$('[data-layout-preset]', modal).forEach((button) => button.addEventListener('click', () => {
-      const preset = button.dataset.layoutPreset;
-      if (preset === 'compact') applyLayout({ rail: 170, cases: 190, context: 230, railCollapsed: false, casesCollapsed: false, contextCollapsed: false });
-      if (preset === 'standard') applyLayout(DEFAULT_LAYOUT);
-      if (preset === 'focus') applyLayout({ rail: 170, railCollapsed: false, casesCollapsed: true, contextCollapsed: true });
-      toast('工作区布局已更新', 'ok');
-    }));
-    $('#st-pass', modal).addEventListener('click', showPassScene);
     $('#st-close', modal).addEventListener('click', closeModal);
+  }
+  function renderReleasePage(modal = $('#release-modal')) {
+    if (!modal) return;
+    const releases = [...(state.appInfo?.releases || [])].sort((a, b) => compareVersions(b.version, a.version));
+    const totalPages = Math.max(1, Math.ceil(releases.length / RELEASE_PAGE_SIZE));
+    state.releasePage = clamp(state.releasePage, 1, totalPages);
+    const start = (state.releasePage - 1) * RELEASE_PAGE_SIZE;
+    const page = releases.slice(start, start + RELEASE_PAGE_SIZE);
+    const list = $('#release-list', modal);
+    if (!list) return;
+    list.innerHTML = page.length ? page.map((release) => {
+      const summary = currentLang() === 'en' ? (release.summaryEn || release.summaryZh) : (release.summaryZh || release.summaryEn);
+      return `<article class="release-row"><div class="release-row-head"><strong class="release-version">v${esc(release.version)}</strong><time class="release-date" datetime="${esc(release.date || '')}">${esc(releaseDate(release.date))}</time></div><p class="release-summary">${esc(summary || t('release.empty'))}</p>${release.detailUrl ? `<a class="release-link" href="${esc(release.detailUrl)}" target="_blank" rel="noreferrer">${esc(t('release.details'))} ↗</a>` : ''}</article>`;
+    }).join('') : `<div class="release-empty">${esc(state.appInfo?.releases?.length ? t('release.empty') : t('release.loading'))}</div>`;
+    const pageLabel = $('#release-page-label', modal);
+    if (pageLabel) pageLabel.textContent = t('release.page', { page: state.releasePage, total: totalPages });
+    const previous = $('#release-prev', modal);
+    const next = $('#release-next', modal);
+    if (previous) previous.disabled = state.releasePage <= 1;
+    if (next) next.disabled = state.releasePage >= totalPages;
+  }
+  async function openReleaseHistory() {
+    markVersionSeen();
+    state.releasePage = 1;
+    const modal = modalShell(t('release.title'), t('release.sub'), `
+      <div id="release-list" class="release-list"><div class="release-empty">${esc(t('release.loading'))}</div></div>
+      <div class="release-pagination"><button id="release-prev" class="btn" type="button">${esc(t('release.previous'))}</button><span id="release-page-label" aria-live="polite"></span><button id="release-next" class="btn" type="button">${esc(t('release.next'))}</button></div>
+      <div class="modal-foot"><button class="btn primary" id="release-close" type="button">${esc(t('settings.done'))}</button></div>`, true);
+    modal.id = 'release-modal';
+    $('#release-prev', modal).addEventListener('click', () => { state.releasePage -= 1; renderReleasePage(modal); });
+    $('#release-next', modal).addEventListener('click', () => { state.releasePage += 1; renderReleasePage(modal); });
+    $('#release-close', modal).addEventListener('click', closeModal);
+    renderReleasePage(modal);
+    if (!state.appInfo.releases.length) {
+      await loadAppInfo();
+      if ($('#release-modal') === modal) renderReleasePage(modal);
+    }
   }
 
   // ---------- state updates and SSE ----------
@@ -1454,7 +1536,7 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
   function applyStaticCopy() {
     const copy = {
       'service-status': ['DSH · 测试模式', 'DSH · Test Mode'],
-      'today-label': ['', ''], 'theme-label': ['', ''],
+      'today-label': ['', ''],
     };
     const text = {
       '.welcome-row > div:first-child > p:last-child': ['需要你关注的里程碑、排期和测试进展已经整理好了。', 'Milestones, schedules and test progress are ready for you.'],
@@ -1523,13 +1605,11 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
     if ($('#btn-new-case-side')) $('#btn-new-case-side').setAttribute('aria-label', ariaCopy.newProject);
     document.title = currentLang() === 'en' ? 'QA · DSH QA Workbench' : '质量 · DSH QA 工作台';
     document.documentElement.lang = currentLang() === 'en' ? 'en' : 'zh-CN';
+    updateVersionIndicator();
   }
   function applyLang() {
     // 更新静态 data-i18n 文本
     $$('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
-    // 语言按钮标签
-    const label = $('#lang-label');
-    if (label) label.textContent = currentLang() === 'zh' ? '中 / EN' : 'EN / 中';
     // 重渲染动态区块
     renderBoard(); renderRailCases(); renderCaseList(); renderDashboard(); renderCalendars();
     if (state.activeProject) { updateChatHead(state.activeProject); renderProjectRadar(state.activeProject); }
@@ -1542,11 +1622,6 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
   }
 
   function bind() {
-    $('#btn-lang').addEventListener('click', () => {
-      setLang(currentLang() === 'zh' ? 'en' : 'zh');
-      applyLang();
-      toast(currentLang() === 'en' ? 'Language switched to English' : '已切换为中文', 'ok');
-    });
     $$('.nav-item').forEach((button) => button.addEventListener('click', () => { switchView(button.dataset.view); applyStaticCopy(); if (button.dataset.view === 'assistant' && state.activeProject) initializeDshChat({ initialize: true }).then(() => applyStaticCopy()).catch((error) => toast(error.message, 'err')); }));
     $('#skills-search').addEventListener('input', (event) => { state.skillSearch = event.target.value; renderSkills(); });
     $('#skills-list').addEventListener('click', (event) => { const installButton = event.target.closest('[data-skill-name]'); if (installButton) installSkill(installButton.dataset.skillName); const uninstallButton = event.target.closest('[data-uninstall-skill]'); if (uninstallButton) uninstallSkill(uninstallButton.dataset.uninstallSkill); });
@@ -1555,7 +1630,7 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
     $('#btn-new-iteration').addEventListener('click', () => openNewProject(true));
     $('#btn-open-ai').addEventListener('click', () => { switchView('assistant'); if (state.activeProject) initializeDshChat({ initialize: true }).catch((error) => toast(error.message, 'err')); });
     $('#btn-settings').addEventListener('click', openSettings);
-    $('#btn-pass-scene').addEventListener('click', showPassScene);
+    $('#app-version').addEventListener('click', openReleaseHistory);
     $('#btn-back-dsh').addEventListener('click', () => {
       // 通知 DSH 宿主关闭工作台面板，回到 DSH 主页面
       try { window.parent?.postMessage({ source: 'dsh-qa', type: 'close-panel' }, '*'); } catch (e) { /* ignore */ }
@@ -1607,9 +1682,7 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
   async function init() {
     setLang(currentLang());
     $$('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
-    $('#lang-label').textContent = currentLang() === 'zh' ? '中 / EN' : 'EN / 中';
     applyStaticCopy();
-    applyTheme(localStorage.getItem('dsh-qa-theme') || 'dashboard', false);
     loadLayout();
     bind();
     populateDshModelSelect(null);
@@ -1618,7 +1691,7 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
       getQaPreset().catch((error) => { $('#service-status').classList.add('offline'); $('#service-status span').textContent = '测试模式缺失'; toast(error.message, 'err'); });
     }
     if (!location.search.includes('nosse')) connectSSE();
-    await refreshBoard(true);
+    await Promise.all([refreshBoard(true), loadAppInfo()]);
     switchView('dashboard');
   }
   init();

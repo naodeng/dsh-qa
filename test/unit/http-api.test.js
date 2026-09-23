@@ -16,6 +16,29 @@ const base = `http://127.0.0.1:${started.server.address().port}`;
 
 test.after(async () => { await new Promise((resolve) => setTimeout(resolve, 100)); await closeQaBench(started.server); fs.rmSync(dataDir, { recursive: true, force: true }); fs.rmSync(skillsDir, { recursive: true, force: true }); });
 
+test('app info exposes the installed version, compatibility, links, and descending release history', async () => {
+  const response = await fetch(`${base}/api/app-info`);
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.ok, true);
+  assert.match(payload.currentVersion, /^\d+\.\d+\.\d+$/);
+  assert.match(payload.latestVersion, /^\d+\.\d+\.\d+$/);
+  assert.equal(payload.dshVersion, 'dsh-v0.1.7-alpha.1');
+  assert.equal(payload.repositoryUrl, 'https://github.com/naodeng/dsh-qa');
+  assert.equal(payload.websiteZhUrl, 'https://inaodeng.com/zh-cn/dsh-qa/');
+  assert.equal(payload.websiteEnUrl, 'https://inaodeng.com/en/dsh-qa/');
+  assert.ok(Array.isArray(payload.releases));
+  assert.ok(payload.releases.length >= 3);
+  assert.equal(payload.releases[0].version, '0.5.1');
+  assert.match(payload.releases[0].date, /^2026-09-22$/);
+  assert.match(payload.releases[0].summaryZh, /将|迁移/);
+  assert.match(payload.releases[0].summaryEn, /Migrated|bundle/);
+  assert.match(payload.releases[0].detailUrl, /github\.com\/naodeng\/dsh-qa\/releases\/tag\/v0\.5\.1$/);
+  for (let index = 1; index < payload.releases.length; index += 1) {
+    assert.ok(payload.releases[index - 1].version >= payload.releases[index].version, 'releases should be sorted newest first');
+  }
+});
+
 test('project API creates projects and rejects invalid input', async () => {
   const empty = await fetch(`${base}/api/projects`);
   assert.equal(empty.status, 200);

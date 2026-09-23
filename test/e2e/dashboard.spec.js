@@ -56,13 +56,54 @@ test.describe('首页', () => {
     expect(assistantPanel.height).toBeLessThan(projectPanel.height - 40);
   });
 
-  test('首页可以切换主题并暴露基础可访问性属性', async ({ page }) => {
+  test('设置弹窗移除主题和工作区宽度设置并保留基础可访问性属性', async ({ page }) => {
     await page.goto('/');
-    const initialTheme = await page.locator('body').getAttribute('data-theme');
     await page.locator('#btn-settings').click();
-    await page.locator('[data-theme-option="terminal"]').click();
-    await expect(page.locator('body')).not.toHaveAttribute('data-theme', initialTheme);
+    await expect(page.locator('#settings-modal')).toBeVisible();
+    await expect(page.locator('#settings-modal [data-theme-option]')).toHaveCount(0);
+    await expect(page.locator('#settings-modal [data-layout-preset]')).toHaveCount(0);
     await expect(page.locator('#service-status')).toHaveAttribute('role', 'status');
     await expect(page.locator('#service-status')).toHaveAttribute('aria-live', 'polite');
+    await page.locator('#st-close').click();
+  });
+
+  test('设置按钮在浅色背景下保持高对比度', async ({ page }) => {
+    await page.goto('/');
+    const colors = await page.locator('#btn-settings').evaluate((button) => {
+      const style = getComputedStyle(button);
+      return { color: style.color, background: style.backgroundColor };
+    });
+    expect(colors.color).not.toBe('rgb(255, 255, 255)');
+    expect(colors.background).toBe('rgb(255, 255, 255)');
+  });
+
+  test('设置弹窗承载语言和关于信息，版本历史支持倒序分页', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#app-version')).toContainText('v0.5.1');
+    await expect(page.locator('.avatar')).toHaveCount(0);
+    await expect(page.locator('.theme-toggle')).toHaveCount(0);
+    await expect(page.locator('#btn-lang')).toHaveCount(0);
+
+    await page.locator('#btn-settings').click();
+    await expect(page.locator('#settings-modal')).toContainText('关于');
+    await expect(page.locator('#settings-modal')).toContainText('dsh-v0.1.7-alpha.1');
+    await expect(page.locator('#settings-modal a[href="https://github.com/naodeng/dsh-qa"]')).toBeVisible();
+    await expect(page.locator('#settings-modal a[href="https://inaodeng.com/zh-cn/dsh-qa/"]')).toHaveText('https://inaodeng.com/zh-cn/dsh-qa/');
+
+    await page.locator('[data-settings-lang="en"]').click();
+    await expect(page.locator('#settings-modal')).toContainText('About');
+    await expect(page.locator('#settings-modal')).toContainText('Compatible DSH version');
+    await expect(page.locator('#settings-modal a[href="https://inaodeng.com/en/dsh-qa/"]')).toHaveText('https://inaodeng.com/en/dsh-qa/');
+
+    await page.locator('#st-close').click();
+    await page.locator('#app-version').click();
+    await expect(page.locator('#release-modal')).toBeVisible();
+    await expect(page.locator('#release-list .release-row').first()).toContainText('v0.5.1');
+    await expect(page.locator('#release-list .release-row').first()).toContainText('Migrated the');
+    await expect(page.locator('#release-list .release-row')).toHaveCount(5);
+    await expect(page.locator('#release-next')).toBeEnabled();
+    await page.locator('#release-next').click();
+    await expect(page.locator('#release-page-label')).toContainText('2');
+    await expect(page.locator('#release-list .release-row').first()).not.toContainText('v0.5.1');
   });
 });

@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFile, spawn } from 'node:child_process';
 import { ROOT } from './config.js';
+import { getAppInfo } from './app-info.js';
 import * as store from './store.js';
 import { sseHandler, broadcast } from './sse.js';
 import { getBoard, projectCard, computeStats, KANBAN_COLUMNS } from './board.js';
@@ -175,6 +176,8 @@ async function api(req, res, url, body) {
   const parts = p.split('/').filter(Boolean); // [api, ...]
 
   if (p === '/api/events') { sseHandler(req, res); return true; }
+
+  if (p === '/api/app-info' && m('GET')) { ok(res, await getAppInfo()); return true; }
 
   if (p === '/api/skills' && m('GET')) {
     const lang = new Set(['zh', 'en']).has(url.searchParams.get('lang')) ? url.searchParams.get('lang') : null;

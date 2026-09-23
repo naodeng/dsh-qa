@@ -29,7 +29,9 @@ test('质量证据与回归工作台提供空状态、创建流程和双语界�
   await page.getByRole('button', { name: '新建回归集' }).click();
   await expect(page.getByText(/核心回归 · manual · 0\/0 个用例/)).toBeVisible();
 
-  await page.locator('#btn-lang').click();
+  await page.locator('#btn-settings').click();
+  await page.locator('[data-settings-lang="en"]').click();
+  await page.locator('#st-close').click();
   await page.locator('#project-detail-tabs button[data-detail-tab="qualityTasks"]').click();
   await expect(page.getByRole('heading', { name: 'Quality evidence' })).toBeVisible();
   await expect(page.getByText('Before/after comparison')).toBeVisible();

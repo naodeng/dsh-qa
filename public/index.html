@@ -14,7 +14,12 @@
       <span class="brand-mark" aria-hidden="true">
         <img src="assets/qa-workbench-logo-header.png" alt="" width="40" height="40" decoding="async"/>
       </span>
-      <span class="brand-copy"><b data-i18n="brand.title">QA 工作台</b></span>
+      <span class="brand-copy">
+        <b data-i18n="brand.title">QA 工作台</b>
+        <button id="app-version" class="app-version" type="button" aria-haspopup="dialog" aria-label="查看版本更新">
+          <span id="app-version-label">v0.5.1</span><sup id="app-version-alert" class="version-alert hidden" aria-hidden="true">*</sup>
+        </button>
+      </span>
     </div>
     <button id="global-search" class="global-search" type="button">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
@@ -26,12 +31,9 @@
         <span data-i18n="top.back">返回 DSH</span>
       </button>
         <span id="service-status" class="service-status" role="status" aria-live="polite"><i></i><span>DSH · 测试模式</span></span>
-      <button id="btn-lang" class="lang-toggle" type="button" title="Language / 语言" aria-label="Language / 语言"><span id="lang-label">中 / EN</span></button>
-      <button id="btn-settings" class="theme-toggle" type="button" title="切换界面风格" aria-label="切换界面风格">
-        <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1.5a2 2 0 0 0 0-4H12a1.5 1.5 0 0 1 0-3h3a6 6 0 0 0 0-12h-3Z"/><circle cx="7.5" cy="10" r=".7"/><circle cx="9.5" cy="6.8" r=".7"/><circle cx="14" cy="6.5" r=".7"/></svg>
-        <span id="theme-label">质量仪表</span>
+      <button id="btn-settings" class="settings-toggle" type="button" title="打开设置" aria-label="打开设置" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24"><path d="M12 3.5a2 2 0 0 1 2 2v.3a6.9 6.9 0 0 1 1.8 1l.3-.2a2 2 0 1 1 2 3.5l-.3.2a6.9 6.9 0 0 1 0 2.1l.3.2a2 2 0 1 1-2 3.5l-.3-.2a6.9 6.9 0 0 1-1.8 1v.3a2 2 0 1 1-4 0v-.3a6.9 6.9 0 0 1-1.8-1l-.3.2a2 2 0 1 1-2-3.5l.3-.2a6.9 6.9 0 0 1 0-2.1l-.3-.2a2 2 0 1 1 2-3.5l.3.2a6.9 6.9 0 0 1 1.8-1v-.3a2 2 0 0 1 2-2Z"/><circle cx="12" cy="12" r="2.5"/></svg>
       </button>
-      <span class="avatar">测</span>
     </div>
   </header>
 
@@ -201,8 +203,6 @@
     </div>
   </aside>
 
-  <button id="btn-pass-scene" class="pass-trigger" type="button" aria-label="BUILD PASSED">PASS</button>
-  <div id="theme-scene" class="theme-scene" aria-live="assertive"><div><strong>BUILD PASSED</strong><span>全部用例通过，可以放心发布。</span></div></div>
   <div id="modal-root"></div>
   <div id="toast-root"></div>
   <script src="i18n.js"></script>

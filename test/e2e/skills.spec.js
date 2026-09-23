@@ -24,7 +24,8 @@ test.describe('QA Skill 安装页', () => {
     await expect(page.locator('.skill-card code').filter({ hasText: 'requirements-analysis' })).toHaveCount(0);
     await page.locator('#skills-search').fill('');
     await expect.poll(() => page.locator('.skill-card').count()).toBe(initialCount);
-    await page.locator('#btn-lang').click();
+    await page.locator('#btn-settings').click();
+    await page.locator('[data-settings-lang="en"]').click();
     await expect(page.locator('#view-skills h1')).toHaveText('QA skills installer');
     await expect(page.locator('.skill-category').first()).toContainText('Testing types');
   });
