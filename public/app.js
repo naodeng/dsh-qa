@@ -62,7 +62,7 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
     streams: new Map(), evidenceRevisions: new Map(), busy: new Set(), justDragged: false, search: '', caseFilter: 'all',
     dshEmbedded: location.pathname.startsWith('/api/dsh-qa/workbench'),
     layout: { ...DEFAULT_LAYOUT },
-    appInfo: { ...DEFAULT_APP_INFO }, releasePage: 1,
+    appInfo: { ...DEFAULT_APP_INFO }, appInfoStatus: 'idle', appInfoRequest: null, releasePage: 1,
     dsh: { projectId: null, sessionId: '', skills: [], commands: [], models: null, qaPreset: null, busy: false, turnToken: 0 },
     skillCatalog: { lang: '', categories: [], groups: [], skills: [] }, skillSearch: '', installingSkill: '', uninstallingSkill: '',
     calendarCursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), selectedDate: localDate(new Date()),
@@ -151,18 +151,26 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
     }
     updateVersionIndicator();
   }
-  async function loadAppInfo() {
-    try {
-      const info = await api('api/app-info');
+  function loadAppInfo() {
+    if (state.appInfoRequest) return state.appInfoRequest;
+    state.appInfoStatus = 'loading';
+    if ($('#release-modal')) renderReleasePage($('#release-modal'));
+    state.appInfoRequest = api('api/app-info').then((info) => {
       state.appInfo = { ...DEFAULT_APP_INFO, ...info, releases: Array.isArray(info.releases) ? info.releases : [] };
+      state.appInfoStatus = state.appInfo.releases.length ? 'ready' : 'empty';
       updateVersionIndicator();
       if ($('#release-modal')) renderReleasePage($('#release-modal'));
       return state.appInfo;
-    } catch (error) {
+    }).catch((error) => {
+      state.appInfoStatus = 'error';
       updateVersionIndicator();
+      if ($('#release-modal')) renderReleasePage($('#release-modal'));
       if (!state.appInfo.releases.length) toast(error.message, 'err');
       return state.appInfo;
-    }
+    }).finally(() => {
+      state.appInfoRequest = null;
+    });
+    return state.appInfoRequest;
   }
   async function dshFollowSnapshot(sessionId, maxMessages = 30) {
     if (!state.dshEmbedded) throw new Error('请从 DSH 侧边栏打开“质量工作台”');
@@ -680,7 +688,7 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
     $('#service-status').classList.toggle('offline', !state.dshEmbedded);
     document.body.classList.toggle('dsh-standalone', !state.dshEmbedded);
     document.body.classList.toggle('dsh-connected', Boolean(state.dsh.sessionId));
-    $('#service-status span').textContent = state.dshEmbedded ? `DSH · ${presetName}` : '请从 DSH 打开';
+    $('#service-status span').textContent = state.dshEmbedded ? `DSH · ${presetName}` : t('service.standalone');
     if (!state.dshEmbedded) $('#channel-note').textContent = '当前是独立项目管理模式；对话、模型、技能与命令请从 DSH 侧边栏进入';
     else if (!state.dsh.sessionId) $('#channel-note').textContent = `DSH ${presetName} · 首次进入项目时自动绑定文件夹与会话`;
     else {
@@ -1271,14 +1279,44 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
   }
 
   // ---------- modals and workspaces ----------
-  function closeModal() { $('#modal-root').innerHTML = ''; }
+  let modalTrigger = null;
+  let modalSequence = 0;
+  function closeModal() {
+    const activeModal = $('#modal-root .modal');
+    if (!activeModal) return;
+    const restoreTarget = modalTrigger;
+    $('#modal-root').innerHTML = '';
+    document.body.classList.remove('modal-open');
+    modalTrigger = null;
+    if (restoreTarget?.isConnected && !restoreTarget.closest('.modal')) restoreTarget.focus();
+  }
   function modalShell(title, subtitle, body, wide = false) {
-    $('#modal-root').innerHTML = `<div class="modal-backdrop"><div class="modal ${wide ? 'wide' : ''}"><h3>${title}</h3>${subtitle ? `<p class="modal-sub">${subtitle}</p>` : ''}${body}</div></div>`;
-    $('.modal-backdrop').addEventListener('click', (event) => { if (event.target === event.currentTarget) closeModal(); });
+    if (!$('#modal-root .modal')) modalTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const titleId = `modal-title-${++modalSequence}`;
+    $('#modal-root').innerHTML = `<div class="modal-backdrop"><div class="modal ${wide ? 'wide' : ''}" role="dialog" aria-modal="true" aria-labelledby="${titleId}" tabindex="-1"><button class="modal-close" type="button" aria-label="${esc(t('modal.close'))}">×</button><h3 id="${titleId}">${title}</h3>${subtitle ? `<p class="modal-sub">${subtitle}</p>` : ''}${body}</div></div>`;
+    const backdrop = $('.modal-backdrop');
+    const modal = $('.modal');
+    backdrop.addEventListener('click', (event) => { if (event.target === event.currentTarget) closeModal(); });
+    $('.modal-close', modal).addEventListener('click', closeModal);
+    modal.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') { event.preventDefault(); closeModal(); return; }
+      if (event.key !== 'Tab') return;
+      const focusable = $$('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])', modal).filter((el) => el.offsetParent !== null);
+      if (!focusable.length) { event.preventDefault(); modal.focus(); return; }
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    });
+    document.body.classList.add('modal-open');
     // Modal markup is created after the page-level language pass. Reapply the
     // dynamic copy pass here so every newly opened modal follows the active language.
     applyStaticCopy();
-    return $('.modal');
+    setTimeout(() => {
+      const first = $$('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])', modal).find((el) => el !== $('.modal-close', modal) && el.offsetParent !== null);
+      (first || modal).focus();
+    }, 0);
+    return modal;
   }
   async function openDshCapabilities() {
     if (!state.activeProject) return toast('请先选择项目', 'err');
@@ -1449,7 +1487,7 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
   }
   function renderReleasePage(modal = $('#release-modal')) {
     if (!modal) return;
-    const releases = [...(state.appInfo?.releases || [])].sort((a, b) => compareVersions(b.version, a.version));
+    const releases = [...(state.appInfo?.releases || [])];
     const totalPages = Math.max(1, Math.ceil(releases.length / RELEASE_PAGE_SIZE));
     state.releasePage = clamp(state.releasePage, 1, totalPages);
     const start = (state.releasePage - 1) * RELEASE_PAGE_SIZE;
@@ -1457,15 +1495,23 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
     const list = $('#release-list', modal);
     if (!list) return;
     list.innerHTML = page.length ? page.map((release) => {
-      const summary = currentLang() === 'en' ? (release.summaryEn || release.summaryZh) : (release.summaryZh || release.summaryEn);
+      const summary = localizedReleaseSummary(release);
       return `<article class="release-row"><div class="release-row-head"><strong class="release-version">v${esc(release.version)}</strong><time class="release-date" datetime="${esc(release.date || '')}">${esc(releaseDate(release.date))}</time></div><p class="release-summary">${esc(summary || t('release.empty'))}</p>${release.detailUrl ? `<a class="release-link" href="${esc(release.detailUrl)}" target="_blank" rel="noreferrer">${esc(t('release.details'))} ↗</a>` : ''}</article>`;
-    }).join('') : `<div class="release-empty">${esc(state.appInfo?.releases?.length ? t('release.empty') : t('release.loading'))}</div>`;
+    }).join('') : state.appInfoStatus === 'error'
+      ? `<div id="release-error" class="release-empty release-error" role="alert"><p>${esc(t('release.error'))}</p><button id="release-retry" class="btn primary sm" type="button">${esc(t('release.retry'))}</button></div>`
+      : `<div class="release-empty">${esc(state.appInfoStatus === 'empty' ? t('release.empty') : t('release.loading'))}</div>`;
     const pageLabel = $('#release-page-label', modal);
     if (pageLabel) pageLabel.textContent = t('release.page', { page: state.releasePage, total: totalPages });
     const previous = $('#release-prev', modal);
     const next = $('#release-next', modal);
     if (previous) previous.disabled = state.releasePage <= 1;
     if (next) next.disabled = state.releasePage >= totalPages;
+    const retry = $('#release-retry', modal);
+    if (retry) retry.addEventListener('click', async () => { await loadAppInfo(); if ($('#release-modal') === modal) renderReleasePage(modal); });
+  }
+  function localizedReleaseSummary(release) {
+    const key = currentLang() === 'en' ? 'summaryEn' : 'summaryZh';
+    return release?.[key] || t(currentLang() === 'en' ? 'release.missingEn' : 'release.missingZh');
   }
   async function openReleaseHistory() {
     markVersionSeen();
@@ -1479,7 +1525,7 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
     $('#release-next', modal).addEventListener('click', () => { state.releasePage += 1; renderReleasePage(modal); });
     $('#release-close', modal).addEventListener('click', closeModal);
     renderReleasePage(modal);
-    if (!state.appInfo.releases.length) {
+    if (state.appInfoStatus === 'idle' || state.appInfoStatus === 'loading') {
       await loadAppInfo();
       if ($('#release-modal') === modal) renderReleasePage(modal);
     }
@@ -1572,7 +1618,7 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
         ['新建日程', 'New schedule'], ['关联到具体项目，保存后会同步显示在首页提醒和项目档案中。', 'Link it to a project; it will appear in reminders and the project profile after saving.'], ['工作日程', 'Work event'], ['里程碑 / 截止日', 'Milestone / due date'], ['关联项目 *', 'Project *'], ['事项名称 *', 'Item name *'], ['如：用例评审会、版本发布', 'e.g. test-case review, release'], ['日期 *', 'Date *'], ['类型', 'Type'], ['依据 / 计算说明', 'Basis / calculation note'], ['备注', 'Notes'], ['地点、参加人、准备事项等', 'Location, attendees, preparation notes'], ['如：发布排期、评审范围', 'e.g. release schedule, review scope'], ['保存日程', 'Save schedule'], ['保存里程碑', 'Save milestone'], ['请填写事项名称和日期', 'Please enter an item name and date'], ['里程碑已登记', 'Milestone recorded'], ['日程已添加', 'Schedule added'],
         ['创建独立项目空间，并按需启用 DSH 全流程辅助。', 'Create an independent project space and enable DSH assistance as needed.'], ['迭代挂靠在测试项目下，共享产品与负责人信息。', 'Attach the iteration to a test project and share its product and owner.'], ['迭代名称 *', 'Iteration name *'], ['项目名称 *', 'Project name *'], ['如：订单域 3 月迭代（v1.2.0）', 'e.g. Orders domain March iteration (v1.2.0)'], ['如：电商中台订单服务测试项目', 'e.g. E-commerce order service test project'], ['如 PRJ-2026-001', 'e.g. PRJ-2026-001'], ['如 电商中台 · 订单域', 'e.g. E-commerce platform · Orders'], ['如 张测试', 'e.g. Alex Chen'], ['成员（每行：姓名:角色）', 'Members (one name:role per line)'], ['项目摘要 / 测试范围', 'Project summary / test scope'], ['测试范围、重点链路、风险…', 'Scope, critical flows, risks…'], ['全流程辅助', 'Full assistance'], ['主动提取、登记并提醒', 'Proactively extract, record and remind'], ['按需协作', 'On demand'], ['明确要求时才执行', 'Act only when explicitly requested'], ['自动提取测试要素', 'Auto-extract test elements'], ['从对话识别需求、用例、缺陷、里程碑与日程', 'Identify requirements, cases, defects, milestones and schedules from chat'], ['全流程提醒', 'Full-process reminders'], ['在首页提示临期、逾期与待审批事项', 'Show upcoming, overdue and pending approval items on the dashboard'], ['创建本地项目文件夹', 'Create local project folder'], ['自动生成需求、计划、用例、数据、执行、缺陷、报告和归档目录', 'Generate requirement, plan, case, data, execution, defect, report and archive folders'], ['创建迭代', 'Create iteration'], ['创建项目', 'Create project'], ['请填写名称', 'Please enter a name'], ['项目与文件夹已创建', 'Project and folder created'],
         ['DSH 辅助策略', 'DSH assistance policy'], ['仅作用于', 'Applies only to'], ['，随时可以关闭或切换。', '; you can turn it off or switch it at any time.'], ['启用本项目 DSH 辅助', 'Enable DSH assistance for this project'], ['关闭后仍可对话，但不会自动调用登记工具', 'Chat remains available when off, but registration tools will not be called automatically'], ['工作模式', 'Work mode'], ['登记需求、用例、缺陷、里程碑、日程和报告', 'Record requirements, cases, defects, milestones, schedules and reports'], ['提醒策略', 'Reminder policy'], ['里程碑与流程提醒', 'Milestones and process reminders'], ['仅里程碑提醒', 'Milestones only'], ['关闭首页提醒', 'Disable dashboard reminders'], ['对话模型不在此处设置；工作台只使用本项目 DSH 会话的模型，可在对话顶部从 DSH 模型目录切换。', 'The chat model is not configured here; this workbench uses the model from the project DSH session, which you can switch from the DSH model menu above the chat.'], ['保存策略', 'Save policy'], ['DSH 辅助策略已保存', 'DSH assistance policy saved'],
-        ['界面风格与布局', 'Appearance & layout'], ['四套皮肤只改变工作台外观；模型、技能和测试模式仍完全来自 DSH。', 'Themes change only the workbench appearance; models, skills and test mode still come entirely from DSH.'], ['质量仪表', 'QA dashboard'], ['终端', 'Terminal'], ['极简', 'Minimal'], ['赛博', 'Cyber'], ['当前', 'Current'], ['工作区宽度', 'Workspace width'], ['主导航、项目栏与项目雷达的边缘均可拖动；双击边缘恢复默认，箭头键可微调。', 'Drag the edges of the navigation, project list and project radar; double-click an edge to reset, or use arrow keys for fine adjustments.'], ['紧凑', 'Compact'], ['标准', 'Standard'], ['专注对话', 'Chat focus'], ['收起项目栏与雷达', 'Collapse project list and radar'], ['模型只从 DSH 当前会话的模型目录读取；如需新增服务商或模型，请在 DSH 设置中配置。', 'Models are read from the current DSH session; configure new providers or models in DSH settings.'], ['工作区布局已更新', 'Workbench layout updated'],
+        ['当前', 'Current'],
         ['项目详情', 'Project details'], ['项目文件夹', 'Project folder'], ['项目文件', 'Project files'], ['打开项目文件', 'Open project files'], ['创建项目文件', 'Create project files'], ['创建标准项目目录', 'Create standard project folder'], ['在 Finder 中打开', 'Open in Finder'],
         ['项目与迭代', 'Projects & iterations'], ['搜索项目', 'Search projects'], ['全部', 'All'], ['项目', 'Project'], ['迭代', 'Iteration'], ['项目概览', 'Project overview'], ['项目档案', 'Project profile'], ['项目基本信息', 'Project information'], ['对象类型', 'Object type'], ['项目编号', 'Project key'], ['被测产品', 'Product under test'], ['测试负责人', 'Test owner'], ['测试阶段', 'Test stage'], ['测试进度', 'Test progress'], ['测试用例', 'Test cases'], ['测试报告', 'Test reports'], ['缺陷', 'Defects'], ['需求范围', 'Requirements'], ['里程碑与日程', 'Milestones & schedule'], ['沟通纪要', 'Minutes'], ['知识沉淀', 'Knowledge'],
         ['DSH 协作策略', 'DSH assistance policy'], ['调整协作策略', 'Adjust assistance policy'], ['自动辅助已关闭', 'Auto assistance off'], ['已关闭', 'Closed'], ['已开启', 'On'], ['关闭', 'Off'], ['开启', 'On'], ['全流程辅助', 'Full assistance'], ['按需协作', 'On demand'], ['自动提取测试要素', 'Auto-extract test elements'], ['流程提醒', 'Flow reminders'], ['对话模式', 'Chat mode'], ['DSH 测试模式', 'DSH Test Mode'],
@@ -1580,12 +1626,12 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
         ['通过', 'Approve'], ['驳回', 'Reject'], ['已通过', 'Approved'], ['已驳回', 'Rejected'], ['待负责人审批', 'Pending owner approval'], ['已完成', 'Completed'], ['逾期', 'Overdue'], ['截止日', 'Due date'], ['依据', 'Basis'], ['验收', 'Acceptance'], ['覆盖用例', 'Covered cases'], ['风险', 'Risk'], ['步骤', 'Steps'], ['预期', 'Expected'], ['实际', 'Actual'], ['状态', 'Status'],
         ['新建 DSH 对话', 'New DSH chat'], ['删除项目记录', 'Delete project record'], ['保存项目信息', 'Save project info'], ['项目记录已删除，文件夹仍保留', 'Project record deleted; folder kept'], ['项目信息已保存', 'Project information saved'],
         // Cleanup for phrases affected by the broad fallback replacements above.
-        ['新建测试Project', 'New test project'], ['创建独立Project空间，并按需启用 DSH Full assistance。', 'Create an independent project space and enable DSH assistance as needed.'], ['Project name *', 'Project name *'], ['对象Type', 'Object type'], ['测试Project', 'Test project'], ['Project编号', 'Project key'], ['创建本地Project folder', 'Create local project folder'], ['四套皮肤只改变工作台外观；模型、Skills和Test Mode仍完全来自 DSH。', 'Themes change only the workbench appearance; models, skills and test mode still come entirely from DSH.'], ['清爽 QA 面板蓝、Approve率绿与测试徽章，默认外观。', 'Clean QA dashboard blue, approval green and test badges; the default appearance.'], ['深色Terminal绿与等宽字体，Commands行质感。', 'Dark terminal green and a monospaced command-line feel.'], ['主导航、Project栏与Project radar的边缘均可拖动；双击边缘恢复默认，箭头键可微调。', 'Drag the edges of the navigation, project list and project radar; double-click an edge to reset, or use arrow keys for fine adjustments.'], ['模型只从 DSH Current会话的模型目录读取；如需新增服务商或模型，请在 DSH 设置中配置。', 'Models are read from the current DSH session; configure new providers or models in DSH settings.'],
-        ['DSH 辅助模式', 'DSH assistance mode'], ['纯白留白、细线与安静的黑灰层次。', 'Pure white space, fine lines and quiet black-and-gray layers.'], ['霓虹紫、深空黑与发光描边，附带可触发的 BUILD PASSED 场景。', 'Neon purple, deep-space black and glowing outlines, with a triggerable BUILD PASSED scene.'], ['请在 DSH 中打开', 'Open in DSH'],
+        ['新建测试Project', 'New test project'], ['创建独立Project空间，并按需启用 DSH Full assistance。', 'Create an independent project space and enable DSH assistance as needed.'], ['Project name *', 'Project name *'], ['对象Type', 'Object type'], ['测试Project', 'Test project'], ['Project编号', 'Project key'], ['创建本地Project folder', 'Create local project folder'],
+        ['DSH 辅助模式', 'DSH assistance mode'], ['请在 DSH 中打开', 'Open in DSH'],
         ['请从 DSH 侧边栏打开“质量工作台”', 'Open the QA Workbench from the DSH sidebar'], ['Open from the DSH sidebar“质量工作台”', 'Open the QA Workbench from the DSH sidebar'], ['暂无Materials', 'No materials yet'], ['2026年8月', 'August 2026'], ['年', 'Year'], ['月', 'Month'], ['Done需求梳理与测试范围确认', 'Completed: requirement breakdown and test scope confirmation'],
         ['请从 DSH 打开', 'Open from DSH'], ['当前是独立项目管理模式；对话、模型、技能与命令请从 DSH 侧边栏进入', 'Standalone project mode; open the DSH sidebar for chat, models, skills and commands'], ['Defects修复 · 回归验证', 'Defect fixes · regression verification'], ['这一天还没有安排', 'Nothing scheduled for this day'], ['今', 'Today'],
-        ['返回 DSH 主页面', 'Return to DSH home'], ['请从 DSH 中打开工作台', 'Open the workbench from DSH'], ['切换界面风格', 'Change appearance'], ['收起主导航', 'Collapse main navigation'], ['主导航', 'Main navigation'], ['调整主导航宽度', 'Resize main navigation'], ['收起Project栏', 'Collapse project list'], ['调整Project栏宽度', 'Resize project list'], ['选择Current DSH 会话模型', 'Select the current DSH session model'], ['材料上传将在下一版接入', 'Material upload is coming in a future version'], ['上传材料（下一版接入）', 'Upload material (coming soon)'], ['输入任务；键入 / 可选择 DSH Skills或Commands…', 'Enter a task; type / to choose DSH skills or commands…'], ['发送', 'Send'], ['调整Project radar宽度', 'Resize project radar'], ['收起Project radar', 'Collapse project radar'], ['上个Month', 'Previous month'], ['下个Month', 'Next month'], ['选择Year份', 'Select year'], ['选择Month份', 'Select month'], ['跳转到具体日期', 'Jump to a date'], ['在 ', 'Add schedule on '], [' 新增日程', ''],
-        ['调整Main navigation宽度', 'Resize main navigation'], ['在所选日期新增', 'Add to selected date'],
+        ['返回 DSH 主页面', 'Return to DSH home'], ['请从 DSH 中打开工作台', 'Open the workbench from DSH'], ['收起主导航', 'Collapse main navigation'], ['主导航', 'Main navigation'], ['收起Project栏', 'Collapse project list'], ['选择Current DSH 会话模型', 'Select the current DSH session model'], ['材料上传将在下一版接入', 'Material upload is coming in a future version'], ['上传材料（下一版接入）', 'Upload material (coming soon)'], ['输入任务；键入 / 可选择 DSH Skills或Commands…', 'Enter a task; type / to choose DSH skills or commands…'], ['发送', 'Send'], ['收起Project radar', 'Collapse project radar'], ['上个Month', 'Previous month'], ['下个Month', 'Next month'], ['选择Year份', 'Select year'], ['选择Month份', 'Select month'], ['跳转到具体日期', 'Jump to a date'], ['在 ', 'Add schedule on '], [' 新增日程', ''],
+        ['在所选日期新增', 'Add to selected date'],
       ]);
       const replace = (value) => { let result = value; for (const [zh, en] of replacements) result = result.split(zh).join(en); return result; };
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -1593,10 +1639,19 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
       nodes.forEach((node) => { if (node.nodeValue.trim()) node.nodeValue = replace(node.nodeValue); });
       $$('input, textarea, button, [aria-label], [title]').forEach((el) => ['placeholder', 'title', 'aria-label'].forEach((attr) => { if (el.hasAttribute(attr)) el.setAttribute(attr, replace(el.getAttribute(attr))); }));
     }
-    if ($('#service-status span') && !$('#service-status').classList.contains('offline')) $('#service-status span').textContent = currentLang() === 'en' ? copy['service-status'][1] : copy['service-status'][0];
+    if ($('#service-status span')) {
+      if (!state.dshEmbedded) $('#service-status span').textContent = t('service.standalone');
+      else if (!$('#service-status').classList.contains('offline')) $('#service-status span').textContent = currentLang() === 'en' ? copy['service-status'][1] : copy['service-status'][0];
+    }
     const ariaCopy = currentLang() === 'en'
       ? { prev: 'Previous month', today: 'Go to today', next: 'Next month', add: 'Add to selected date', close: 'Close project details', newProject: 'Create test project' }
       : { prev: '上个月', today: '回到今天', next: '下个月', add: '在所选日期新增', close: '关闭项目详情', newProject: '新建测试项目' };
+    const navLabels = currentLang() === 'en'
+      ? { dashboard: 'Dashboard', assistant: 'DSH Test Chat', board: 'Kanban', calendar: 'Calendar', skills: 'QA Skill Installer' }
+      : { dashboard: '测试首页', assistant: 'DSH 测试对话', board: '项目看板', calendar: '日历排期', skills: 'QA Skill安装' };
+    $$('.nav-item').forEach((button) => { const text = navLabels[button.dataset.view]; if (text) { button.setAttribute('aria-label', text); button.setAttribute('title', text); } });
+    const mobileLabels = { cases: t('mobile.cases'), context: t('mobile.context') };
+    [['#btn-mobile-cases', 'cases'], ['#btn-mobile-context', 'context']].forEach(([selector, key]) => { const button = $(selector); if (button) { button.setAttribute('aria-label', mobileLabels[key]); button.setAttribute('title', mobileLabels[key]); } });
     ['#cal-prev-mini', '#cal-prev'].forEach((selector) => { if ($(selector)) $(selector).setAttribute('aria-label', ariaCopy.prev); });
     ['#cal-today-mini', '#cal-today'].forEach((selector) => { if ($(selector)) $(selector).setAttribute('aria-label', ariaCopy.today); });
     ['#cal-next-mini', '#cal-next'].forEach((selector) => { if ($(selector)) $(selector).setAttribute('aria-label', ariaCopy.next); });
@@ -1637,8 +1692,10 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
       if (!state.dshEmbedded) toast('请从 DSH 侧边栏的工作台面板中返回', 'err');
     });
     $('#btn-collapse-rail').addEventListener('click', () => toggleLayoutPane('rail'));
-    $('#btn-collapse-cases').addEventListener('click', () => toggleLayoutPane('cases'));
-    $('#btn-collapse-context').addEventListener('click', () => toggleLayoutPane('context'));
+    $('#btn-collapse-cases').addEventListener('click', () => { toggleLayoutPane('cases'); document.body.classList.remove('mobile-cases-open'); });
+    $('#btn-collapse-context').addEventListener('click', () => { toggleLayoutPane('context'); document.body.classList.remove('mobile-context-open'); });
+    $('#btn-mobile-cases').addEventListener('click', () => { document.body.classList.toggle('mobile-cases-open'); document.body.classList.remove('mobile-context-open'); });
+    $('#btn-mobile-context').addEventListener('click', () => { document.body.classList.toggle('mobile-context-open'); document.body.classList.remove('mobile-cases-open'); });
     bindSplitter('#rail-resizer', 'rail', 1);
     bindSplitter('#case-resizer', 'cases', 1);
     bindSplitter('#context-resizer', 'context', -1);

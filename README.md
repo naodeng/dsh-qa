@@ -55,7 +55,7 @@
 
 #### 质量交付流程参考
 
-![dsh-qa 质量交付流程：从可信来源、质量任务和受控执行，经证据与门禁，分流到 PASS 交付或 WARN/BLOCK 评审。](https://raw.githubusercontent.com/naodeng/dsh-qa/master/diagram/quality-workflow/dsh-qa-quality-workflow.svg)
+![dsh-qa 质量交付流程：从可信来源、质量任务和受控执行，经证据与门禁，分流到 PASS 交付或 WARN/BLOCK 评审。](https://raw.githubusercontent.com/naodeng/dsh-qa/master/docs/diagram/quality-workflow/dsh-qa-quality-workflow.svg)
 
 流程图描述的是质量控制边界：未形成终态运行或未验证证据时，先进入故障分析与回归并重新执行；门禁 `PASS` 才进入交付，`WARN / BLOCK` 需要评审。例外只能作用于可豁免的 `WARN` 检查项，不能把 `BLOCK` 变为通过。
 

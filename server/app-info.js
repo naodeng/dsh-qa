@@ -35,6 +35,13 @@ function normalizeVersion(value) {
   return match ? `${match[1]}.${match[2]}.${match[3]}` : '';
 }
 
+function normalizePublishedAt(value, fallbackDate = '') {
+  const candidate = value || (fallbackDate ? `${fallbackDate}T00:00:00.000Z` : '');
+  if (!candidate) return '';
+  const timestamp = Date.parse(candidate);
+  return Number.isNaN(timestamp) ? '' : new Date(timestamp).toISOString();
+}
+
 function firstBullet(section) {
   return String(section || '').match(/^\s*-\s+(.+)$/m)?.[1]?.trim() || '';
 }
@@ -49,6 +56,7 @@ function parseChangelog(text) {
     return {
       version,
       date: heading[2] || '',
+      publishedAt: normalizePublishedAt('', heading[2] || ''),
       summaryZh: firstBullet(zhSection),
       summaryEn: firstBullet(enSection),
       detailUrl: `${APP_METADATA.releasesUrl}/tag/v${version}`,
@@ -56,15 +64,26 @@ function parseChangelog(text) {
   }).filter((release) => release.version);
 }
 
-function mergeRelease(map, release) {
+export function mergeRelease(map, release) {
   if (!release?.version) return;
   const previous = map.get(release.version) || {};
+  const date = release.date || previous.date || normalizePublishedAt(release.publishedAt || previous.publishedAt).slice(0, 10);
+  const publishedAt = normalizePublishedAt(release.publishedAt || previous.publishedAt, date);
   map.set(release.version, {
     ...previous,
     ...release,
+    date,
+    publishedAt,
     summaryZh: release.summaryZh || previous.summaryZh || '',
-    summaryEn: release.summaryEn || previous.summaryEn || release.summaryZh || '',
+    summaryEn: release.summaryEn || previous.summaryEn || '',
     detailUrl: release.detailUrl || previous.detailUrl || `${APP_METADATA.releasesUrl}/tag/v${release.version}`,
+  });
+}
+
+export function sortReleases(releases) {
+  return [...(releases || [])].sort((left, right) => {
+    const publishedAtDelta = (Date.parse(right.publishedAt || '') || 0) - (Date.parse(left.publishedAt || '') || 0);
+    return publishedAtDelta || compareVersions(right.version, left.version);
   });
 }
 
@@ -116,7 +135,7 @@ async function readLocalReleases() {
         ...(existing || {}),
         version,
         date: existing?.date || (/^\d{4}-\d{2}-\d{2}$/.test(date) ? date : ''),
-        summaryZh: existing?.summaryZh || subject,
+        publishedAt: existing?.publishedAt || normalizePublishedAt('', date),
         summaryEn: existing?.summaryEn || subject,
         detailUrl: existing?.detailUrl || `${APP_METADATA.releasesUrl}/tag/v${version}`,
       });
@@ -124,7 +143,7 @@ async function readLocalReleases() {
   } catch {
     // Git metadata is not required when the package is installed from npm.
   }
-  return [...map.values()].sort((a, b) => compareVersions(b.version, a.version));
+  return sortReleases([...map.values()]);
 }
 
 async function readPackageVersion() {
@@ -151,14 +170,15 @@ async function buildAppInfo() {
       mergeRelease(releaseMap, {
         version,
         date: String(item.published_at || item.created_at || local?.date || '').slice(0, 10),
-        summaryZh: local?.summaryZh || summary,
+        publishedAt: item.published_at || item.created_at || local?.publishedAt || '',
+        summaryZh: local?.summaryZh || '',
         summaryEn: local?.summaryEn || summary,
         detailUrl: item.html_url || local?.detailUrl,
       });
     }
   }
   localReleases.forEach((release) => mergeRelease(releaseMap, release));
-  const releases = [...releaseMap.values()].sort((a, b) => compareVersions(b.version, a.version));
+  const releases = sortReleases([...releaseMap.values()]);
   const latestVersion = [currentVersion, latestFromRegistry, ...releases.map((release) => release.version)]
     .filter(Boolean)
     .sort(compareVersions)

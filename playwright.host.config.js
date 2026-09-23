@@ -22,6 +22,7 @@ export default defineConfig({
   testMatch: ['dsh-host-compatibility.spec.js', 'dsh-panel-lifecycle.spec.js'],
   fullyParallel: false,
   reporter: 'list',
+  outputDir: './test/results/host-smoke',
   metadata: { dshHostVersion: hostVersion, dshHostOrigin: hostOrigin },
   use: {
     baseURL: hostOrigin,

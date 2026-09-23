@@ -31,11 +31,17 @@ test('app info exposes the installed version, compatibility, links, and descendi
   assert.ok(payload.releases.length >= 3);
   assert.equal(payload.releases[0].version, '0.5.2');
   assert.match(payload.releases[0].date, /^2026-09-23$/);
+  assert.match(payload.releases[0].publishedAt, /^2026-09-23T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  assert.equal(typeof payload.releases[0].summaryZh, 'string');
+  assert.equal(typeof payload.releases[0].summaryEn, 'string');
   assert.match(payload.releases[0].summaryZh, /设置|版本/);
   assert.match(payload.releases[0].summaryEn, /settings|release history/i);
   assert.match(payload.releases[0].detailUrl, /github\.com\/naodeng\/dsh-qa\/releases\/tag\/v0\.5\.2$/);
   for (let index = 1; index < payload.releases.length; index += 1) {
-    assert.ok(payload.releases[index - 1].version >= payload.releases[index].version, 'releases should be sorted newest first');
+    assert.ok(
+      Date.parse(payload.releases[index - 1].publishedAt) >= Date.parse(payload.releases[index].publishedAt),
+      'releases should be sorted by publication time newest first',
+    );
   }
 });
 

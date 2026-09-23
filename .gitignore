@@ -1,9 +1,12 @@
 node_modules/
 data/
 test/.data/
+test/results/
 playwright-report/
 test-results/
 .playwright-cli/
+.superpowers/
+.impeccable/
 tmp/
 output/playwright/
 .DS_Store

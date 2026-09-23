@@ -14,7 +14,7 @@
 6. `docs/superpowers/plans/2026-09-08-workbench-iterations.md` — 总计划与全局约束
 7. **当前版本**分计划，例如 `docs/superpowers/plans/2026-09-08-workbench-0.6.0.md`
 
-可选：`docs/ui-critique-zh.md`（0.6 首屏依据）。
+可选：`docs/quality-workbench/reviews/ui-critique-zh.md`（0.6 首屏依据）。
 
 ## 2. 环境准备
 

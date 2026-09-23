@@ -40,6 +40,11 @@
 
 `0.8.0`、`0.9.0` 以及此前 `2026-09-08-workbench-*` 计划保留为历史草案，已不在当前执行顺序中。
 
+## 评审记录
+
+- [界面评审](./reviews/ui-critique-zh.md)：0.6 首屏和信息层级的中文评审记录。
+- [Impeccable 评审](./reviews/2026-08-21-ui-critique-impeccable.md)：2026-08-21 的历史静态审查结果。
+
 ## Post-1.0 Capability Roadmap
 
 [Post-1.0 Capability Roadmap](./post-1.0-capability-roadmap.md) 记录 `0.7`/`1.0` 之后的 Quality Obligation、Evidence Graph、Adapter、Policy、Multi-Agent 和 Autonomous QE 方向。`Quality Intelligence` 已前移到当前 `0.7.0`，不再作为 Post-1.0 的首个 Release 目标。

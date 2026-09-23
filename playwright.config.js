@@ -8,6 +8,7 @@ export default defineConfig({
   testIgnore: ['**/dsh-host-compatibility.spec.js', '**/dsh-panel-lifecycle.spec.js'],
   fullyParallel: false,
   reporter: 'list',
+  outputDir: './test/results/e2e',
   use: {
     baseURL: `http://127.0.0.1:${e2ePort}`,
     trace: 'retain-on-failure',

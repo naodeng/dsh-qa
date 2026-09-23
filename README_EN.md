@@ -55,7 +55,7 @@ Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
 
 #### Quality delivery workflow
 
-![dsh-qa quality delivery workflow: trusted sources, quality tasks, and controlled execution flow through evidence and gates to PASS delivery or WARN/BLOCK review.](https://raw.githubusercontent.com/naodeng/dsh-qa/master/diagram/quality-workflow/dsh-qa-quality-workflow.svg)
+![dsh-qa quality delivery workflow: trusted sources, quality tasks, and controlled execution flow through evidence and gates to PASS delivery or WARN/BLOCK review.](https://raw.githubusercontent.com/naodeng/dsh-qa/master/docs/diagram/quality-workflow/dsh-qa-quality-workflow.svg)
 
 The diagram makes the control boundary explicit: a run that is not terminal or lacks verified evidence enters failure analysis and regression before it runs again. Only a `PASS` gate reaches delivery; `WARN / BLOCK` requires review. An exception applies only to an eligible `WARN` check and can never turn `BLOCK` into a pass.
 

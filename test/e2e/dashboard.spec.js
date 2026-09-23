@@ -1,5 +1,24 @@
 import { test, expect } from '@playwright/test';
 
+const releaseFixture = {
+  ok: true,
+  currentVersion: '0.5.2',
+  latestVersion: '0.5.3',
+  isOutdated: true,
+  dshVersion: 'dsh-v0.1.7-alpha.1',
+  repositoryUrl: 'https://github.com/naodeng/dsh-qa',
+  websiteZhUrl: 'https://inaodeng.com/zh-cn/dsh-qa/',
+  websiteEnUrl: 'https://inaodeng.com/en/dsh-qa/',
+  releases: [{
+    version: '0.5.3',
+    date: '2026-09-24',
+    publishedAt: '2026-09-24T00:00:00.000Z',
+    summaryZh: '中文摘要',
+    summaryEn: 'English summary',
+    detailUrl: 'https://github.com/naodeng/dsh-qa/releases/tag/v0.5.3',
+  }],
+};
+
 test.describe('首页', () => {
   test('首页可以访问并显示核心工作区', async ({ page }) => {
     await page.goto('/');
@@ -77,6 +96,22 @@ test.describe('首页', () => {
     expect(colors.background).toBe('rgb(255, 255, 255)');
   });
 
+  test('共享弹窗支持对话框语义、Escape 关闭和触发按钮焦点恢复', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('body')).not.toHaveAttribute('data-theme', /.+/);
+    await expect(page.locator('#rail-resizer')).toHaveAttribute('role', 'separator');
+    await expect(page.locator('#case-resizer')).toHaveAttribute('role', 'separator');
+
+    await page.locator('#btn-settings').focus();
+    await page.locator('#btn-settings').click();
+    await expect(page.locator('#settings-modal')).toHaveAttribute('role', 'dialog');
+    await expect(page.locator('#settings-modal')).toHaveAttribute('aria-modal', 'true');
+    await expect(page.locator('#settings-modal')).toHaveAttribute('aria-labelledby', /.+/);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#settings-modal')).toHaveCount(0);
+    await expect(page.locator('#btn-settings')).toBeFocused();
+  });
+
   test('设置弹窗承载语言和关于信息，版本历史支持倒序分页', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('#app-version')).toContainText('v0.5.2');
@@ -105,5 +140,88 @@ test.describe('首页', () => {
     await page.locator('#release-next').click();
     await expect(page.locator('#release-page-label')).toContainText('2');
     await expect(page.locator('#release-list .release-row').first()).not.toContainText('v0.5.2');
+  });
+
+  test('切回中文后服务状态和首页操作按钮同步恢复中文', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('#btn-settings').click();
+    await page.locator('[data-settings-lang="en"]').click();
+    await page.locator('#st-close').click();
+    await expect(page.locator('#service-status span')).toHaveText('Open from DSH');
+    await expect(page.locator('#btn-new-iteration')).toContainText('New iteration');
+    await expect(page.locator('#btn-new-case')).toContainText('New project');
+
+    await page.locator('#btn-settings').click();
+    await page.locator('[data-settings-lang="zh"]').click();
+    await expect(page.locator('#service-status span')).toHaveText('请从 DSH 打开');
+    await expect(page.locator('#btn-new-iteration')).toContainText('新建迭代');
+    await expect(page.locator('#btn-new-case')).toContainText('新建项目');
+  });
+
+  test('版本摘要只展示当前语言，不跨语言回退', async ({ page }) => {
+    let currentReleaseFixture = releaseFixture;
+    await page.route('**/api/app-info', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(currentReleaseFixture),
+    }));
+    await page.goto('/');
+
+    await expect(page.locator('#app-version-alert')).toBeVisible();
+    await page.locator('#app-version').click();
+    await expect(page.locator('#app-version-alert')).toBeHidden();
+    await expect(page.locator('#release-list .release-row').first()).toContainText('中文摘要');
+    await expect(page.locator('#release-list .release-row').first()).not.toContainText('English summary');
+    await page.locator('#release-close').click();
+
+    await page.locator('#btn-settings').click();
+    await page.locator('[data-settings-lang="en"]').click();
+    await page.locator('#st-close').click();
+    await page.locator('#app-version').click();
+    await expect(page.locator('#release-list .release-row').first()).toContainText('English summary');
+    await expect(page.locator('#release-list .release-row').first()).not.toContainText('中文摘要');
+
+    currentReleaseFixture = { ...releaseFixture, latestVersion: '0.5.4' };
+    await page.reload();
+    await expect(page.locator('#app-version-alert')).toBeVisible();
+  });
+
+  test('版本记录请求失败时显示重试，并可恢复版本列表', async ({ page }) => {
+    let requestCount = 0;
+    const firstFailure = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/app-info' && response.status() === 503);
+    await page.route('**/api/app-info', (route) => {
+      requestCount += 1;
+      if (requestCount === 1) return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'metadata unavailable' }) });
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(releaseFixture) });
+    });
+    await page.goto('/');
+    await firstFailure;
+    await page.locator('#app-version').click();
+    await expect(page.locator('#release-error')).toBeVisible();
+    await expect(page.locator('#release-retry')).toBeVisible();
+
+    await page.locator('#release-retry').click();
+    await expect(page.locator('#release-list .release-row').first()).toContainText('v0.5.3');
+  });
+
+  test('Focus Canvas 在桌面、平板和手机宽度保持指标、导航和无横向溢出', async ({ page }) => {
+    for (const viewport of [{ width: 1280, height: 800 }, { width: 768, height: 900 }, { width: 390, height: 844 }]) {
+      await page.setViewportSize(viewport);
+      await page.goto('/');
+      await expect(page.locator('#metric-cards .metric-card')).toHaveCount(4);
+      await expect(page.locator('#btn-settings')).toBeVisible();
+      await expect(page.locator('.nav-item[aria-label="DSH 测试对话"]')).toBeVisible();
+      const overflow = await page.evaluate(() => ({
+        document: document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+        body: document.body.scrollWidth <= document.body.clientWidth + 1,
+      }));
+      expect(overflow.document && overflow.body).toBe(true);
+      const settingsColors = await page.locator('#btn-settings').evaluate((button) => {
+        const style = getComputedStyle(button);
+        return { color: style.color, background: style.backgroundColor };
+      });
+      expect(settingsColors.color).not.toBe('rgb(255, 255, 255)');
+      expect(settingsColors.background).toBe('rgb(255, 255, 255)');
+    }
   });
 });

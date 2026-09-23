@@ -121,4 +121,4 @@ server/tools.js                 # 可选：只读建议 / 草稿确认类工具
 
 - 质量可信规则以 `2026-08-25-requirements.md` / technical-design 为准。
 - 实施状态以 `2026-08-27-implementation-status.md` 为 0.2–0.5 基线。
-- UI 层级以 `docs/ui-critique-zh.md` 为 0.6 首屏依据。
+- UI 层级以 `docs/quality-workbench/reviews/ui-critique-zh.md` 为 0.6 首屏依据。

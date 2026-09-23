@@ -9,6 +9,15 @@ test.describe('DSH 测试对话页', () => {
     await expect(page.locator('#chat-pane')).toBeVisible();
   });
 
+  test('手机宽度仍可从窄导航进入 DSH 对话主面板', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await expect(page.locator('.nav-item[aria-label="DSH 测试对话"]')).toBeVisible();
+    await page.locator('.nav-item[aria-label="DSH 测试对话"]').click();
+    await expect(page.locator('#view-assistant')).toBeVisible();
+    await expect(page.locator('#chat-pane')).toBeVisible();
+  });
+
   test('初始化请求完成后保留用户已经选择的页面', async ({ page }) => {
     let releaseAppInfo;
     const appInfoGate = new Promise((resolve) => { releaseAppInfo = resolve; });
