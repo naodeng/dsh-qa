@@ -1,5 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
-import { parseHostLaunchUrl } from './test/support/dsh-host-auth.js';
+import { parseHostLaunchUrl } from './support/dsh-host-auth.js';
 
 const hostUrl = process.env.DSH_WEB_URL?.trim();
 const hostVersion = process.env.DSH_HOST_VERSION?.trim();
@@ -18,11 +18,11 @@ if (!supportedHostVersions.has(hostVersion)) {
 const { origin: hostOrigin } = parseHostLaunchUrl(hostUrl);
 
 export default defineConfig({
-  testDir: './test/e2e',
+  testDir: './e2e',
   testMatch: ['dsh-host-compatibility.spec.js', 'dsh-panel-lifecycle.spec.js'],
   fullyParallel: false,
   reporter: 'list',
-  outputDir: './test/results/host-smoke',
+  outputDir: './results/host-smoke',
   metadata: { dshHostVersion: hostVersion, dshHostOrigin: hostOrigin },
   use: {
     baseURL: hostOrigin,

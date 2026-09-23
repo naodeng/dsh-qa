@@ -22,7 +22,7 @@ const qualityControlManifest = readJson('preset/quality-control/package.json');
 const qualityControlPreset = readText('preset/quality-control/cordis.patch.yml');
 const qaInstaller = readText('scripts/install-qa-preset.sh');
 const qualityControlInstaller = readText('scripts/install-quality-control-preset.sh');
-const hostConfig = readText('playwright.host.config.js');
+const hostConfig = readText('test/playwright.host.config.js');
 const source = `${app}\n${rpcContract}`;
 
 test('DSH integration uses current slash RPC namespaces instead of retired API Proxy methods', () => {

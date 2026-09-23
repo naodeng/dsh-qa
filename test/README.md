@@ -4,6 +4,8 @@
 
 ```text
 test/
+├── playwright.config.js       # 独立 E2E 配置
+├── playwright.host.config.js  # Harness Smoke 配置
 ├── unit/        # Node 内置测试运行器的业务、API 和兼容性测试
 ├── e2e/         # Playwright 独立工作台和可选 Harness 宿主测试
 ├── fixtures/    # 可控的测试输入和执行 fixture
@@ -18,11 +20,11 @@ test/
 在仓库根目录执行：
 
 ```sh
-npm install
+npm ci
 npx playwright install chromium
 ```
 
-E2E 测试只需要本地 Chromium，不需要登录 DSH、真实模型或 API Key。若 Chromium 已安装，可跳过第二条命令。
+`npm ci` 按 `package-lock.json` 安装可复现的开发依赖；只有在主动修改依赖版本时才使用 `npm install`。本地 E2E 测试只需要 Chromium，不需要登录 DSH、真实模型或 API Key。若 Chromium 已安装，可跳过第二条命令。CI/Linux 环境使用 `npx playwright install --with-deps chromium`。
 
 ## 执行测试
 

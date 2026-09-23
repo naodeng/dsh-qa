@@ -13,6 +13,8 @@
 ├── preset/                      # QA 与 quality-control preset 及其安装元数据
 ├── scripts/                     # 安装脚本和测试运行器
 ├── test/                        # 唯一测试工作区：源码、数据、结果和安装说明
+│   ├── playwright.config.js     # 独立 E2E 配置
+│   ├── playwright.host.config.js # Harness Smoke 配置
 │   ├── results/                 # Playwright 报告、trace 和失败附件（本地生成）
 │   └── README.md                # 测试依赖安装与执行说明
 ├── docs/
