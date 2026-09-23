@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+## 0.5.3 - 2026-09-23
+
+## 中文
+
+### 改进
+
+- 完成 Quiet Studio「安静工作室」视觉整理，优化工作台的信息层级与浅色界面可读性。
+- 整理项目目录，将测试配置、测试说明和结果入口统一到 `test/`，并同步文档与流程图目录。
+
+### 修复
+
+- 修复应用初始化请求覆盖用户已选择页面的问题。
+- 移除 README 中过时的展示图片。
+
+### 验证
+
+- `npm run test:unit`：162 个单元/API 测试通过。
+- `QA_E2E_PORT=8916 npm run test:e2e`：32 个 Chromium E2E 测试通过。
+- `npm pack --dry-run`：通过。
+
+## English
+
+### Improvements
+
+- Polish the workbench as the Quiet Studio visual system and improve information hierarchy and light-surface readability.
+- Consolidate test configuration, test guidance, and result entry points under `test/`, while organizing the project documentation and workflow diagrams.
+
+### Fixes
+
+- Preserve the page selected by the user while the application initialization request is in flight.
+- Remove the obsolete showcase image from the README files.
+
+### Verification
+
+- `npm run test:unit`: 162 unit/API tests passed.
+- `QA_E2E_PORT=8916 npm run test:e2e`: 32 Chromium E2E tests passed.
+- `npm pack --dry-run`: passed.
+
 ## 0.5.2 - 2026-09-23
 
 ## 中文

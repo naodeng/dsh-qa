@@ -11,8 +11,8 @@ const releaseFixture = {
   websiteEnUrl: 'https://inaodeng.com/en/dsh-qa/',
   releases: [{
     version: '0.5.3',
-    date: '2026-09-24',
-    publishedAt: '2026-09-24T00:00:00.000Z',
+    date: '2026-09-23',
+    publishedAt: '2026-09-23T00:00:00.000Z',
     summaryZh: '中文摘要',
     summaryEn: 'English summary',
     detailUrl: 'https://github.com/naodeng/dsh-qa/releases/tag/v0.5.3',
@@ -114,7 +114,7 @@ test.describe('首页', () => {
 
   test('设置弹窗承载语言和关于信息，版本历史支持倒序分页', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('#app-version')).toContainText('v0.5.2');
+    await expect(page.locator('#app-version')).toContainText('v0.5.3');
     await expect(page.locator('.avatar')).toHaveCount(0);
     await expect(page.locator('.theme-toggle')).toHaveCount(0);
     await expect(page.locator('#btn-lang')).toHaveCount(0);
@@ -133,13 +133,13 @@ test.describe('首页', () => {
     await page.locator('#st-close').click();
     await page.locator('#app-version').click();
     await expect(page.locator('#release-modal')).toBeVisible();
-    await expect(page.locator('#release-list .release-row').first()).toContainText('v0.5.2');
-    await expect(page.locator('#release-list .release-row').first()).toContainText('Add a settings dialog');
+    await expect(page.locator('#release-list .release-row').first()).toContainText('v0.5.3');
+    await expect(page.locator('#release-list .release-row').first()).toContainText('Polish the workbench');
     await expect(page.locator('#release-list .release-row')).toHaveCount(5);
     await expect(page.locator('#release-next')).toBeEnabled();
     await page.locator('#release-next').click();
     await expect(page.locator('#release-page-label')).toContainText('2');
-    await expect(page.locator('#release-list .release-row').first()).not.toContainText('v0.5.2');
+    await expect(page.locator('#release-list .release-row').first()).not.toContainText('v0.5.3');
   });
 
   test('切回中文后服务状态和首页操作按钮同步恢复中文', async ({ page }) => {
