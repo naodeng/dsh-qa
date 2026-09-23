@@ -1692,7 +1692,7 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
     }
     if (!location.search.includes('nosse')) connectSSE();
     await Promise.all([refreshBoard(true), loadAppInfo()]);
-    switchView('dashboard');
+    if (state.view === 'dashboard') switchView('dashboard');
   }
   init();
 })();

@@ -9,6 +9,24 @@ test.describe('DSH 测试对话页', () => {
     await expect(page.locator('#chat-pane')).toBeVisible();
   });
 
+  test('初始化请求完成后保留用户已经选择的页面', async ({ page }) => {
+    let releaseAppInfo;
+    const appInfoGate = new Promise((resolve) => { releaseAppInfo = resolve; });
+    const appInfoResponse = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/app-info');
+    await page.route('**/api/app-info', async (route) => {
+      await appInfoGate;
+      await route.continue();
+    });
+
+    await page.goto('/');
+    await page.getByRole('button', { name: 'DSH 测试对话' }).click();
+    releaseAppInfo();
+    await appInfoResponse;
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+
+    await expect(page.locator('#view-assistant')).toBeVisible();
+  });
+
   test('对话页可以切换中英文基础界面', async ({ page }) => {
     await page.goto('/');
     await page.locator('#btn-settings').click();
