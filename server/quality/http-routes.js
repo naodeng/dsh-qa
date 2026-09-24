@@ -366,7 +366,8 @@ export async function handleQualityRoutes({ req, res, url, body, store, hostAdap
   if (parts[1] === 'projects' && parts[2] && parts[3] === 'execution-profiles' && !parts[4] && m('POST')) {
     const c = store.getProject(parts[2]);
     if (!c) return fail(res, 404, '项目不存在');
-    if (!onlyFields(body, [...LOCAL_PROFILE_FIELDS, ...HOST_PROFILE_FIELDS])) return fail(res, 400, '包含不允许的字段');
+    const profileFields = body?.kind === 'host' ? HOST_PROFILE_FIELDS : LOCAL_PROFILE_FIELDS;
+    if (!onlyFields(body, profileFields)) return fail(res, 400, '包含不允许的字段');
     try { const profile = createExecutionProfile(c, body); store.touch(c); store.persist(); return created(res, { profile }); }
     catch (error) { return fail(res, 400, error.message); }
   }
@@ -375,7 +376,8 @@ export async function handleQualityRoutes({ req, res, url, body, store, hostAdap
     const c = store.getProject(parts[2]);
     const profile = c?.executionProfiles?.find((item) => item.id === parts[4]);
     if (!profile) return fail(res, 404, '执行配置不存在');
-    if (!onlyFields(body, ['expectedRevision', ...LOCAL_PROFILE_FIELDS, ...HOST_PROFILE_FIELDS])) return fail(res, 400, '包含不允许的字段');
+    const profileFields = profile.kind === 'host' ? HOST_PROFILE_FIELDS : LOCAL_PROFILE_FIELDS;
+    if (!onlyFields(body, ['expectedRevision', ...profileFields])) return fail(res, 400, '包含不允许的字段');
     if (body.expectedRevision !== (profile.currentVersion || profile.version)) return revisionConflict(res, fail, '执行配置版本已变化，请重新加载');
     try {
       const { expectedRevision, ...versionFields } = body;

@@ -176,6 +176,39 @@ test('creates and versions a host profile through the existing project profile r
   assert.equal(versioned.payload.profile.capabilities[0], 'interact');
 });
 
+test('keeps host-only profile fields out of local create and version requests', async () => {
+  const project = store.createProject({ title: 'Profile field boundary fixture' });
+  const localFields = {
+    name: 'local runner',
+    executor: 'node-test',
+    cwdRelative: '.',
+    targetFiles: ['test/fixtures/runner/pass.fixture.mjs'],
+    networkIntent: 'none',
+  };
+  const hostOnlyFields = {
+    kind: 'host',
+    provider: 'browser-use',
+    capabilities: ['navigate'],
+    targetPolicy: { origins: ['https://example.test'] },
+    artifactPolicy: { logs: true, screenshots: true, trace: true },
+  };
+
+  for (const field of Object.keys(hostOnlyFields)) {
+    const response = await callRoute('POST', `/api/projects/${project.id}/execution-profiles`, { ...localFields, [field]: hostOnlyFields[field] });
+    assert.equal(response.status, 400, `local create accepted host-only field ${field}`);
+  }
+
+  const created = await callRoute('POST', `/api/projects/${project.id}/execution-profiles`, localFields);
+  assert.equal(created.status, 201);
+  for (const field of Object.keys(hostOnlyFields).filter((field) => field !== 'kind')) {
+    const response = await callRoute('POST', `/api/projects/${project.id}/execution-profiles/${created.payload.profile.id}/versions`, {
+      expectedRevision: 1,
+      [field]: hostOnlyFields[field],
+    });
+    assert.equal(response.status, 400, `local version accepted host-only field ${field}`);
+  }
+});
+
 test('runs deterministic computer-use and mcp test fakes through the same controlled boundary', async () => {
   const project = store.createProject({ title: 'Deterministic host adapter fixture' });
   const task = { id: 'quality_task_host_adapters', projectId: project.id, version: 1, sources: [], acceptanceCriteria: [], risks: [], testScope: [], decisions: [] };
