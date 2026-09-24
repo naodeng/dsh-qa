@@ -9,53 +9,38 @@ process.env.QA_DATA_DIR = dataDir;
 
 const store = await import('../../server/store.js');
 const { createExecutionProfile } = await import('../../server/quality/execution-profile.js');
-const { handleQualityRoutes } = await import('../../server/quality/http-routes.js');
+const { startQaBench, closeQaBench } = await import('../../server/index.js');
+const { broadcast: sseBroadcast } = await import('../../server/sse.js');
 
-test.after(() => {
-  store.flush();
+const hostAdapters = new Map();
+let eventSink = null;
+const started = await startQaBench({
+  port: 0,
+  openBrowser: false,
+  hostAdapters,
+  onBroadcast: (type, payload) => {
+    eventSink?.push({ type, payload });
+    sseBroadcast(type, payload);
+  },
+  log: () => {},
+});
+const base = `http://127.0.0.1:${started.server.address().port}`;
+
+test.after(async () => {
+  await closeQaBench(started.server);
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
 
-function responseRecorder() {
-  const response = {
-    statusCode: 0,
-    headers: {},
-    body: '',
-    writeHead(statusCode, headers = {}) {
-      this.statusCode = statusCode;
-      this.headers = headers;
-    },
-    end(body = '') {
-      this.body = body;
-    },
-  };
-  return response;
-}
-
-function jsonResponse(res, status, payload) {
-  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
-  res.end(JSON.stringify(payload));
-  return true;
-}
-
-async function callRoute(method, pathname, body = {}, hostAdapters = new Map(), events = []) {
-  const res = responseRecorder();
-  const handled = await handleQualityRoutes({
-    req: { method },
-    res,
-    url: new URL(`http://localhost${pathname}`),
-    body,
-    store,
-    hostAdapters,
-    broadcast: (type, payload) => events.push({ type, payload }),
-    emitProject: () => {},
-    ok: (response, payload) => jsonResponse(response, 200, { ok: true, ...payload }),
-    created: (response, payload) => jsonResponse(response, 201, { ok: true, ...payload }),
-    accepted: (response, payload) => jsonResponse(response, 202, { ok: true, ...payload }),
-    fail: (response, status, error, code) => jsonResponse(response, status, { ok: false, error, ...(code ? { code } : {}) }),
+async function callRoute(method, pathname, body = {}, adapters = new Map(), events = null) {
+  hostAdapters.clear();
+  for (const [key, adapter] of adapters) hostAdapters.set(key, adapter);
+  eventSink = events;
+  const response = await fetch(`${base}${pathname}`, {
+    method,
+    headers: method === 'GET' ? undefined : { 'content-type': 'application/json' },
+    body: method === 'GET' ? undefined : JSON.stringify(body),
   });
-  assert.equal(handled, true, `route was not handled: ${method} ${pathname}`);
-  return { status: res.statusCode, payload: JSON.parse(res.body) };
+  return { status: response.status, payload: await response.json() };
 }
 
 function createHostFixture() {
@@ -137,6 +122,25 @@ function fakeAdapters(result = { status: 'passed' }) {
     ['computer-use:interact', deterministicFakeAdapter('computer-use', 'interact', result)],
     ['mcp:tool-call', deterministicFakeAdapter('mcp', 'tool-call', result)],
   ]);
+}
+
+async function waitForHostExecution(project, executionId, predicate) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const execution = project.hostExecutions.find((item) => item.id === executionId);
+    if (execution && predicate(execution)) return execution;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  const execution = project.hostExecutions.find((item) => item.id === executionId);
+  throw new Error(`Host execution 未达到预期状态：${execution?.status || 'missing'}`);
+}
+
+async function waitForProjectHostExecution(project, predicate) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const execution = project.hostExecutions.find(predicate);
+    if (execution) return execution;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error('Host execution 未在服务响应前建立');
 }
 
 test('creates host profiles while preserving local profiles and previews without persistence', async () => {
@@ -234,13 +238,16 @@ test('runs deterministic computer-use and mcp test fakes through the same contro
     profileId: mcpProfile.id, provider: 'mcp', capability: 'tool-call', target: { serverId: 'server_1', toolName: 'inspect' }, expectedRevision: 1,
   }, fakeAdapters(), []);
 
+  const computerExecution = await waitForHostExecution(project, computer.payload.execution.id, (execution) => execution.status === 'passed');
+  const mcpExecution = await waitForHostExecution(project, mcp.payload.execution.id, (execution) => execution.status === 'passed');
+
   assert.equal(computer.status, 202);
-  assert.equal(computer.payload.execution.status, 'passed');
-  assert.equal(computer.payload.execution.artifacts[0].relativePath, 'computer-use.log');
+  assert.equal(computerExecution.status, 'passed');
+  assert.equal(computerExecution.artifacts[0].relativePath, 'computer-use.log');
   assert.equal(mcp.status, 202);
-  assert.equal(mcp.payload.execution.status, 'passed');
-  assert.equal(mcp.payload.execution.targetMetadata.kind, 'mcp-tool');
-  assert.equal(mcp.payload.execution.artifacts[2].relativePath, 'mcp.zip');
+  assert.equal(mcpExecution.status, 'passed');
+  assert.equal(mcpExecution.targetMetadata.kind, 'mcp-tool');
+  assert.equal(mcpExecution.artifacts[2].relativePath, 'mcp.zip');
 });
 
 test('rejects unsupported provider and stale quality-task revisions with stable API errors', async () => {
@@ -280,9 +287,11 @@ test('persists controlled host results and maps every host status to the existin
       events,
     );
     assert.equal(started.status, 202);
-    assert.equal(started.payload.execution.status, hostStatus);
-    assert.equal(started.payload.testRun.status, testRunStatus);
-    if (errorCode) assert.equal(started.payload.testRun.errorCode, errorCode);
+    const execution = await waitForHostExecution(fixture.project, started.payload.execution.id, (item) => item.status === hostStatus);
+    const run = fixture.project.testruns.find((item) => item.id === execution.testRunId);
+    assert.equal(execution.status, hostStatus);
+    assert.equal(run.status, testRunStatus);
+    if (errorCode) assert.equal(run.errorCode, errorCode);
   }
 
   const passed = fixture.project.hostExecutions.find((execution) => execution.status === 'passed');
@@ -307,14 +316,14 @@ test('gets and cancels a running host execution with expectedRevision', async ()
   const events = [];
   const started = await callRoute('POST', `/api/projects/${fixture.project.id}/quality-tasks/${fixture.task.id}/host-executions`, hostInput(fixture), fakeAdapter({ status: 'running' }), events);
   const executionId = started.payload.execution.id;
-  assert.equal(started.payload.execution.revision, 3);
+  const running = await waitForHostExecution(fixture.project, executionId, (execution) => execution.status === 'running' && execution.revision === 3);
 
   const status = await callRoute('GET', `/api/projects/${fixture.project.id}/host-executions/${executionId}`, {}, new Map(), events);
   assert.equal(status.status, 200);
   assert.equal(status.payload.execution.status, 'running');
   assert.equal(status.payload.testRun.status, 'running');
 
-  const cancelled = await callRoute('POST', `/api/projects/${fixture.project.id}/host-executions/${executionId}/cancel`, { expectedRevision: 3 }, new Map(), events);
+  const cancelled = await callRoute('POST', `/api/projects/${fixture.project.id}/host-executions/${executionId}/cancel`, { expectedRevision: running.revision }, new Map(), events);
   assert.equal(cancelled.status, 200);
   assert.equal(cancelled.payload.execution.status, 'cancelled');
   assert.equal(cancelled.payload.execution.revision, 4);
@@ -330,7 +339,9 @@ test('retries a terminal execution with a stable attempt group and supersedes th
   const events = [];
   const first = await callRoute('POST', `/api/projects/${fixture.project.id}/quality-tasks/${fixture.task.id}/host-executions`, hostInput(fixture, { attemptGroupId: 'stable_group' }), fakeAdapter({ status: 'failed' }), events);
   const oldId = first.payload.execution.id;
-  const retried = await callRoute('POST', `/api/projects/${fixture.project.id}/host-executions/${oldId}/retry`, { expectedRevision: first.payload.execution.revision }, fakeAdapter({ status: 'running' }), events);
+  const failed = await waitForHostExecution(fixture.project, oldId, (execution) => execution.status === 'failed');
+  const retried = await callRoute('POST', `/api/projects/${fixture.project.id}/host-executions/${oldId}/retry`, { expectedRevision: failed.revision, qualityTaskRevision: fixture.task.version }, fakeAdapter({ status: 'running' }), events);
+  await waitForHostExecution(fixture.project, retried.payload.execution.id, (execution) => execution.status === 'running' && execution.revision === 3);
 
   assert.equal(retried.status, 202);
   assert.notEqual(retried.payload.execution.id, oldId);
@@ -338,6 +349,109 @@ test('retries a terminal execution with a stable attempt group and supersedes th
   assert.equal(retried.payload.execution.status, 'running');
   assert.equal(fixture.project.hostExecutions.find((item) => item.id === oldId).supersededBy, retried.payload.execution.id);
   assert.equal(events.filter((event) => event.type === 'quality.host-execution.updated').length, 7);
+});
+
+test('returns an initial response while a Host adapter is still running', async () => {
+  const fixture = createHostFixture();
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const adapter = {
+    id: 'test-only-browser-use-navigate-slow-start',
+    provider: 'browser-use',
+    capabilities: ['navigate'],
+    start: async () => {
+      await gate;
+      return { status: 'passed' };
+    },
+  };
+  const starting = callRoute(
+    'POST',
+    `/api/projects/${fixture.project.id}/quality-tasks/${fixture.task.id}/host-executions`,
+    hostInput(fixture),
+    new Map([['browser-use:navigate', adapter]]),
+  );
+  try {
+    const response = await Promise.race([
+      starting,
+      new Promise((resolve) => setTimeout(() => resolve(null), 25)),
+    ]);
+    assert.ok(response, 'the start route must not wait for a long-running Host adapter');
+    assert.equal(response.status, 202);
+    assert.ok(['queued', 'running'].includes(response.payload.execution.status));
+  } finally {
+    release();
+    await starting;
+  }
+});
+
+test('retries against the current quality-task revision instead of reusing a stale request revision', async () => {
+  const fixture = createHostFixture();
+  const first = await callRoute('POST', `/api/projects/${fixture.project.id}/quality-tasks/${fixture.task.id}/host-executions`, hostInput(fixture));
+  fixture.task.version = 2;
+  store.touch(fixture.project);
+  store.flush();
+
+  const stale = await callRoute('POST', `/api/projects/${fixture.project.id}/host-executions/${first.payload.execution.id}/retry`, {
+    expectedRevision: first.payload.execution.revision,
+    qualityTaskRevision: 1,
+  });
+  assert.equal(stale.status, 409);
+  assert.equal(stale.payload.code, 'QUALITY_REVISION_CONFLICT');
+
+  const retried = await callRoute('POST', `/api/projects/${fixture.project.id}/host-executions/${first.payload.execution.id}/retry`, {
+    expectedRevision: first.payload.execution.revision,
+    qualityTaskRevision: 2,
+  });
+  assert.equal(retried.status, 202);
+  assert.equal(retried.payload.execution.request.expectedRevision, 2);
+});
+
+test('automatically finalizes matching evidence after a controlled Host pass', async () => {
+  const fixture = createHostFixture();
+  const adapter = {
+    id: 'test-only-browser-use-navigate-evidence',
+    provider: 'browser-use',
+    capabilities: ['navigate'],
+    start: async (_request, context) => {
+      const written = context.writeArtifact('run.log', 'passed');
+      return { status: 'passed', artifacts: [{ type: 'log', mimeType: 'text/plain', ...written }] };
+    },
+  };
+  const started = await callRoute(
+    'POST',
+    `/api/projects/${fixture.project.id}/quality-tasks/${fixture.task.id}/host-executions`,
+    hostInput(fixture),
+    new Map([['browser-use:navigate', adapter]]),
+  );
+  assert.equal(started.status, 202);
+  for (let attempt = 0; attempt < 50 && !fixture.project.evidenceBundles.length; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 0));
+  const execution = fixture.project.hostExecutions[0];
+  const run = fixture.project.testruns.find((item) => item.id === execution.testRunId);
+  const bundle = fixture.project.evidenceBundles.find((item) => item.testRunId === run.id);
+  assert.equal(execution.status, 'passed');
+  assert.equal(run.status, 'passed');
+  assert.equal(bundle?.state, 'ready');
+  assert.equal(bundle?.integrity, 'verified');
+  assert.deepEqual(run.evidenceRefs, [bundle.id]);
+});
+
+test('persists a bounded pending state when Host evidence cannot be finalized', async () => {
+  const fixture = createHostFixture();
+  const adapter = {
+    id: 'test-only-browser-use-navigate-missing-evidence',
+    provider: 'browser-use',
+    capabilities: ['navigate'],
+    start: async () => ({ status: 'passed', artifacts: [{ relativePath: 'missing.log', type: 'log', size: 7, sha256: 'a'.repeat(64) }] }),
+  };
+  const started = await callRoute(
+    'POST',
+    `/api/projects/${fixture.project.id}/quality-tasks/${fixture.task.id}/host-executions`,
+    hostInput(fixture),
+    new Map([['browser-use:navigate', adapter]]),
+  );
+  const execution = await waitForHostExecution(fixture.project, started.payload.execution.id, (item) => item.status === 'passed' && fixture.project.testruns.find((run) => run.id === item.testRunId)?.evidenceFinalization?.state === 'pending');
+  const run = fixture.project.testruns.find((item) => item.id === execution.testRunId);
+  assert.deepEqual(run.evidenceFinalization, { state: 'pending', errorCode: 'evidence_finalize_pending', attempts: 1, updatedAt: run.evidenceFinalization.updatedAt });
 });
 
 test('cancels an in-flight adapter and ignores its late result', async () => {
@@ -364,8 +478,7 @@ test('cancels an in-flight adapter and ignores its late result', async () => {
     adapterMap,
     events,
   );
-  for (let i = 0; i < 10 && fixture.project.hostExecutions[0]?.status !== 'running'; i += 1) await Promise.resolve();
-  const inFlight = fixture.project.hostExecutions[0];
+  const inFlight = await waitForProjectHostExecution(fixture.project, (execution) => execution.status === 'running');
   assert.equal(inFlight.status, 'running');
   const cancelled = await callRoute(
     'POST',
@@ -380,7 +493,7 @@ test('cancels an in-flight adapter and ignores its late result', async () => {
   release();
   const lateStartResponse = await starting;
   assert.equal(lateStartResponse.status, 202);
-  assert.equal(lateStartResponse.payload.execution.status, 'cancelled');
+  assert.equal(lateStartResponse.payload.execution.status, 'running');
   assert.equal(fixture.project.hostExecutions[0].status, 'cancelled');
   assert.equal(fixture.project.testruns.find((run) => run.id === fixture.project.hostExecutions[0].testRunId).status, 'cancelled');
   assert.deepEqual(events.filter((event) => event.type === 'quality.host-execution.updated').map((event) => event.payload.status), ['queued', 'running', 'cancelled']);
@@ -389,7 +502,8 @@ test('cancels an in-flight adapter and ignores its late result', async () => {
 test('claims a terminal retry before awaiting so concurrent retries have one successor', async () => {
   const fixture = createHostFixture();
   const first = await callRoute('POST', `/api/projects/${fixture.project.id}/quality-tasks/${fixture.task.id}/host-executions`, hostInput(fixture, { attemptGroupId: 'concurrent_group' }), fakeAdapter({ status: 'failed' }));
-  const expectedRevision = first.payload.execution.revision;
+  const failed = await waitForHostExecution(fixture.project, first.payload.execution.id, (execution) => execution.status === 'failed');
+  const expectedRevision = failed.revision;
   let release;
   const gate = new Promise((resolve) => { release = resolve; });
   const slowAdapter = {
@@ -402,15 +516,32 @@ test('claims a terminal retry before awaiting so concurrent retries have one suc
     },
   };
   const adapters = new Map([['browser-use:navigate', slowAdapter]]);
-  const firstRetry = callRoute('POST', `/api/projects/${fixture.project.id}/host-executions/${first.payload.execution.id}/retry`, { expectedRevision }, adapters);
-  const secondRetry = await callRoute('POST', `/api/projects/${fixture.project.id}/host-executions/${first.payload.execution.id}/retry`, { expectedRevision }, adapters);
+  const retryBody = { expectedRevision, qualityTaskRevision: fixture.task.version };
+  const firstRetry = callRoute('POST', `/api/projects/${fixture.project.id}/host-executions/${first.payload.execution.id}/retry`, retryBody, adapters);
+  await waitForProjectHostExecution(fixture.project, (execution) => execution.id !== first.payload.execution.id && execution.status === 'running');
+  const secondRetry = await callRoute('POST', `/api/projects/${fixture.project.id}/host-executions/${first.payload.execution.id}/retry`, retryBody, adapters);
   assert.equal(secondRetry.status, 409);
   assert.equal(secondRetry.payload.code, 'HOST_EXECUTION_RETRY_IN_FLIGHT');
   release();
   const retried = await firstRetry;
+  await waitForHostExecution(fixture.project, retried.payload.execution.id, (execution) => execution.status === 'passed');
   assert.equal(retried.status, 202);
   assert.equal(fixture.project.hostExecutions.filter((item) => item.attemptGroupId === 'concurrent_group').length, 2);
   assert.equal(fixture.project.hostExecutions.find((item) => item.id === first.payload.execution.id).supersededBy, retried.payload.execution.id);
+});
+
+test('only the latest active execution in an attempt group can be retried', async () => {
+  const fixture = createHostFixture();
+  const first = await callRoute('POST', `/api/projects/${fixture.project.id}/quality-tasks/${fixture.task.id}/host-executions`, hostInput(fixture, { attemptGroupId: 'ordered_group' }));
+  const second = await callRoute('POST', `/api/projects/${fixture.project.id}/quality-tasks/${fixture.task.id}/host-executions`, hostInput(fixture, { attemptGroupId: 'ordered_group' }));
+  const staleRetry = await callRoute('POST', `/api/projects/${fixture.project.id}/host-executions/${first.payload.execution.id}/retry`, {
+    expectedRevision: first.payload.execution.revision,
+    qualityTaskRevision: fixture.task.version,
+  });
+
+  assert.equal(staleRetry.status, 409);
+  assert.equal(staleRetry.payload.code, 'HOST_EXECUTION_SUPERSEDED');
+  assert.equal(fixture.project.hostExecutions.find((item) => item.id === second.payload.execution.id).supersededBy, undefined);
 });
 
 test('missing production adapters produce controlled not_run without shell fallback or fake success', async () => {

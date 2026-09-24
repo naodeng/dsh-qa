@@ -288,9 +288,9 @@ function createControlledArtifactWriter(project, hostExecution) {
     const bytes = artifactBytes(content);
     if (bytes.length > 100 * 1024 * 1024) throw hostError('HOST_ARTIFACT_INVALID', 'artifact 超过 100MiB');
     const parent = path.dirname(resolved);
-    fs.mkdirSync(parent, { recursive: true });
     rejectSymlinkPath(parent, 'artifact writer', controlled.staging);
     rejectSymlinkPath(resolved, 'artifact writer', controlled.staging);
+    fs.mkdirSync(parent, { recursive: true });
     let fd;
     try {
       fd = fs.openSync(resolved, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o600);
@@ -436,6 +436,16 @@ function adapterStart(adapter) {
   return null;
 }
 
+function invokeAdapterCancel(adapter, request, signal) {
+  if (typeof adapter?.cancel !== 'function') return;
+  try {
+    const result = adapter.cancel(clone(request), { signal });
+    if (result && typeof result.catch === 'function') result.catch(() => {});
+  } catch {
+    // The persisted HostExecution state remains authoritative when cancellation fails.
+  }
+}
+
 export async function startHostExecution(project, normalizedRequest, adapter, options = {}) {
   assertObject(normalizedRequest, 'HOST_EXECUTION_INVALID', 'normalizedRequest 必须是对象');
   if (!normalizedRequest.projectId || !normalizedRequest.qualityTaskId || !normalizedRequest.profileId || !normalizedRequest.provider || !normalizedRequest.capability || !normalizedRequest.adapterId || !normalizedRequest.provenance) throw hostError('HOST_EXECUTION_INVALID', 'normalizedRequest 缺少受控字段');
@@ -444,6 +454,18 @@ export async function startHostExecution(project, normalizedRequest, adapter, op
   if (adapter?.provider !== undefined && adapter.provider !== normalizedRequest.provider) throw hostError('HOST_ADAPTER_MISMATCH', 'adapter provider 与 request 不一致');
   if (adapter?.capabilities !== undefined && (!Array.isArray(adapter.capabilities) || !adapter.capabilities.includes(normalizedRequest.capability))) throw hostError('HOST_ADAPTER_MISMATCH', 'adapter capability 与 request 不一致');
   const execution = baseHostExecution(project, normalizedRequest, adapterId);
+  const controller = new AbortController();
+  let stopRequested = null;
+  let resolveStop;
+  const stopPromise = new Promise((resolve) => { resolveStop = resolve; });
+  const requestStop = (reason) => {
+    if (stopRequested) return;
+    stopRequested = reason;
+    controller.abort();
+    invokeAdapterCancel(adapter, normalizedRequest, controller.signal);
+    resolveStop(reason);
+  };
+  if (typeof options.onControl === 'function') options.onControl({ executionId: execution.id, cancel: () => requestStop('cancelled') });
   const notify = async () => {
     if (typeof options.onTransition === 'function') await options.onTransition(execution);
   };
@@ -469,10 +491,32 @@ export async function startHostExecution(project, normalizedRequest, adapter, op
   if (shouldStop()) return execution;
 
   try {
-    const adapterResult = await start(clone(normalizedRequest), {
-      hostExecutionId: execution.id,
-      writeArtifact: createControlledArtifactWriter(project, execution),
-    });
+    const timeoutMs = Number.isInteger(normalizedRequest.timeoutMs) && normalizedRequest.timeoutMs > 0 ? normalizedRequest.timeoutMs : null;
+    const timeout = timeoutMs === null ? null : setTimeout(() => requestStop('timed_out'), timeoutMs);
+    const adapterResultPromise = Promise.resolve()
+      .then(() => start(clone(normalizedRequest), {
+        hostExecutionId: execution.id,
+        signal: controller.signal,
+        writeArtifact: createControlledArtifactWriter(project, execution),
+      }))
+      .then((value) => ({ type: 'result', value }), (error) => ({ type: 'error', error }));
+    const outcome = await Promise.race([
+      adapterResultPromise,
+      stopPromise.then((reason) => ({ type: 'stop', reason })),
+    ]);
+    if (timeout !== null) clearTimeout(timeout);
+    if (outcome.type === 'stop') {
+      if (outcome.reason === 'cancelled' || shouldStop()) return execution;
+      execution.status = 'timed_out';
+      execution.errorCode = 'timeout';
+      execution.errorSummary = `Host adapter 在 ${timeoutMs}ms 内未返回结果`;
+      execution.revision += 1;
+      execution.updatedAt = now();
+      await notify();
+      return execution;
+    }
+    if (outcome.type === 'error') throw outcome.error;
+    const adapterResult = outcome.value;
     if (shouldStop()) return execution;
     if (adapterResult === null || adapterResult === undefined) throw hostError('HOST_ADAPTER_EMPTY_RESULT', 'Host adapter 必须返回结果');
     const result = normalizeResult(project, execution, adapterResult);

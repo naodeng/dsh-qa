@@ -92,6 +92,28 @@ test('materializes controlled Host artifacts and finalizes through the existing 
   assert.equal(fs.existsSync(run.artifactDir), false);
 });
 
+test('rejects a symlinked artifact parent before creating directories outside the staging root', async () => {
+  const fixture = hostFixture();
+  const outsideRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-host-symlink-target-'));
+  roots.push(outsideRoot);
+  const outsideTarget = path.join(outsideRoot, 'created-by-bug');
+  const execution = await startHostExecution(fixture.project, fixture.request, {
+    id: 'test-only-symlink-parent-adapter',
+    provider: 'browser-use',
+    capabilities: ['navigate'],
+    start: async (_request, context) => {
+      const staging = path.join(fixture.project.artifactRoot, `${context.hostExecutionId}.staging`);
+      fs.symlinkSync(outsideTarget, path.join(staging, 'escape'));
+      context.writeArtifact('escape/new.log', 'must not escape');
+      return { status: 'passed' };
+    },
+  });
+
+  assert.equal(execution.status, 'blocked', execution.errorSummary);
+  assert.equal(execution.errorCode, 'artifact_policy_denied');
+  assert.equal(fs.existsSync(outsideTarget), false);
+});
+
 test('is idempotent for the same Host execution result and rejects a changed digest', async () => {
   const { project, run } = await createPassedHostRun();
   const first = await finalizeEvidence(project, run.id);

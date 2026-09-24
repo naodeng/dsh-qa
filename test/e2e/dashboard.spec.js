@@ -2,20 +2,20 @@ import { test, expect } from '@playwright/test';
 
 const releaseFixture = {
   ok: true,
-  currentVersion: '0.5.2',
-  latestVersion: '0.5.3',
+  currentVersion: '0.5.3',
+  latestVersion: '0.5.4',
   isOutdated: true,
   dshVersion: 'dsh-v0.1.7-alpha.1',
   repositoryUrl: 'https://github.com/naodeng/dsh-qa',
   websiteZhUrl: 'https://inaodeng.com/zh-cn/dsh-qa/',
   websiteEnUrl: 'https://inaodeng.com/en/dsh-qa/',
   releases: [{
-    version: '0.5.3',
-    date: '2026-09-23',
-    publishedAt: '2026-09-23T00:00:00.000Z',
+    version: '0.5.4',
+    date: '2026-09-24',
+    publishedAt: '2026-09-24T00:00:00.000Z',
     summaryZh: '中文摘要',
     summaryEn: 'English summary',
-    detailUrl: 'https://github.com/naodeng/dsh-qa/releases/tag/v0.5.3',
+    detailUrl: 'https://github.com/naodeng/dsh-qa/releases/tag/v0.5.4',
   }],
 };
 
@@ -114,7 +114,7 @@ test.describe('首页', () => {
 
   test('设置弹窗承载语言和关于信息，版本历史支持倒序分页', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('#app-version')).toContainText('v0.5.3');
+    await expect(page.locator('#app-version')).toContainText('v0.5.4');
     await expect(page.locator('.avatar')).toHaveCount(0);
     await expect(page.locator('.theme-toggle')).toHaveCount(0);
     await expect(page.locator('#btn-lang')).toHaveCount(0);
@@ -133,13 +133,13 @@ test.describe('首页', () => {
     await page.locator('#st-close').click();
     await page.locator('#app-version').click();
     await expect(page.locator('#release-modal')).toBeVisible();
-    await expect(page.locator('#release-list .release-row').first()).toContainText('v0.5.3');
-    await expect(page.locator('#release-list .release-row').first()).toContainText('Polish the workbench');
+    await expect(page.locator('#release-list .release-row').first()).toContainText('v0.5.4');
+    await expect(page.locator('#release-list .release-row').first()).toContainText('quality-control');
     await expect(page.locator('#release-list .release-row')).toHaveCount(5);
     await expect(page.locator('#release-next')).toBeEnabled();
     await page.locator('#release-next').click();
     await expect(page.locator('#release-page-label')).toContainText('2');
-    await expect(page.locator('#release-list .release-row').first()).not.toContainText('v0.5.3');
+    await expect(page.locator('#release-list .release-row').first()).not.toContainText('v0.5.4');
   });
 
   test('切回中文后服务状态和首页操作按钮同步恢复中文', async ({ page }) => {
@@ -181,7 +181,7 @@ test.describe('首页', () => {
     await expect(page.locator('#release-list .release-row').first()).toContainText('English summary');
     await expect(page.locator('#release-list .release-row').first()).not.toContainText('中文摘要');
 
-    currentReleaseFixture = { ...releaseFixture, latestVersion: '0.5.4' };
+    currentReleaseFixture = { ...releaseFixture, latestVersion: '0.5.5' };
     await page.reload();
     await expect(page.locator('#app-version-alert')).toBeVisible();
   });
@@ -201,7 +201,7 @@ test.describe('首页', () => {
     await expect(page.locator('#release-retry')).toBeVisible();
 
     await page.locator('#release-retry').click();
-    await expect(page.locator('#release-list .release-row').first()).toContainText('v0.5.3');
+    await expect(page.locator('#release-list .release-row').first()).toContainText('v0.5.4');
   });
 
   test('Focus Canvas 在桌面、平板和手机宽度保持指标、导航和无横向溢出', async ({ page }) => {

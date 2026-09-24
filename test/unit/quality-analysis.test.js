@@ -1,7 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { makeProject, makeQualityTask } from '../helpers/quality-fixtures.js';
-import { appendDeniedAudit, commitQualityMutation, createAnalysisRequest, saveAnalysis } from '../../server/quality/analysis.js';
+
+const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-qa-quality-analysis-'));
+process.env.QA_DATA_DIR = dataDir;
+const { appendDeniedAudit, commitQualityMutation, createAnalysisRequest, saveAnalysis } = await import('../../server/quality/analysis.js');
+const store = await import('../../server/store.js');
+
+test.after(() => {
+  store.flush();
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});
 
 test('analysis commits only against the current revision and source digests', async () => {
   const project = makeProject();

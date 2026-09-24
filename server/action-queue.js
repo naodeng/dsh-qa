@@ -59,7 +59,7 @@ function daysBetween(dueAt, now) {
   return Math.round((startOfDay(new Date(dueAt)) - startOfDay(now)) / 86_400_000);
 }
 
-function action({ kind, priority, status, actionRequired, project, entityId, titleKey, reasonCode, reasonArgs = {}, dueAt = null, sourceType, sourceId, attemptGroupId, tab = 'qualityTasks' }) {
+function action({ kind, priority, status, actionRequired, project, entityId, titleKey, reasonCode, reasonArgs = {}, dueAt = null, sourceType, sourceId, attemptGroupId, tab = 'qualityTasks', targetView = 'project-detail' }) {
   const projectId = cleanText(project?.id, '', 128);
   const entity = cleanText(entityId, '', 128);
   return {
@@ -76,7 +76,7 @@ function action({ kind, priority, status, actionRequired, project, entityId, tit
     reasonArgs: structuredClone(reasonArgs),
     dueAt: isoDate(dueAt),
     source: { type: sourceType, id: sourceId || entity, ...(attemptGroupId ? { attemptGroupId } : {}) },
-    target: { view: 'project-detail', tab, entityId: entity },
+    target: targetView === 'assistant' ? { view: 'assistant', tab: null, entityId: projectId } : { view: 'project-detail', tab, entityId: entity },
   };
 }
 
@@ -173,7 +173,7 @@ function localRunAction(project, run) {
     status: 'needs_action',
     actionRequired: true,
     titleKey: 'action.runFailed.title',
-    reasonCode: run.errorCode || 'provider_error',
+    reasonCode: run.errorCode || (run.status === 'failed' ? 'test_failed' : 'provider_error'),
     reasonArgs: {},
   });
   if (run.status === 'cancelled') return action({
@@ -264,7 +264,7 @@ function addMilestoneAndWorkflowActions(items, project, now) {
   if (project.assistant?.reminders !== 'all') return;
   const addWorkflow = (id, reasonCode, reasonArgs = {}) => items.push(action({
     project, entityId: id, sourceType: 'workflow', sourceId: id, tab: 'overview', kind: 'workflow', priority: 'low', status: 'needs_action', actionRequired: true,
-    titleKey: 'action.workflow.title', reasonCode, reasonArgs,
+    titleKey: 'action.workflow.title', reasonCode, reasonArgs, targetView: 'assistant',
   }));
   if (project.status === 'intake') addWorkflow(`workflow-intake-${project.id}`, 'workflow_intake', { stage: 'intake' });
   const draftCases = (project.testcases || []).filter((item) => item.status === 'draft').length;

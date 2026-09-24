@@ -32,6 +32,19 @@ test('orders blocking execution actions before due reminders and uses stable tie
   assert.equal(result.generatedAt, NOW.toISOString());
 });
 
+test('distinguishes local test failures from environment failures', () => {
+  const project = makeProject({
+    id: 'project_local_failures',
+    testruns: [
+      makeTestRun({ id: 'run_test_failed', projectId: 'project_local_failures', status: 'failed' }),
+      makeTestRun({ id: 'run_environment_error', projectId: 'project_local_failures', status: 'environment-error' }),
+    ],
+  });
+  const items = buildActionQueue([project], { now: NOW, limit: 50 }).items;
+  assert.equal(items.find((item) => item.entityId === 'run_test_failed')?.reasonCode, 'test_failed');
+  assert.equal(items.find((item) => item.entityId === 'run_environment_error')?.reasonCode, 'provider_error');
+});
+
 test('hides superseded terminal attempts after a retry starts', () => {
   const project = makeProject({
     id: 'project_retry',
@@ -75,4 +88,10 @@ test('limit bounds and host evidence actions are deterministic', () => {
   const result = buildActionQueue([project], { now: NOW, limit: 50 });
   assert.equal(result.items[0].kind, 'evidence_incomplete');
   assert.equal(result.items[0].priority, 'critical');
+});
+
+test('workflow actions open the Action Desk instead of a project detail tab', () => {
+  const project = makeProject({ id: 'project_workflow_target', status: 'intake', assistant: { reminders: 'all' } });
+  const workflow = buildActionQueue([project], { now: NOW, limit: 50 }).items.find((item) => item.kind === 'workflow');
+  assert.deepEqual(workflow?.target, { view: 'assistant', tab: null, entityId: project.id });
 });

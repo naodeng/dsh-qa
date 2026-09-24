@@ -210,6 +210,40 @@ test('starts only through an explicit adapter and preserves the normalized reque
   assert.equal(unavailable.errorCode, 'provider_unavailable');
 });
 
+test('times out a Host adapter and signals cancellation instead of waiting forever', async () => {
+  const project = makeHostProject();
+  const request = { ...validRequest(project), timeoutMs: 20 };
+  let release;
+  let cancelCalls = 0;
+  let signal;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const starting = startHostExecution(project, request, {
+    id: 'fake-timeout-adapter',
+    provider: 'browser-use',
+    capabilities: ['navigate'],
+    start: async (_request, context) => {
+      signal = context.signal;
+      await gate;
+      return { status: 'passed' };
+    },
+    cancel: () => { cancelCalls += 1; },
+  });
+  try {
+    const execution = await Promise.race([
+      starting,
+      new Promise((resolve) => setTimeout(() => resolve(null), 100)),
+    ]);
+    assert.ok(execution, 'a timed-out adapter must settle without waiting for its promise');
+    assert.equal(execution.status, 'timed_out');
+    assert.equal(execution.errorCode, 'timeout');
+    assert.equal(cancelCalls, 1);
+    assert.equal(signal?.aborted, true);
+  } finally {
+    release();
+    await starting;
+  }
+});
+
 test('turns an explicit adapter null or undefined result into a provider error', async () => {
   const project = makeHostProject();
   const request = validRequest(project);

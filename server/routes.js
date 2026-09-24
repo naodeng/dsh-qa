@@ -171,7 +171,7 @@ function feedAndBroadcast(entry) {
 }
 
 // ---------- API 处理器（body 已由外层读取） ----------
-async function api(req, res, url, body) {
+async function api(req, res, url, body, hostAdapters, eventBroadcast = broadcast, actionQueueSource = store.listProjects) {
   const p = url.pathname;
   const m = (method) => req.method === method;
   const parts = p.split('/').filter(Boolean); // [api, ...]
@@ -215,7 +215,7 @@ async function api(req, res, url, body) {
     if (rawLimit !== null && !/^(?:[1-9]|[1-4][0-9]|50)$/.test(rawLimit)) return fail(res, 400, 'limit 必须是 1 到 50 的整数');
     const limit = rawLimit === null ? 50 : Number(rawLimit);
     try {
-      ok(res, readActionQueue(store, { limit }));
+      ok(res, readActionQueue(store, { limit, listProjects: actionQueueSource }));
     } catch (error) {
       if (error instanceof ActionQueueSourceError || error?.code === 'ACTION_QUEUE_SOURCE_UNAVAILABLE') return fail(res, 503, error.message, 'ACTION_QUEUE_SOURCE_UNAVAILABLE');
       throw error;
@@ -240,7 +240,7 @@ async function api(req, res, url, body) {
     return true;
   }
 
-  if (await handleQualityRoutes({ req, res, url, body, store, broadcast, emitProject, ok, created, accepted, fail })) return true;
+  if (await handleQualityRoutes({ req, res, url, body, store, hostAdapters, broadcast: eventBroadcast, emitProject, ok, created, accepted, fail })) return true;
 
   if (parts[1] === 'projects' && parts[2] && !parts[3]) {
     const c = store.getProject(parts[2]);
@@ -413,11 +413,11 @@ function staticFile(req, res, url) {
   fs.createReadStream(file).pipe(res);
 }
 
-export function handleRequest(req, res) {
+export function handleRequest(req, res, { hostAdapters, actionQueueSource, onBroadcast } = {}) {
   const url = new URL(req.url, 'http://localhost');
   if (url.pathname.startsWith('/api/')) {
     (req.method === 'POST' || req.method === 'PATCH' ? readBody(req) : Promise.resolve({}))
-      .then((body) => api(req, res, url, body))
+      .then((body) => api(req, res, url, body, hostAdapters, onBroadcast || broadcast, actionQueueSource || store.listProjects))
       .then((handled) => { if (!handled) fail(res, 404, '接口不存在'); })
       .catch((e) => fail(res, 400, String(e?.message || e)));
     return;

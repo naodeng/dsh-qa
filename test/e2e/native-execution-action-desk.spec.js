@@ -21,6 +21,62 @@ async function createHostFixture(page, title) {
   return { project, task, profile };
 }
 
+test('多质量任务的 Host 卡片和操作都绑定当前质量任务', async ({ page }) => {
+  const fixture = await createHostFixture(page, `Host 多任务绑定项目-${Date.now()}`);
+  const secondTaskResponse = await page.request.post(`/api/projects/${fixture.project.id}/quality-tasks`, { data: { title: 'Host second task' } });
+  expect(secondTaskResponse.ok()).toBeTruthy();
+  const { task: secondTask } = await secondTaskResponse.json();
+
+  const firstStartResponse = await page.request.post(`/api/projects/${fixture.project.id}/quality-tasks/${fixture.task.id}/host-executions`, { data: {
+    profileId: fixture.profile.id,
+    provider: 'browser-use',
+    capability: 'navigate',
+    target: 'https://example.test/first-task',
+    timeoutMs: 10_000,
+    expectedRevision: fixture.task.version,
+  } });
+  expect(firstStartResponse.status()).toBe(202);
+  const firstStarted = await firstStartResponse.json();
+
+  await page.goto('/');
+  await page.getByRole('button', { name: '项目看板' }).click();
+  await page.locator('.card').filter({ hasText: fixture.project.title }).click();
+  await page.locator('#project-detail-tabs button[data-detail-tab="qualityTasks"]').click();
+
+  const firstCard = page.locator(`#host-execution-card .host-profile-card[data-quality-task-id="${fixture.task.id}"]`);
+  const secondCard = page.locator(`#host-execution-card .host-profile-card[data-quality-task-id="${secondTask.id}"]`);
+  await expect(page.locator('#host-execution-card .host-profile-card')).toHaveCount(2);
+  await expect(firstCard).toContainText('Host checkout smoke');
+  await expect(secondCard).toContainText('Host second task');
+  await expect(firstCard.locator('[data-host-retry]')).toBeVisible();
+
+  page.on('dialog', (dialog) => dialog.accept());
+  const secondPreviewPath = `/api/projects/${fixture.project.id}/quality-tasks/${secondTask.id}/host-executions/preview`;
+  const secondStartPath = `/api/projects/${fixture.project.id}/quality-tasks/${secondTask.id}/host-executions`;
+  const previewResponsePromise = page.waitForResponse((response) => response.request().method() === 'POST'
+    && new URL(response.url()).pathname === secondPreviewPath);
+  const startResponsePromise = page.waitForResponse((response) => response.request().method() === 'POST'
+    && new URL(response.url()).pathname === secondStartPath
+    && response.status() === 202);
+  await secondCard.locator('[data-host-target]').fill('https://example.test/second-task');
+  await secondCard.locator('[data-host-preview]').click();
+  const [previewResponse, startResponse] = await Promise.all([previewResponsePromise, startResponsePromise]);
+  expect(previewResponse.status()).toBe(200);
+  const preview = await previewResponse.json();
+  expect(preview.preview.qualityTaskId).toBe(secondTask.id);
+  const secondStarted = await startResponse.json();
+  expect(secondStarted.execution.qualityTaskId).toBe(secondTask.id);
+
+  const firstRetryPath = `/api/projects/${fixture.project.id}/host-executions/${firstStarted.execution.id}/retry`;
+  const retryResponsePromise = page.waitForResponse((response) => response.request().method() === 'POST'
+    && new URL(response.url()).pathname === firstRetryPath
+    && response.status() === 202);
+  await firstCard.locator('[data-host-retry]').click();
+  const retryResponse = await retryResponsePromise;
+  const retried = await retryResponse.json();
+  expect(retried.execution.qualityTaskId).toBe(fixture.task.id);
+});
+
 test('Action Queue receives a missing Host adapter result without a page reload', async ({ page }) => {
   const fixture = await createHostFixture(page, `Action Queue live project-${Date.now()}`);
   await page.goto('/');
@@ -115,4 +171,19 @@ test('Host 缺失目标在界面显示可验证错误且不会启动', async ({ 
   expect(projectResponse.ok()).toBeTruthy();
   const projectBody = await projectResponse.json();
   expect(projectBody.project.hostExecutions).toHaveLength(0);
+});
+
+test('首页 Action Desk 入口打开完整行动队列', async ({ page }) => {
+  const titles = Array.from({ length: 6 }, (_, index) => `Action Desk 全量项目-${Date.now()}-${index}`);
+  for (const title of titles) {
+    const response = await page.request.post('/api/projects', { data: { title, createWorkspace: false } });
+    expect(response.ok()).toBeTruthy();
+  }
+
+  await page.goto('/');
+  await expect(page.locator('#dashboard-reminders .action-item')).toHaveCount(5);
+  await page.getByRole('button', { name: '打开行动台' }).click();
+  await expect(page.locator('#action-desk-modal')).toBeVisible();
+  await expect(page.locator('#action-desk-modal .action-item').filter({ hasText: titles[0] })).toHaveCount(1);
+  await expect(page.locator('#action-desk-modal .action-item').filter({ hasText: titles[5] })).toHaveCount(1);
 });

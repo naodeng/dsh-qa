@@ -11,7 +11,27 @@ process.env.QA_DATA_DIR = dataDir;
 process.env.DSH_SKILLS_DIR = skillsDir;
 const { startQaBench, closeQaBench } = await import('../../server/index.js');
 const store = await import('../../server/store.js');
-const started = await startQaBench({ port: 0, openBrowser: false, log: () => {} });
+const { ActionQueueSourceError } = await import('../../server/action-queue.js');
+let actionQueueUnavailable = false;
+const hostAdapters = new Map([['browser-use:navigate', {
+  id: 'test-only-http-browser-use-navigate',
+  provider: 'browser-use',
+  capabilities: ['navigate'],
+  start: async (_request, context) => {
+    const written = context.writeArtifact('http-run.log', 'embedded host pass');
+    return { status: 'passed', artifacts: [{ type: 'log', mimeType: 'text/plain', ...written }] };
+  },
+}]]);
+const started = await startQaBench({
+  port: 0,
+  openBrowser: false,
+  hostAdapters,
+  actionQueueSource: () => {
+    if (actionQueueUnavailable) throw new ActionQueueSourceError('test source unavailable');
+    return store.listProjects();
+  },
+  log: () => {},
+});
 const base = `http://127.0.0.1:${started.server.address().port}`;
 
 test.after(async () => { await new Promise((resolve) => setTimeout(resolve, 100)); await closeQaBench(started.server); fs.rmSync(dataDir, { recursive: true, force: true }); fs.rmSync(skillsDir, { recursive: true, force: true }); });
@@ -29,14 +49,14 @@ test('app info exposes the installed version, compatibility, links, and descendi
   assert.equal(payload.websiteEnUrl, 'https://inaodeng.com/en/dsh-qa/');
   assert.ok(Array.isArray(payload.releases));
   assert.ok(payload.releases.length >= 3);
-  assert.equal(payload.releases[0].version, '0.5.3');
-  assert.match(payload.releases[0].date, /^2026-09-23$/);
-  assert.match(payload.releases[0].publishedAt, /^2026-09-23T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  assert.equal(payload.releases[0].version, '0.5.4');
+  assert.match(payload.releases[0].date, /^2026-09-24$/);
+  assert.match(payload.releases[0].publishedAt, /^2026-09-24T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   assert.equal(typeof payload.releases[0].summaryZh, 'string');
   assert.equal(typeof payload.releases[0].summaryEn, 'string');
-  assert.match(payload.releases[0].summaryZh, /安静|视觉|工作台/);
-  assert.match(payload.releases[0].summaryEn, /Quiet Studio|workbench/i);
-  assert.match(payload.releases[0].detailUrl, /github\.com\/naodeng\/dsh-qa\/releases\/tag\/v0\.5\.3$/);
+  assert.match(payload.releases[0].summaryZh, /修复|Harness|quality-control/);
+  assert.match(payload.releases[0].summaryEn, /quality-control|section/i);
+  assert.match(payload.releases[0].detailUrl, /github\.com\/naodeng\/dsh-qa\/releases\/tag\/v0\.5\.4$/);
   for (let index = 1; index < payload.releases.length; index += 1) {
     assert.ok(
       Date.parse(payload.releases[index - 1].publishedAt) >= Date.parse(payload.releases[index].publishedAt),
@@ -54,6 +74,66 @@ test('project API creates projects and rejects invalid input', async () => {
   const created = await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'API 项目', createWorkspace: false }) });
   assert.equal(created.status, 200);
   assert.equal((await created.json()).project.title, 'API 项目');
+});
+
+test('embedded server uses injected Host adapters and finalizes passed evidence', async () => {
+  const projectResponse = await fetch(`${base}/api/projects`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: 'Injected Host API project', createWorkspace: false }),
+  });
+  const { project } = await projectResponse.json();
+  const task = (await (await fetch(`${base}/api/projects/${project.id}/quality-tasks`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: 'Injected Host task' }),
+  })).json()).task;
+  const profile = (await (await fetch(`${base}/api/projects/${project.id}/execution-profiles`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      name: 'injected browser host',
+      kind: 'host',
+      provider: 'browser-use',
+      capabilities: ['navigate'],
+      targetPolicy: { origins: ['https://example.test'] },
+      artifactPolicy: { logs: true, screenshots: false, trace: false },
+      timeoutMs: 10_000,
+    }),
+  })).json()).profile;
+  const response = await fetch(`${base}/api/projects/${project.id}/quality-tasks/${task.id}/host-executions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      profileId: profile.id,
+      provider: 'browser-use',
+      capability: 'navigate',
+      target: 'https://example.test/checkout',
+      timeoutMs: 10_000,
+      artifactPolicy: { logs: true, screenshots: false, trace: false },
+      expectedRevision: task.version,
+    }),
+  });
+  assert.equal(response.status, 202);
+  const startedPayload = await response.json();
+  assert.ok(['queued', 'running'].includes(startedPayload.execution.status));
+
+  let detail;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    detail = await (await fetch(`${base}/api/projects/${project.id}`)).json();
+    const execution = detail.project.hostExecutions.find((item) => item.id === startedPayload.execution.id);
+    const run = detail.project.testruns.find((item) => item.id === execution?.testRunId);
+    const evidence = detail.project.evidenceBundles.find((item) => item.testRunId === run?.id);
+    if (execution?.status === 'passed' && evidence?.state === 'ready') break;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  const execution = detail.project.hostExecutions.find((item) => item.id === startedPayload.execution.id);
+  const run = detail.project.testruns.find((item) => item.id === execution.testRunId);
+  const evidence = detail.project.evidenceBundles.find((item) => item.testRunId === run.id);
+  assert.equal(execution.status, 'passed');
+  assert.equal(run.status, 'passed');
+  assert.equal(evidence.state, 'ready');
+  assert.equal(evidence.integrity, 'verified');
 });
 
 test('board API exposes created project and rejects invalid transition', async () => {
@@ -90,6 +170,20 @@ test('action queue API returns bounded read-only canonical items', async () => {
     const invalid = await fetch(`${base}/api/action-queue?limit=${limit}`);
     assert.equal(invalid.status, 400);
     assert.equal((await invalid.json()).ok, false);
+  }
+});
+
+test('action queue API exposes typed source failures as 503', async () => {
+  actionQueueUnavailable = true;
+  try {
+    const response = await fetch(`${base}/api/action-queue`);
+    assert.equal(response.status, 503);
+    const payload = await response.json();
+    assert.equal(payload.ok, false);
+    assert.equal(payload.code, 'ACTION_QUEUE_SOURCE_UNAVAILABLE');
+    assert.equal(payload.error, 'test source unavailable');
+  } finally {
+    actionQueueUnavailable = false;
   }
 });
 

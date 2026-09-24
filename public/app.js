@@ -48,7 +48,7 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
   const RELEASE_PAGE_SIZE = 5;
   const RELEASE_SEEN_KEY = 'dsh-qa-release-seen';
   const DEFAULT_APP_INFO = {
-    currentVersion: '0.5.2', latestVersion: '0.5.2', isOutdated: false,
+    currentVersion: '0.5.4', latestVersion: '0.5.4', isOutdated: false,
     dshVersion: 'dsh-v0.1.7-alpha.1',
     repositoryUrl: 'https://github.com/naodeng/dsh-qa',
     websiteZhUrl: 'https://inaodeng.com/zh-cn/dsh-qa/',
@@ -396,9 +396,19 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
       ? t('action.reason.default')
       : t(`action.reason.${item.reasonCode}`, item.reasonArgs || {});
   }
+  function actionItemMarkup(item) {
+    const severity = actionPriorityClass(item);
+    const status = actionStatusLabel(item.status);
+    return `<button class="attention-item action-item ${severity}" data-action-id="${esc(item.id)}" type="button">
+      <span class="attention-mark">${tinyIcon(item.kind.startsWith('gate_') ? 'gate' : item.kind.startsWith('milestone_') ? 'milestone' : 'workflow')}</span>
+      <div class="action-copy"><div class="attention-title">${esc(actionTitle(item))}</div><div class="attention-meta">${esc(item.projectTitle)} · ${esc(actionReason(item))}</div></div>
+      <span class="attention-action">${item.actionRequired ? esc(t('action.needsAction')) : esc(t('action.monitoring'))}</span>
+      <span class="attention-time">${esc(status)}</span>
+    </button>`;
+  }
   function openActionItem(item) {
     const target = item?.target || {};
-    const allowedTabs = new Set(['overview', 'qualityTasks', 'requirements', 'testcases', 'defects', 'milestones', 'reports', 'knowledge', 'minutes', 'gates']);
+    const allowedTabs = new Set(['overview', 'qualityTasks', 'milestones', 'gates']);
     if (!item?.projectId) return toast(t('action.targetUnavailable'), 'err');
     if (target.view === 'project-detail' && allowedTabs.has(target.tab)) {
       openProjectDetail(item.projectId, 'dashboard').then(() => {
@@ -408,7 +418,7 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
       }).catch((error) => toast(error.message, 'err'));
       return;
     }
-    if (target.view === 'dsh') {
+    if (target.view === 'assistant' && target.tab === null) {
       openProject(item.projectId);
       return;
     }
@@ -447,16 +457,7 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
       : '';
     const content = state.actionQueueError && !items.length
       ? emptyHtml(t('action.queueUnavailable'))
-      : items.length ? items.map((item) => {
-        const severity = actionPriorityClass(item);
-        const status = actionStatusLabel(item.status);
-        return `<button class="attention-item action-item ${severity}" data-action-id="${esc(item.id)}" type="button">
-          <span class="attention-mark">${tinyIcon(item.kind.startsWith('gate_') ? 'gate' : item.kind.startsWith('milestone_') ? 'milestone' : 'workflow')}</span>
-          <div class="action-copy"><div class="attention-title">${esc(actionTitle(item))}</div><div class="attention-meta">${esc(item.projectTitle)} · ${esc(actionReason(item))}</div></div>
-          <span class="attention-action">${item.actionRequired ? esc(t('action.needsAction')) : esc(t('action.monitoring'))}</span>
-          <span class="attention-time">${esc(status)}</span>
-        </button>`;
-      }).join('') : emptyHtml(t('action.empty'));
+      : items.length ? items.map(actionItemMarkup).join('') : emptyHtml(t('action.empty'));
     list.innerHTML = `${errorNotice}${content}`;
     $$('.action-item', list).forEach((el) => el.addEventListener('click', () => openActionItem(state.actionQueue.find((item) => item.id === el.dataset.actionId))));
     const alertCount = state.actionQueue.filter((item) => item.actionRequired).length;
@@ -1162,28 +1163,34 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
       return null;
     };
     const hostProfiles = (p.executionProfiles || []).filter((profile) => profile.kind === 'host');
-    const latestHostExecution = (profile) => [...(p.hostExecutions || [])]
-      .filter((execution) => execution.profileId === profile.id && !execution.supersededBy)
+    const hostExecutionTaskId = (execution) => execution?.qualityTaskId || execution?.request?.qualityTaskId || execution?.provenance?.qualityTaskId;
+    const latestHostExecution = (profile, qualityTaskId) => [...(p.hostExecutions || [])]
+      .filter((execution) => execution.profileId === profile.id && hostExecutionTaskId(execution) === qualityTaskId && !execution.supersededBy)
       .sort((left, right) => String(left.updatedAt || '').localeCompare(String(right.updatedAt || '')) || Number(left.revision || 0) - Number(right.revision || 0))
       .at(-1);
-    const hostSection = `<section class="detail-card execution-card host-execution-card" id="host-execution-card"><div class="detail-card-head"><div><span>HOST EXECUTION</span><h3>${q('Host 执行配置', 'Host execution profiles')}</h3><p class="field-note">${q('由宿主能力执行受控目标；结果和证据由服务端确认。', 'Run controlled targets through host capabilities; the server confirms results and evidence.')}</p></div><button class="btn primary sm" id="host-ep-add" type="button">＋ ${q('新建 Host 配置', 'New Host profile')}</button></div><div class="list">${hostProfiles.map((profile) => {
+    const hostCards = tasks.length ? hostProfiles.flatMap((profile) => tasks.map((task) => {
       const version = hostProfileVersion(profile);
-      const execution = latestHostExecution(profile);
+      const execution = latestHostExecution(profile, task.id);
       const targetValue = version.provider === 'mcp' ? '{"serverId":"server_1","toolName":"inspect"}' : (version.targetPolicy?.origins?.[0] || 'https://example.test/');
       const capability = version.capabilities?.[0] || '';
-      const canStart = Boolean(tasks[0]);
       const running = ['queued', 'running'].includes(execution?.status);
       const terminal = execution && !running;
       const evidenceState = hostEvidenceStatus(execution);
-      return `<article class="list-item host-profile-card" data-host-profile-id="${esc(profile.id)}"><div class="li-title">${esc(version.name || profile.name)} · v${esc(version.version || profile.currentVersion || 1)} <span class="badge">${esc(version.provider)}</span></div><div class="li-meta"><span>${q('能力', 'Capability')}：${esc(capability)}</span><span>${q('超时', 'Timeout')}：${Number(version.timeoutMs || 0)}ms</span><span>${q('证据', 'Evidence')}：${Object.entries(version.artifactPolicy || {}).filter(([, enabled]) => enabled).map(([key]) => key).join(', ') || q('无', 'none')}</span></div><div class="host-run-controls"><div class="field"><label>${q('目标', 'Target')}</label><input data-host-target type="text" value="${esc(targetValue)}" placeholder="${esc(version.provider === 'mcp' ? t('host.mcpTargetPlaceholder') : t('host.targetPlaceholder'))}" ${canStart ? '' : 'disabled'}/></div><select data-host-capability aria-label="${esc(q('宿主能力', 'Host capability'))}" ${canStart ? '' : 'disabled'}>${(version.capabilities || []).map((item) => `<option value="${esc(item)}">${esc(item)}</option>`).join('')}</select><button class="btn primary sm" data-host-preview type="button" ${canStart ? '' : 'disabled'}>${q('预览并执行', 'Preview and run')}</button></div><div class="host-run-status" data-host-status><span class="badge ${running ? 'warn' : terminal && execution.status !== 'passed' ? 'danger' : ''}">${q('状态', 'Status')}：${esc(hostStatusLabel(execution?.status))}</span>${evidenceState ? `<span class="badge ${evidenceState.className}">${esc(evidenceState.label)}</span>` : ''}${execution?.updatedAt ? `<span class="li-meta-inline">${esc(fmtTime(execution.updatedAt))}</span>` : ''}${execution?.errorSummary ? `<span class="li-meta-inline">${esc(execution.errorSummary)}</span>` : ''}${running ? `<button class="btn sm danger" data-host-cancel type="button">${q('取消执行', 'Cancel execution')}</button>` : ''}${terminal ? `<button class="btn sm" data-host-retry type="button">${q('重试', 'Retry')}</button>` : ''}</div></article>`;
-    }).join('') || emptyHtml(q('暂无 Host 执行配置', 'No Host execution profiles yet'))}</div><p class="field-note host-evidence-note">${q('首页不把 Host 返回当作最终交付结论；证据包必须经过服务端校验。', 'The dashboard does not treat a Host response as a final delivery verdict; evidence must pass server-side verification.')}</p></section>`;
+      return `<article class="list-item host-profile-card" data-host-profile-id="${esc(profile.id)}" data-quality-task-id="${esc(task.id)}"><div class="li-title">${esc(version.name || profile.name)} · ${q('质量任务', 'Quality task')}：${esc(task.title || task.id)} · v${esc(version.version || profile.currentVersion || 1)} <span class="badge">${esc(version.provider)}</span></div><div class="li-meta"><span>${q('能力', 'Capability')}：${esc(capability)}</span><span>${q('超时', 'Timeout')}：${Number(version.timeoutMs || 0)}ms</span><span>${q('证据', 'Evidence')}：${Object.entries(version.artifactPolicy || {}).filter(([, enabled]) => enabled).map(([key]) => key).join(', ') || q('无', 'none')}</span></div><div class="host-run-controls"><div class="field"><label>${q('目标', 'Target')}</label><input data-host-target type="text" value="${esc(targetValue)}" placeholder="${esc(version.provider === 'mcp' ? t('host.mcpTargetPlaceholder') : t('host.targetPlaceholder'))}" /></div><select data-host-capability aria-label="${esc(q('宿主能力', 'Host capability'))}">${(version.capabilities || []).map((item) => `<option value="${esc(item)}">${esc(item)}</option>`).join('')}</select><button class="btn primary sm" data-host-preview type="button">${q('预览并执行', 'Preview and run')}</button></div><div class="host-run-status" data-host-status><span class="badge ${running ? 'warn' : terminal && execution.status !== 'passed' ? 'danger' : ''}">${q('状态', 'Status')}：${esc(hostStatusLabel(execution?.status))}</span>${evidenceState ? `<span class="badge ${evidenceState.className}">${esc(evidenceState.label)}</span>` : ''}${execution?.updatedAt ? `<span class="li-meta-inline">${esc(fmtTime(execution.updatedAt))}</span>` : ''}${execution?.errorSummary ? `<span class="li-meta-inline">${esc(execution.errorSummary)}</span>` : ''}${running ? `<button class="btn sm danger" data-host-cancel type="button">${q('取消执行', 'Cancel execution')}</button>` : ''}${terminal ? `<button class="btn sm" data-host-retry type="button">${q('重试', 'Retry')}</button>` : ''}</div></article>`;
+    })).join('') : hostProfiles.map((profile) => {
+      const version = hostProfileVersion(profile);
+      return `<article class="list-item host-profile-card" data-host-profile-id="${esc(profile.id)}"><div class="li-title">${esc(version.name || profile.name)} · v${esc(version.version || profile.currentVersion || 1)} <span class="badge">${esc(version.provider)}</span></div><p class="field-note">${q('请先创建质量任务，再开始 Host 执行。', 'Create a quality task before starting a Host execution.')}</p></article>`;
+    }).join('');
+    const hostSection = `<section class="detail-card execution-card host-execution-card" id="host-execution-card"><div class="detail-card-head"><div><span>HOST EXECUTION</span><h3>${q('Host 执行配置', 'Host execution profiles')}</h3><p class="field-note">${q('由宿主能力执行受控目标；结果和证据由服务端确认。', 'Run controlled targets through host capabilities; the server confirms results and evidence.')}</p></div><button class="btn primary sm" id="host-ep-add" type="button">＋ ${q('新建 Host 配置', 'New Host profile')}</button></div><div class="list">${hostCards || emptyHtml(q('暂无 Host 执行配置', 'No Host execution profiles yet'))}</div><p class="field-note host-evidence-note">${q('首页不把 Host 返回当作最终交付结论；证据包必须经过服务端校验。', 'The dashboard does not treat a Host response as a final delivery verdict; evidence must pass server-side verification.')}</p></section>`;
     body.insertAdjacentHTML('beforeend', hostSection);
     $('.execution-card:not(.host-execution-card) .list', body).innerHTML = (p.executionProfiles || []).filter((profile) => profile.kind !== 'host').map((profile) => `<div class="list-item"><div class="li-title">${esc(profile.name)} · v${profile.currentVersion || profile.version || 1}</div></div>`).join('') || emptyHtml(q('暂无执行配置', 'No execution profiles'));
-    const runHostExecution = async (profile, targetValue, capability, action = 'start') => {
-      const task = tasks[0];
+    const runHostExecution = async (profile, qualityTaskId, targetValue, capability, action = 'start', card) => {
+      const task = tasks.find((item) => item.id === qualityTaskId);
       if (!task) return toast(q('请先创建质量任务。', 'Create a quality task first.'), 'err');
       const version = hostProfileVersion(profile);
-      const busyKey = `host-${action}:${profile.id}`;
+      const execution = action === 'start' ? null : latestHostExecution(profile, qualityTaskId);
+      if (action !== 'start' && !execution) return toast(q('当前质量任务没有可用的 Host 执行。', 'No Host execution is available for this quality task.'), 'err');
+      const busyKey = `host-${action}:${profile.id}:${qualityTaskId}`;
       if (state.busy.has(busyKey)) return;
       let request;
       if (action === 'start') {
@@ -1195,7 +1202,7 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
         request = { profileId: profile.id, provider: version.provider, capability, target, timeoutMs: version.timeoutMs, expectedRevision: task.version };
       }
       state.busy.add(busyKey);
-      $$(`[data-host-profile-id="${CSS.escape(profile.id)}"] button`, body).forEach((button) => { if (button.matches('[data-host-preview], [data-host-retry], [data-host-cancel]')) button.disabled = true; });
+      $$('[data-host-preview], [data-host-retry], [data-host-cancel]', card).forEach((button) => { button.disabled = true; });
       try {
         if (action === 'start') {
           const preview = await api(`api/projects/${p.id}/quality-tasks/${task.id}/host-executions/preview`, { method: 'POST', body: request });
@@ -1203,27 +1210,26 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
           if (!confirm(`${q('执行预览', 'Execution preview')}：${availability}\n${q('确认开始 Host 执行吗？', 'The preview is ready. Start the Host execution?')}`)) return;
           await api(`api/projects/${p.id}/quality-tasks/${task.id}/host-executions`, { method: 'POST', body: request });
         } else if (action === 'retry') {
-          const execution = latestHostExecution(profile);
-          await api(`api/projects/${p.id}/host-executions/${execution.id}/retry`, { method: 'POST', body: { expectedRevision: execution.revision } });
+          await api(`api/projects/${p.id}/host-executions/${execution.id}/retry`, { method: 'POST', body: { expectedRevision: execution.revision, qualityTaskRevision: task.version } });
         } else {
-          const execution = latestHostExecution(profile);
           await api(`api/projects/${p.id}/host-executions/${execution.id}/cancel`, { method: 'POST', body: { expectedRevision: execution.revision } });
         }
         await refreshAfterMutation(p.id);
       } catch (error) { toast(error.message, 'err'); }
       finally {
         state.busy.delete(busyKey);
-        $$(`[data-host-profile-id="${CSS.escape(profile.id)}"] button`, body).forEach((button) => { if (button.matches('[data-host-preview], [data-host-retry], [data-host-cancel]')) button.disabled = false; });
+        $$('[data-host-preview], [data-host-retry], [data-host-cancel]', card).forEach((button) => { button.disabled = false; });
       }
     };
     $('#host-ep-add', body)?.addEventListener('click', () => openHostExecutionProfileModal(p));
     $$('.host-profile-card', body).forEach((card) => {
       const profile = hostProfiles.find((item) => item.id === card.dataset.hostProfileId);
+      const qualityTaskId = card.dataset.qualityTaskId;
       const targetInput = $('[data-host-target]', card);
       const capabilitySelect = $('[data-host-capability]', card);
-      $('[data-host-preview]', card)?.addEventListener('click', () => runHostExecution(profile, targetInput.value, capabilitySelect.value));
-      $('[data-host-retry]', card)?.addEventListener('click', () => runHostExecution(profile, targetInput.value, capabilitySelect.value, 'retry'));
-      $('[data-host-cancel]', card)?.addEventListener('click', () => runHostExecution(profile, targetInput.value, capabilitySelect.value, 'cancel'));
+      $('[data-host-preview]', card)?.addEventListener('click', () => runHostExecution(profile, qualityTaskId, targetInput.value, capabilitySelect.value, 'start', card));
+      $('[data-host-retry]', card)?.addEventListener('click', () => runHostExecution(profile, qualityTaskId, targetInput.value, capabilitySelect.value, 'retry', card));
+      $('[data-host-cancel]', card)?.addEventListener('click', () => runHostExecution(profile, qualityTaskId, targetInput.value, capabilitySelect.value, 'cancel', card));
     });
     const gateCard = $('#quality-gate-summary', body);
     if (gateCard) {
@@ -1491,6 +1497,34 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
       (first || modal).focus();
     }, 0);
     return modal;
+  }
+  async function openActionDesk() {
+    const modal = modalShell(t('action.deskTitle'), t('action.deskSub'), `
+      <div id="action-desk-list" class="action-desk-list"></div>
+      <div class="modal-foot"><button class="btn primary" id="action-desk-close" type="button">${esc(t('modal.close'))}</button></div>`, true);
+    modal.id = 'action-desk-modal';
+    const render = () => {
+      const list = $('#action-desk-list', modal);
+      if (!list) return;
+      if (!state.actionQueueLoaded) {
+        list.innerHTML = state.actionQueueError
+          ? emptyHtml(t('action.queueUnavailable'))
+          : `<div class="action-queue-error" role="status">${esc(t('action.queueLoading'))}</div>`;
+      } else {
+        list.innerHTML = state.actionQueue.length ? state.actionQueue.map(actionItemMarkup).join('') : emptyHtml(t('action.empty'));
+      }
+      $$('.action-item', list).forEach((el) => el.addEventListener('click', () => {
+        const item = state.actionQueue.find((entry) => entry.id === el.dataset.actionId);
+        closeModal();
+        openActionItem(item);
+      }));
+    };
+    $('#action-desk-close', modal).addEventListener('click', closeModal);
+    render();
+    if (!state.actionQueueLoaded) {
+      await refreshActionQueue({ render: false });
+      if ($('#action-desk-modal') === modal) render();
+    }
   }
   async function openDshCapabilities() {
     if (!state.activeProject) return toast('请先选择项目', 'err');
@@ -1889,6 +1923,7 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
     $('#skills-search').addEventListener('input', (event) => { state.skillSearch = event.target.value; renderSkills(); });
     $('#skills-list').addEventListener('click', (event) => { const installButton = event.target.closest('[data-skill-name]'); if (installButton) installSkill(installButton.dataset.skillName); const uninstallButton = event.target.closest('[data-uninstall-skill]'); if (uninstallButton) uninstallSkill(uninstallButton.dataset.uninstallSkill); });
     $$('[data-view-jump]').forEach((button) => button.addEventListener('click', () => switchView(button.dataset.viewJump)));
+    $('[data-action-desk-open]').addEventListener('click', openActionDesk);
     ['#btn-new-case', '#btn-new-case-mini', '#btn-new-case-side', '#btn-new-case-board'].forEach((selector) => $(selector).addEventListener('click', () => openNewProject(false)));
     $('#btn-new-iteration').addEventListener('click', () => openNewProject(true));
     $('#btn-open-ai').addEventListener('click', () => { switchView('assistant'); if (state.activeProject) initializeDshChat({ initialize: true }).catch((error) => toast(error.message, 'err')); });

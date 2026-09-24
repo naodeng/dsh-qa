@@ -100,6 +100,11 @@ test('quality-control is an independent Harness 0.1.7 bundle', () => {
   assert.match(qualityControlPreset, /- id: preset-quality-control\n\s+name: '@deepseek-ai\/dsh-agent-preset'/);
   assert.match(qualityControlPreset, /config:\n\s+id: quality-control[\s\S]*?order: 6[\s\S]*?plugins:/);
   assert.match(qualityControlPreset, /- id: persona\n\s+name: '@deepseek-ai\/dsh-persona'\n\s+config:\n\s+prefix:/);
+  assert.match(
+    qualityControlPreset,
+    /- id: plan-mode\n\s+name: '@deepseek-ai\/dsh-plan-mode'\n\s+config:\n\s+section:\s*\|\n\s+\S/,
+    'quality-control plan mode must provide a non-empty section config',
+  );
   assert.doesNotMatch(qualityControlPreset, /^\s+text:/m, 'quality-control still uses the retired text config key');
   assert.doesNotMatch(qualityControlPreset, /dsh-workflow-worker-thread/);
   assert.match(qualityControlPreset, /- id: workflow-ptc\n\s+name: '@deepseek-ai\/dsh-workflow-ptc'/);
