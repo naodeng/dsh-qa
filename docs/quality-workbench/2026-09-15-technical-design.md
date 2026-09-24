@@ -132,7 +132,12 @@ Panel renderer 使用 Harness 提供的 `react` runtime；dsh-qa 不新增或打
 }
 ```
 
-服务端只接受已登记 Execution Profile 允许的 provider/capability；未列入白名单、超时或目标越界直接拒绝。
+`project.executionProfiles` 仍是唯一 Profile 存储位置。没有 `kind` 的历史 profile
+按 `local` 处理，现有 node-test/Playwright runner 不变；Native profile 使用
+`kind: 'host'`，当前版本保存 provider、capabilities、targetPolicy、artifactPolicy
+和 timeoutMs。服务端只接受已登记 Host Profile 允许的 provider/capability；Browser
+Use/Computer Use 目标必须命中 origin allowlist，MCP 目标必须是登记的 server/tool，
+未列入白名单、超时或目标越界直接拒绝。
 
 ### 5.2 Result mapping
 
@@ -146,6 +151,16 @@ HostExecutionResult
 
 Host 错误、取消、断线、重试和部分产物都保存状态。`imported-summary` 或未经验证的 host summary 不能满足 Gate 的 required evidence。
 
+Host 的 `passed` 结果必须先有完整 provenance，并经现有 `finalizeEvidence()` 生成
+`ready`/`verified` EvidenceBundle 后才可能被 Gate 接受；`failed`、`cancelled`、
+`timed_out`、`provider_error`、`blocked` 和 `not_run` 分别映射到现有 TestRun 的
+受控失败状态，不能被降级为 PASS。Gate 接受 `controlled-local` 和
+`controlled-host` 两种受控运行信任级别，但 Host 额外要求对应 verified evidence。
+
+HostExecution 保存于项目级 `hostExecutions` 集合；旧项目迁移为空数组。Host API
+通过现有 quality route handler 提供 preview/start/status/cancel/retry，Host 状态事件
+和 TestRun 状态事件分离；没有真实 adapter 时只返回受控 `BLOCKED`/`NOT_RUN`。
+
 ### 5.3 Action Queue
 
 `buildActionQueue(snapshot, { now, limit })` 是只读纯函数，返回稳定排序的
@@ -154,9 +169,10 @@ Host 错误、取消、断线、重试和部分产物都保存状态。`imported
 持久化第二套 `actionItems` 模型。
 
 `GET /api/action-queue?limit=1..50` 返回 `{ ok, items, generatedAt }`；非法 `limit`
-返回 `400`，数据源不可用返回 `503`，不能用空队列掩盖故障。排序键固定为
-`priorityRank(desc) → actionRequired(desc) → statusRank(desc) → dueAt(asc,
-null-last) → projectId(asc) → entityId(asc)`，优先级和状态等级沿用 0.6 设计规格。
+返回 `400`，数据源不可用返回 `503` 和 `ACTION_QUEUE_SOURCE_UNAVAILABLE`，不能用空
+队列掩盖故障。排序键固定为 `priorityRank(desc) → actionRequired(desc) →
+statusRank(desc) → dueAt(asc, null-last) → projectId(asc) → entityId(asc)`，优先级和
+状态等级沿用 0.6 设计规格。
 旧 `GET /api/board` 的 `reminders` 由唯一的 `toLegacyReminders(items)` 兼容投影
 提供，保留 `type/title/date/severity/days/projectId/projectTitle` 字段；首页不依赖
 这些旧字段。
