@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { makeProject } from '../helpers/quality-fixtures.js';
@@ -209,6 +210,24 @@ test('starts only through an explicit adapter and preserves the normalized reque
   assert.equal(unavailable.errorCode, 'provider_unavailable');
 });
 
+test('turns an explicit adapter null or undefined result into a provider error', async () => {
+  const project = makeHostProject();
+  const request = validRequest(project);
+
+  for (const emptyResult of [undefined, null]) {
+    const execution = await startHostExecution(project, request, {
+      id: 'fake-empty-result',
+      provider: 'browser-use',
+      capabilities: ['navigate'],
+      start: async () => emptyResult,
+    });
+
+    assert.equal(execution.status, 'provider_error');
+    assert.equal(execution.errorCode, 'provider_error');
+    assert.match(execution.errorSummary, /adapter|result|结果/i);
+  }
+});
+
 test('maps host results to controlled-host TestRun patches without creating verdicts', () => {
   const project = makeHostProject();
   const hostExecution = {
@@ -269,4 +288,39 @@ test('maps frozen host statuses to existing TestRun names and rejects uncontroll
   assert.throws(() => mapHostExecutionResult(project, { ...hostExecution, artifactPolicy: { logs: false, screenshots: true, trace: true } }, {
     status: 'passed', artifacts: [{ relativePath: 'run.log', type: 'log' }],
   }), /artifact|产物|policy|策略/i);
+});
+
+test('requires normalized artifact policy and rejects staging or descriptor symlink escapes', (t) => {
+  const artifactRootForTest = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-host-artifact-root-'));
+  const outsideRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-host-artifact-outside-'));
+  t.after(() => {
+    fs.rmSync(artifactRootForTest, { recursive: true, force: true });
+    fs.rmSync(outsideRoot, { recursive: true, force: true });
+  });
+
+  const project = makeHostProject({ artifactRoot: artifactRootForTest });
+  const stagingRoot = path.join(artifactRootForTest, 'host_3.staging');
+  fs.mkdirSync(stagingRoot, { recursive: true });
+  const hostExecution = {
+    id: 'host_3',
+    provider: 'browser-use',
+    capability: 'navigate',
+    profileVersion: 2,
+    stagingRoot,
+    artifactPolicy: { logs: true, screenshots: true, trace: true },
+  };
+  const logResult = { status: 'passed', artifacts: [{ relativePath: 'run.log', type: 'log' }] };
+
+  assert.throws(() => mapHostExecutionResult(project, { ...hostExecution, artifactPolicy: { logs: true } }, logResult), /artifact|policy|策略/i);
+  assert.throws(() => mapHostExecutionResult(project, { ...hostExecution, artifactPolicy: undefined }, logResult), /artifact|policy|策略/i);
+
+  fs.symlinkSync(outsideRoot, path.join(stagingRoot, 'linked'), 'dir');
+  assert.throws(() => mapHostExecutionResult(project, hostExecution, {
+    status: 'passed',
+    artifacts: [{ relativePath: 'linked/escape.log', type: 'log' }],
+  }), /artifact|path|symlink|路径|受控/i);
+
+  const stagingLink = path.join(artifactRootForTest, 'host-link.staging');
+  fs.symlinkSync(outsideRoot, stagingLink, 'dir');
+  assert.throws(() => mapHostExecutionResult(project, { ...hostExecution, stagingRoot: stagingLink }, logResult), /artifact|path|symlink|路径|受控/i);
 });

@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { now, uid } from '../store.js';
 import {
@@ -11,6 +12,7 @@ const HOST_STATUSES = new Set(['queued', 'running', 'passed', 'failed', 'cancell
 const REQUEST_FIELDS = ['profileId', 'provider', 'capability', 'target', 'timeoutMs', 'artifactPolicy', 'expectedRevision', 'attemptGroupId'];
 const RESULT_FIELDS = ['status', 'artifacts', 'errorCode', 'errorSummary', 'summary', 'providerExecutionId'];
 const ARTIFACT_FIELDS = ['relativePath', 'type', 'mimeType', 'size', 'sha256'];
+const ARTIFACT_POLICY_FIELDS = ['logs', 'screenshots', 'trace'];
 const ARTIFACT_TYPES = new Set(['log', 'screenshot', 'trace']);
 const MAX_TARGET_LENGTH = 4096;
 const MAX_SUMMARY_LENGTH = 512;
@@ -195,19 +197,68 @@ export function validateHostExecutionRequest(project, qualityTaskId, input = {})
   };
 }
 
+function isWithinOrSame(root, target) {
+  const relative = path.relative(path.resolve(root), path.resolve(target));
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
+}
+
+function lstatIfPresent(value, label) {
+  try {
+    return fs.lstatSync(value);
+  } catch (error) {
+    if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR') return null;
+    throw hostError('HOST_ARTIFACT_PATH_DENIED', `${label} 不可访问`);
+  }
+}
+
+function rejectSymlinkEntry(value, label) {
+  const stat = lstatIfPresent(path.resolve(value), label);
+  if (stat?.isSymbolicLink()) throw hostError('HOST_ARTIFACT_PATH_DENIED', `${label} 不允许是符号链接`);
+}
+
+function rejectSymlinkPath(value, label, base) {
+  const absolute = path.resolve(value);
+  const start = path.resolve(base || path.parse(absolute).root);
+  if (!isWithinOrSame(start, absolute)) throw hostError('HOST_ARTIFACT_PATH_DENIED', `${label} artifact path 必须位于受控目录`);
+  let current = start;
+  const parts = path.relative(start, absolute).split(path.sep).filter(Boolean);
+  for (const [index, part] of parts.entries()) {
+    current = path.join(current, part);
+    const stat = lstatIfPresent(current, label);
+    if (!stat) return;
+    if (stat.isSymbolicLink()) throw hostError('HOST_ARTIFACT_PATH_DENIED', `${label} artifact path 不允许经过符号链接`);
+    if (index < parts.length - 1 && !stat.isDirectory()) throw hostError('HOST_ARTIFACT_PATH_DENIED', `${label} artifact path 必须位于受控目录`);
+  }
+}
+
+function realPathIfPresent(value, label) {
+  try {
+    return fs.realpathSync.native(value);
+  } catch (error) {
+    if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR') return path.resolve(value);
+    throw hostError('HOST_ARTIFACT_PATH_DENIED', `${label} 不可解析`);
+  }
+}
+
 function controlledRoot(project, hostExecution) {
   const artifactRoot = project?.artifactRoot;
   const stagingRoot = hostExecution?.stagingRoot || hostExecution?.artifactDir;
   if (artifactRoot !== undefined && (typeof artifactRoot !== 'string' || !path.isAbsolute(artifactRoot))) throw hostError('HOST_ARTIFACT_PATH_DENIED', '项目 artifactRoot 必须是绝对受控目录');
-  if (stagingRoot === undefined) return null;
-  if (typeof stagingRoot !== 'string' || !path.isAbsolute(stagingRoot)) throw hostError('HOST_ARTIFACT_PATH_DENIED', 'Host staging root 必须是绝对路径');
-  if (artifactRoot) {
-    const root = path.resolve(artifactRoot);
-    const staging = path.resolve(stagingRoot);
-    const relative = path.relative(root, staging);
-    if (relative.startsWith('..') || path.isAbsolute(relative)) throw hostError('HOST_ARTIFACT_PATH_DENIED', 'Host staging root 必须位于项目 artifactRoot');
+  if (artifactRoot === undefined) {
+    if (stagingRoot !== undefined) throw hostError('HOST_ARTIFACT_PATH_DENIED', 'Host staging root 必须位于项目 artifactRoot');
+    return null;
   }
-  return path.resolve(stagingRoot);
+  const root = path.resolve(artifactRoot);
+  rejectSymlinkEntry(root, '项目 artifactRoot');
+  const realRoot = realPathIfPresent(root, '项目 artifactRoot');
+  if (stagingRoot === undefined) return { root, realRoot, staging: null, realStaging: null };
+  if (typeof stagingRoot !== 'string' || !path.isAbsolute(stagingRoot)) throw hostError('HOST_ARTIFACT_PATH_DENIED', 'Host staging root 必须是绝对路径');
+  const staging = path.resolve(stagingRoot);
+  if (!isWithinOrSame(root, staging)) throw hostError('HOST_ARTIFACT_PATH_DENIED', 'Host staging root 必须位于项目 artifactRoot');
+  rejectSymlinkPath(staging, 'Host staging root', root);
+  const realStaging = realPathIfPresent(staging, 'Host staging root');
+  if (!isWithinOrSame(realRoot, realStaging)) throw hostError('HOST_ARTIFACT_PATH_DENIED', 'Host staging root 必须位于项目 artifactRoot');
+  return { root, realRoot, staging, realStaging };
 }
 
 function normalizeRelativeArtifactPath(relativePath) {
@@ -216,19 +267,35 @@ function normalizeRelativeArtifactPath(relativePath) {
 }
 
 function artifactPolicyAllows(policy, type) {
-  if (!policy) return true;
   const field = type === 'log' ? 'logs' : type === 'screenshot' ? 'screenshots' : 'trace';
   return policy[field] === true;
 }
 
+function normalizeArtifactPolicy(value) {
+  rejectUnknownFields(value, ARTIFACT_POLICY_FIELDS, 'HOST_ARTIFACT_POLICY', 'artifactPolicy');
+  const policy = {};
+  for (const field of ARTIFACT_POLICY_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(value, field) || typeof value[field] !== 'boolean') throw hostError('HOST_ARTIFACT_POLICY_INVALID', 'artifactPolicy 必须是完整规范化白名单');
+    policy[field] = value[field];
+  }
+  return policy;
+}
+
 function normalizeArtifactDescriptors(project, hostExecution, artifacts = []) {
   if (!Array.isArray(artifacts)) throw hostError('HOST_ARTIFACT_INVALID', 'artifacts 必须是数组');
-  controlledRoot(project, hostExecution);
+  const policy = normalizeArtifactPolicy(hostExecution?.artifactPolicy);
+  const controlled = controlledRoot(project, hostExecution);
+  if (artifacts.length && (!controlled?.staging || !controlled.root)) throw hostError('HOST_ARTIFACT_PATH_DENIED', 'artifact descriptor 必须位于受控 staging root');
   return artifacts.map((artifact) => {
     rejectUnknownFields(artifact, ARTIFACT_FIELDS, 'HOST_ARTIFACT', 'artifact descriptor');
     const relativePath = normalizeRelativeArtifactPath(artifact.relativePath);
     if (!ARTIFACT_TYPES.has(artifact.type)) throw hostError('HOST_ARTIFACT_INVALID', 'artifact type 不在白名单');
-    if (!artifactPolicyAllows(hostExecution.artifactPolicy, artifact.type)) throw hostError('HOST_ARTIFACT_POLICY_DENIED', 'artifact type 未被 profile 允许');
+    if (!artifactPolicyAllows(policy, artifact.type)) throw hostError('HOST_ARTIFACT_POLICY_DENIED', 'artifact type 未被 profile 允许');
+    const resolvedPath = path.resolve(controlled.staging, relativePath);
+    if (!isWithinOrSame(controlled.staging, resolvedPath) || !isWithinOrSame(controlled.root, resolvedPath)) throw hostError('HOST_ARTIFACT_PATH_DENIED', 'artifact descriptor 必须位于受控 artifactRoot');
+    rejectSymlinkPath(resolvedPath, 'artifact descriptor', controlled.staging);
+    const realPath = realPathIfPresent(resolvedPath, 'artifact descriptor');
+    if (!isWithinOrSame(controlled.realStaging, realPath) || !isWithinOrSame(controlled.realRoot, realPath)) throw hostError('HOST_ARTIFACT_PATH_DENIED', 'artifact descriptor 必须位于受控 artifactRoot');
     const normalized = { relativePath, type: artifact.type };
     if (artifact.mimeType !== undefined) {
       if (typeof artifact.mimeType !== 'string' || artifact.mimeType.length > 128) throw hostError('HOST_ARTIFACT_INVALID', 'artifact mimeType 无效');
@@ -333,7 +400,8 @@ export async function startHostExecution(project, normalizedRequest, adapter) {
   const execution = baseHostExecution(project, normalizedRequest, adapterId);
   try {
     const adapterResult = await start(clone(normalizedRequest));
-    const result = normalizeResult(project, execution, adapterResult || { status: 'queued', artifacts: [] });
+    if (adapterResult === null || adapterResult === undefined) throw hostError('HOST_ADAPTER_EMPTY_RESULT', 'Host adapter 必须返回结果');
+    const result = normalizeResult(project, execution, adapterResult);
     Object.assign(execution, result, { updatedAt: now() });
   } catch (error) {
     execution.status = error?.code === 'HOST_ARTIFACT_PATH_DENIED' || error?.code === 'HOST_ARTIFACT_POLICY_DENIED' ? 'blocked' : 'provider_error';
