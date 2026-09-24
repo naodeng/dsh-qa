@@ -4,9 +4,10 @@ import { loadConfig, publicSettings, DATA_DIR } from './config.js';
 import * as store from './store.js';
 import { seedIfEmpty } from './seed.js';
 import { handleRequest } from './routes.js';
-import { ensureEvidenceIntegrity, recoverEvidenceFinalization } from './quality/evidence.js';
+import { ensureEvidenceIntegrity, recoverEvidenceFinalization, recoverPendingEvidenceFinalization } from './quality/evidence.js';
 import { startArtifactCleanupWorker, recoverOrphanStaging } from './quality/evidence-retention.js';
 import { recoverInterruptedRuns } from './quality/test-runner.js';
+import { recoverInterruptedHostExecutions } from './quality/harness-execution.js';
 
 const workers = new WeakMap();
 
@@ -27,9 +28,11 @@ export async function startQaBench(opts = {}) {
   const cfg = loadConfig();
   store.loadStore();
   seedIfEmpty();
+  recoverInterruptedHostExecutions(store.listProjects());
   recoverInterruptedRuns(store.listProjects());
   store.flush();
   await recoverEvidenceFinalization(store.listProjects());
+  await recoverPendingEvidenceFinalization(store.listProjects());
   let evidenceChanged = false;
   for (const project of store.listProjects()) evidenceChanged = (await ensureEvidenceIntegrity(project)) || evidenceChanged;
   if (evidenceChanged) store.flush();

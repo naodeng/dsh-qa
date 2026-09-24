@@ -219,9 +219,17 @@ function addGateActions(items, project) {
   }
 }
 
+function taskNeedsConfirmation(task) {
+  return task?.stage === 'confirmation'
+    || task?.needsConfirmation === true
+    || (task?.risks || []).some((risk) => ['high', 'critical'].includes(risk?.severity)
+      && risk?.assessmentStatus === 'confirmed'
+      && risk?.dispositionStatus === 'open');
+}
+
 function addQualityTaskActions(items, project) {
   for (const task of project.qualityTasks || []) {
-    if (task?.id && (task.stage === 'confirmation' || task.needsConfirmation === true)) items.push(action({
+    if (task?.id && taskNeedsConfirmation(task)) items.push(action({
       project,
       entityId: task.id,
       sourceType: 'quality-task',
@@ -339,6 +347,7 @@ function legacyTitle(item) {
   if (item.kind === 'run_cancelled') return '测试运行已取消，请确认后续动作';
   if (item.kind === 'run_timed_out') return '测试运行超时，请检查执行环境';
   if (item.kind === 'evidence_incomplete') return '测试已完成，但证据尚未完成校验';
+  if (item.kind === 'quality_task_confirm') return cleanText(args.title, '质量任务待确认', 160);
   return '测试运行失败，请检查结果与执行环境';
 }
 

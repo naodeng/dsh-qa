@@ -231,6 +231,33 @@ export function finalizeEvidence(project, testRunId) {
   return promise;
 }
 
+export async function recoverPendingEvidenceFinalization(projects) {
+  let changed = false;
+  for (const project of projects || []) {
+    for (const run of project?.testruns || []) {
+      const pending = run.evidenceFinalization;
+      if (pending?.state !== 'pending') continue;
+      try {
+        const bundle = await finalizeEvidence(project, run.id);
+        if (!run.evidenceRefs?.includes(bundle.id)) {
+          run.evidenceRefs = [...new Set([...(run.evidenceRefs || []), bundle.id])];
+        }
+        delete run.evidenceFinalization;
+      } catch {
+        run.evidenceFinalization = {
+          ...pending,
+          state: 'pending',
+          errorCode: 'evidence_finalize_pending',
+          attempts: Number(pending.attempts || 0) + 1,
+          updatedAt: now(),
+        };
+      }
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 export async function verifyEvidence(bundle) {
   if (!bundle || bundle.state !== 'ready') return { ok: false, reason: '证据包未就绪' };
   try {

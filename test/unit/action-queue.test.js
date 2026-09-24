@@ -95,3 +95,29 @@ test('workflow actions open the Action Desk instead of a project detail tab', ()
   const workflow = buildActionQueue([project], { now: NOW, limit: 50 }).items.find((item) => item.kind === 'workflow');
   assert.deepEqual(workflow?.target, { view: 'assistant', tab: null, entityId: project.id });
 });
+
+test('includes a confirmation action for an open confirmed high-risk quality task', () => {
+  const project = makeProject({
+    id: 'project_quality_confirmation',
+    qualityTasks: [{
+      id: 'quality_task_confirmation',
+      title: 'Checkout quality task',
+      stage: 'intake',
+      risks: [{ severity: 'high', assessmentStatus: 'confirmed', dispositionStatus: 'open' }],
+    }],
+  });
+
+  const item = buildActionQueue([project], { now: NOW, limit: 50 }).items.find((entry) => entry.kind === 'quality_task_confirm');
+  assert.equal(item?.entityId, 'quality_task_confirmation');
+  assert.equal(item?.reasonCode, 'quality_task_confirm');
+});
+
+test('legacy reminders preserve the quality-task confirmation title', () => {
+  const project = makeProject({
+    id: 'project_quality_confirmation_legacy',
+    qualityTasks: [{ id: 'quality_task_legacy', title: 'Checkout quality task', stage: 'confirmation' }],
+  });
+
+  const reminders = toLegacyReminders(buildActionQueue([project], { now: NOW, limit: 50 }).items, { now: NOW });
+  assert.equal(reminders.find((item) => item.id === 'quality_task_legacy')?.title, 'Checkout quality task');
+});

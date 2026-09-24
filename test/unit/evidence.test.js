@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { makeProject, makeTestRun } from '../helpers/quality-fixtures.js';
 import * as evidence from '../../server/quality/evidence.js';
-const { finalizeEvidence, recoverEvidenceFinalization, verifyEvidence } = evidence;
+const { finalizeEvidence, recoverEvidenceFinalization, recoverPendingEvidenceFinalization, verifyEvidence } = evidence;
 
 const tempDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-evidence-'));
 
@@ -95,6 +96,38 @@ test('restart recovery does not resurrect a persisted integrity-failed bundle', 
   assert.equal(project.evidenceBundles.length, 1);
   assert.equal(project.evidenceBundles[0].state, 'integrity-failed');
   assert.equal(fs.existsSync(bundle.root), true);
+});
+
+test('startup recovery retries a pending Host evidence finalization', async () => {
+  const artifactRoot = tempDir();
+  const stagingDir = path.join(artifactRoot, 'run-pending.staging');
+  fs.mkdirSync(stagingDir);
+  const content = 'passed';
+  const project = makeProject({ artifactRoot });
+  const run = makeTestRun({
+    projectId: project.id,
+    status: 'passed',
+    resultTrust: 'controlled-host',
+    artifactDir: stagingDir,
+    provenance: { hostExecutionId: 'host_pending', hostResultDigest: 'a'.repeat(64) },
+    artifacts: [{
+      relativePath: 'run.log',
+      type: 'log',
+      size: Buffer.byteLength(content),
+      sha256: crypto.createHash('sha256').update(content).digest('hex'),
+    }],
+    evidenceFinalization: { state: 'pending', errorCode: 'evidence_finalize_pending', attempts: 1 },
+  });
+  project.testruns.push(run);
+  fs.writeFileSync(path.join(stagingDir, 'run.log'), content);
+
+  const changed = await recoverPendingEvidenceFinalization([project]);
+
+  assert.equal(changed, true);
+  assert.equal(run.evidenceFinalization, undefined);
+  assert.equal(project.evidenceBundles[0]?.state, 'ready');
+  assert.equal(project.evidenceBundles[0]?.integrity, 'verified');
+  assert.deepEqual(run.evidenceRefs, [project.evidenceBundles[0].id]);
 });
 
 test('integrity verification rejects symlinked bundle paths after finalize', async () => {

@@ -20,6 +20,8 @@ const MAX_SUMMARY_LENGTH = 512;
 const MAX_ID_LENGTH = 256;
 const MIN_TIMEOUT_MS = 1000;
 const PROVENANCE_FIELDS = new Set(['projectId', 'qualityTaskId', 'profileId', 'profileVersion', 'provider', 'capability', 'sourceDigests', 'testPlanVersion', 'commit', 'hostResultDigest']);
+const HOST_INTERRUPTION_ERROR_CODE = 'host_process_interrupted';
+const HOST_INTERRUPTION_SUMMARY = 'Host execution 在服务重启时中断';
 
 const TEST_RUN_STATUS = Object.freeze({
   queued: 'queued',
@@ -531,6 +533,29 @@ export async function startHostExecution(project, normalizedRequest, adapter, op
   }
   await notify();
   return execution;
+}
+
+export function recoverInterruptedHostExecutions(projects, clock = now) {
+  for (const project of projects || []) {
+    for (const execution of project?.hostExecutions || []) {
+      if (!['queued', 'running'].includes(execution.status) || execution.supersededBy) continue;
+      const updatedAt = clock();
+      execution.status = 'provider_error';
+      execution.errorCode = HOST_INTERRUPTION_ERROR_CODE;
+      execution.errorSummary = HOST_INTERRUPTION_SUMMARY;
+      execution.revision = (Number.isInteger(execution.revision) && execution.revision > 0 ? execution.revision : 1) + 1;
+      execution.updatedAt = updatedAt;
+      const run = project.testruns?.find((item) => item.id === execution.testRunId);
+      if (run && ['queued', 'running'].includes(run.status)) {
+        run.status = 'environment-error';
+        run.errorCode = HOST_INTERRUPTION_ERROR_CODE;
+        run.errorSummary = HOST_INTERRUPTION_SUMMARY;
+        run.revision = (Number.isInteger(run.revision) && run.revision > 0 ? run.revision : 1) + 1;
+        run.updatedAt = updatedAt;
+      }
+    }
+  }
+  return projects;
 }
 
 export function mapHostExecutionResult(project, hostExecution, result) {

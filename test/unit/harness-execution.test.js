@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { makeProject } from '../helpers/quality-fixtures.js';
+import { makeProject, makeTestRun } from '../helpers/quality-fixtures.js';
 import {
   mapHostExecutionResult,
+  recoverInterruptedHostExecutions,
   startHostExecution,
   validateHostExecutionRequest,
 } from '../../server/quality/harness-execution.js';
@@ -208,6 +209,39 @@ test('starts only through an explicit adapter and preserves the normalized reque
   const unavailable = await startHostExecution(project, request);
   assert.equal(unavailable.status, 'not_run');
   assert.equal(unavailable.errorCode, 'provider_unavailable');
+});
+
+test('marks persisted Host executions interrupted by a service restart as actionable errors', () => {
+  const project = makeHostProject({
+    hostExecutions: [{
+      id: 'host_restart',
+      testRunId: 'run_restart',
+      status: 'running',
+      revision: 4,
+      updatedAt: '2026-09-23T00:00:00.000Z',
+    }],
+    testruns: [makeTestRun({
+      id: 'run_restart',
+      projectId: 'project_host',
+      status: 'running',
+      revision: 2,
+      resultTrust: 'controlled-host',
+      provenance: { hostExecutionId: 'host_restart' },
+    })],
+  });
+
+  recoverInterruptedHostExecutions([project], () => '2026-09-24T00:00:00.000Z');
+
+  const execution = project.hostExecutions[0];
+  const run = project.testruns[0];
+  assert.equal(execution.status, 'provider_error');
+  assert.equal(execution.errorCode, 'host_process_interrupted');
+  assert.equal(execution.revision, 5);
+  assert.equal(execution.updatedAt, '2026-09-24T00:00:00.000Z');
+  assert.equal(run.status, 'environment-error');
+  assert.equal(run.errorCode, 'host_process_interrupted');
+  assert.equal(run.revision, 3);
+  assert.equal(run.updatedAt, '2026-09-24T00:00:00.000Z');
 });
 
 test('times out a Host adapter and signals cancellation instead of waiting forever', async () => {
