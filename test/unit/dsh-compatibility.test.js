@@ -141,6 +141,7 @@ test('preset installers reject missing option values before invoking DSH', () =>
 
 test('host smoke pins the exact Harness 0.1.7 release targeted by the bundle migration', () => {
   assert.match(hostConfig, /dsh-v0\.1\.7-alpha\.1/);
+  assert.match(hostConfig, /dsh-v0\.1\.7-rc\.1/);
   assert.match(hostConfig, /supportedHostVersions/);
   assert.doesNotMatch(hostConfig, /dsh-v0\.1\.6-alpha\.1/);
 });

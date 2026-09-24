@@ -5,6 +5,7 @@ const hostUrl = process.env.DSH_WEB_URL?.trim();
 const hostVersion = process.env.DSH_HOST_VERSION?.trim();
 const supportedHostVersions = new Set([
   'dsh-v0.1.7-alpha.1',
+  'dsh-v0.1.7-rc.1',
 ]);
 const expectedHostVersions = [...supportedHostVersions].join(' or ');
 

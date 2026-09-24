@@ -56,6 +56,7 @@ function normalizeProject(p) {
   p.evidenceBundles ||= [];
   p.failureAnalyses ||= [];
   p.regressionSets ||= [];
+  p.hostExecutions = Array.isArray(p.hostExecutions) ? p.hostExecutions : [];
   p.artifactCleanupJobs ||= [];
   return p;
 }
@@ -121,6 +122,7 @@ export function createProject(fields = {}) {
     evidenceBundles: [],
     failureAnalyses: [],
     regressionSets: [],
+    hostExecutions: [],
     artifactCleanupJobs: [],
     aiActive: false,
     createdAt: t,

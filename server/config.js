@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(__dirname, '..');
-export const DATA_DIR = process.env.QA_DATA_DIR || path.join(ROOT, 'data');
+export const DATA_DIR = path.resolve(process.env.QA_DATA_DIR || path.join(ROOT, 'data'));
 export const CONFIG_PATH = path.join(DATA_DIR, 'config.json');
 export const DATA_PATH = path.join(DATA_DIR, 'data.json');
 export const CONV_DIR = path.join(DATA_DIR, 'conv');

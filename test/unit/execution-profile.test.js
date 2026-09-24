@@ -61,3 +61,67 @@ test('bases each new profile version on the current version', () => {
   assert.equal(current.timeoutMs, 30_000);
   assert.deepEqual(current.targetFiles, ['test/fixtures/runner/pass.fixture.mjs']);
 });
+
+test('normalizes project-level host profiles while keeping legacy local profiles executable', () => {
+  const project = makeProject({ workspacePath: process.cwd() });
+  const host = createExecutionProfile(project, {
+    name: 'browser host',
+    kind: 'host',
+    provider: 'browser-use',
+    capabilities: ['navigate'],
+    targetPolicy: { origins: ['https://example.test'] },
+    artifactPolicy: { logs: true, screenshots: true, trace: true },
+    timeoutMs: 30_000,
+  });
+
+  const currentHost = executionProfiles.currentExecutionProfileVersion(host);
+  assert.equal(host.kind, 'host');
+  assert.equal(currentHost.kind, 'host');
+  assert.equal(currentHost.provider, 'browser-use');
+  assert.deepEqual(currentHost.targetPolicy, { origins: ['https://example.test'], mcpTargets: [] });
+
+  const local = createExecutionProfile(project, {
+    name: 'local', executor: 'node-test', cwdRelative: '.', targetFiles: ['test/fixtures/runner/pass.fixture.mjs'], networkIntent: 'none',
+  });
+  assert.equal(executionProfiles.currentExecutionProfileVersion(local).executor, 'node-test');
+  assert.deepEqual(resolveExecutionCommand(project, executionProfiles.currentExecutionProfileVersion(local)), [process.execPath, '--test', 'test/fixtures/runner/pass.fixture.mjs']);
+});
+
+test('does not expose nested host profile aliases across snapshots or version returns', () => {
+  const project = makeProject({ workspacePath: process.cwd() });
+  const profile = createExecutionProfile(project, {
+    name: 'browser host',
+    kind: 'host',
+    provider: 'mcp',
+    capabilities: ['tool-call'],
+    targetPolicy: { origins: [], mcpTargets: [{ serverId: 'server_1', toolNames: ['inspect'] }] },
+    artifactPolicy: { logs: true, screenshots: false, trace: true },
+    timeoutMs: 30_000,
+  });
+  const storedV1 = profile.versions[0];
+
+  assert.notStrictEqual(profile.targetPolicy, storedV1.targetPolicy);
+  assert.notStrictEqual(profile.targetPolicy.mcpTargets, storedV1.targetPolicy.mcpTargets);
+  assert.notStrictEqual(profile.artifactPolicy, storedV1.artifactPolicy);
+
+  const current = executionProfiles.currentExecutionProfileVersion(profile);
+  current.targetPolicy.mcpTargets[0].toolNames.push('inspect-extra');
+  current.artifactPolicy.logs = false;
+  assert.deepEqual(executionProfiles.currentExecutionProfileVersion(profile).targetPolicy, {
+    origins: [],
+    mcpTargets: [{ serverId: 'server_1', toolNames: ['inspect'] }],
+  });
+  assert.deepEqual(executionProfiles.currentExecutionProfileVersion(profile).artifactPolicy, {
+    logs: true,
+    screenshots: false,
+    trace: true,
+  });
+
+  const version2 = createExecutionProfileVersion(project, profile.id, { name: 'browser host v2' });
+  assert.notStrictEqual(version2.targetPolicy, profile.versions[1].targetPolicy);
+  assert.notStrictEqual(version2.targetPolicy.mcpTargets, profile.versions[1].targetPolicy.mcpTargets);
+  version2.targetPolicy.mcpTargets[0].toolNames.push('run');
+  version2.artifactPolicy.trace = false;
+  assert.deepEqual(profile.versions[1].targetPolicy.mcpTargets, [{ serverId: 'server_1', toolNames: ['inspect'] }]);
+  assert.deepEqual(profile.versions[1].artifactPolicy, { logs: true, screenshots: false, trace: true });
+});

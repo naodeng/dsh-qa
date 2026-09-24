@@ -1,4 +1,6 @@
 // 看板定义与卡片投影（QA 流水线）
+import { buildActionQueue, toLegacyReminders } from './action-queue.js';
+
 export const KANBAN_COLUMNS = [
   { id: 'intake',    title: '需求分析', titleEn: 'Requirements', color: '#64748b', hint: '需求梳理 · 范围确认' },
   { id: 'design',    title: '用例设计', titleEn: 'Test Design',  color: '#3b82f6', hint: '用例编写 · 场景覆盖' },
@@ -87,59 +89,22 @@ export function getSchedule(store) {
 }
 
 export function getReminders(store) {
-  const reminders = [];
-  for (const p of store.listProjects()) {
-    const reminderMode = p.assistant?.reminders || 'all';
-    if (reminderMode !== 'off') {
-      for (const m of p.milestones || []) {
-        const s = milestoneState(m);
-        if (s.done) continue;
-        reminders.push({
-          id: m.id, type: 'milestone', title: m.title, date: m.dueDate,
-          severity: s.overdue ? 'danger' : s.dueSoon ? 'warning' : 'normal', days: s.days,
-          projectId: p.id, projectTitle: p.title,
-        });
-      }
-      if (reminderMode === 'all') {
-        if (p.status === 'intake') reminders.push({
-          id: `workflow-intake-${p.id}`, type: 'workflow', title: '完成需求梳理与测试范围确认',
-          date: '', severity: 'normal', projectId: p.id, projectTitle: p.title,
-        });
-        const draftCases = (p.testcases || []).filter((t) => t.status === 'draft').length;
-        if (draftCases) reminders.push({
-          id: `workflow-cases-${p.id}`, type: 'workflow', title: `仍有 ${draftCases} 条用例处于草稿，建议组织用例评审`,
-          date: '', severity: draftCases >= 3 ? 'warning' : 'normal', projectId: p.id, projectTitle: p.title,
-        });
-        const openDefects = (p.defects || []).filter((d) => !['closed', 'verified'].includes(d.status)).length;
-        if (openDefects && p.status === 'execute') reminders.push({
-          id: `workflow-defects-${p.id}`, type: 'workflow', title: `跟踪 ${openDefects} 个未关闭缺陷（严重级别优先）`,
-          date: '', severity: openDefects >= 3 ? 'warning' : 'normal', projectId: p.id, projectTitle: p.title,
-        });
-        if (p.status === 'review' && (p.reports || []).length === 0) reminders.push({
-          id: `workflow-report-${p.id}`, type: 'workflow', title: '用例评审通过后请起草测试计划/执行报告',
-          date: '', severity: 'normal', projectId: p.id, projectTitle: p.title,
-        });
-      }
-    }
-    for (const gate of (p.gates || []).filter((g) => g.status === 'pending')) reminders.push({
-      id: gate.id, type: 'gate', title: gate.title, date: gate.requestedAt?.slice(0, 10) || '',
-      severity: 'review', projectId: p.id, projectTitle: p.title,
-    });
-  }
-  return reminders.sort((a, b) => {
-    const rank = { danger: 0, warning: 1, review: 2, normal: 3 };
-    return (rank[a.severity] - rank[b.severity]) || String(a.date).localeCompare(String(b.date));
-  });
+  const projects = store.listProjects();
+  const now = new Date();
+  return toLegacyReminders(buildActionQueue(projects, { now, limit: 50 }).items, { now });
 }
 
 export function getBoard(store) {
-  const cards = store.listProjects().map(projectCard);
+  const projects = store.listProjects();
+  const cards = projects.map(projectCard);
+  const now = new Date();
+  const actionQueue = buildActionQueue(projects, { now, limit: 50 });
   return {
     columns: KANBAN_COLUMNS,
     projects: cards,
     feed: store.getFeed().slice(0, 100),
     stats: computeStats(cards),
     schedule: getSchedule(store),
-    reminders: getReminders(store),
+    reminders: toLegacyReminders(actionQueue.items, { now }),
   };
 }

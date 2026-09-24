@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 
 const TERMINAL = new Set(['passed', 'failed', 'cancelled', 'timed-out', 'environment-error']);
-const provenanceKeys = ['sourceDigests', 'commit', 'testPlanVersion', 'regressionSetVersion', 'profileId', 'profileVersion'];
+const provenanceKeys = ['sourceDigests', 'commit', 'testPlanVersion', 'regressionSetVersion', 'profileId', 'profileVersion', 'hostExecutionId', 'hostResultDigest'];
 
 function equalProvenance(actual = {}, expected = {}) {
   return provenanceKeys.every((key) => {
@@ -33,10 +33,15 @@ export function evaluateGate(facts = {}, rules = {}) {
   const stale = !run || !equalProvenance(run.provenance, provenance) || readyEvidence.some((bundle) => !equalProvenance(bundle.provenance, provenance));
   checks.push(check('stale-evidence', stale ? 'failed' : 'passed', 'block', stale ? '测试运行或证据与当前输入不一致' : '执行来源与当前输入一致'));
   const verified = readyEvidence.filter((bundle) => bundle.integrity === 'verified' && (!run || bundle.testRunId === run.id));
+  const verifiedHostEvidence = run?.resultTrust === 'controlled-host'
+    ? verified.filter((bundle) => bundle.provenance?.hostExecutionId === run.provenance?.hostExecutionId && bundle.provenance?.hostResultDigest === run.provenance?.hostResultDigest)
+    : verified;
   const invalidEvidence = readyEvidence.some((bundle) => bundle.integrity !== 'verified') || evidence.some((bundle) => bundle.state !== 'ready');
-  const missingEvidence = invalidEvidence || (Boolean(rules.requireVerifiedEvidence) && !verified.length);
-  checks.push(check('verified-evidence', missingEvidence ? 'failed' : 'passed', 'block', missingEvidence ? (invalidEvidence ? '存在未验证或完整性失败的证据' : '缺少已验证的必需证据') : '必需证据已验证', { evidenceRefs: verified.map((bundle) => bundle.id) }));
-  const failedRun = !run || run.resultTrust !== 'controlled-local' || run.status !== 'passed';
+  const missingEvidence = invalidEvidence || (Boolean(rules.requireVerifiedEvidence) && !(run?.resultTrust === 'controlled-host' ? verifiedHostEvidence.length : verified.length));
+  const evidenceRefs = run?.resultTrust === 'controlled-host' ? verifiedHostEvidence.map((bundle) => bundle.id) : verified.map((bundle) => bundle.id);
+  checks.push(check('verified-evidence', missingEvidence ? 'failed' : 'passed', 'block', missingEvidence ? (invalidEvidence ? '存在未验证或完整性失败的证据' : '缺少已验证的必需证据') : '必需证据已验证', { evidenceRefs }));
+  const incompleteHostRun = run?.resultTrust === 'controlled-host' && (typeof run.provenance?.hostExecutionId !== 'string' || !run.provenance.hostExecutionId || typeof run.provenance?.hostResultDigest !== 'string' || !run.provenance.hostResultDigest || !Array.isArray(run.artifacts) || run.artifacts.length === 0);
+  const failedRun = !run || !['controlled-local', 'controlled-host'].includes(run.resultTrust) || run.status !== 'passed' || (run.resultTrust === 'controlled-host' && (incompleteHostRun || !verifiedHostEvidence.length));
   checks.push(check('critical-test-result', failedRun ? 'failed' : 'passed', 'block', failedRun ? '缺少受控且通过的关键测试运行' : '关键测试运行已通过', { evidenceRefs: run ? [run.id] : [] }));
   const criticalRisk = (facts.risks || []).some((risk) => risk.severity === 'critical' && risk.assessmentStatus !== 'dismissed' && !['mitigated', 'accepted', 'closed'].includes(risk.dispositionStatus || risk.status));
   checks.push(check('critical-risk', Boolean(rules.blockCriticalOpenRisk) && criticalRisk ? 'failed' : 'passed', 'block', criticalRisk ? '存在未处置的严重风险' : '严重风险已处置'));
@@ -65,6 +70,11 @@ export function evaluateQualityGate(project) {
   const runs = project.testruns || [];
   if (runs.some((run) => run.status === 'failed')) blockers.push('存在失败测试运行');
   if (runs.some((run) => !TERMINAL.has(run.status))) blockers.push('存在未完成测试运行');
+  for (const run of runs.filter((item) => item.resultTrust === 'controlled-host')) {
+    const completeHostRun = run.status === 'passed' && typeof run.provenance?.hostExecutionId === 'string' && typeof run.provenance?.hostResultDigest === 'string' && Array.isArray(run.artifacts) && run.artifacts.length > 0;
+    const matchingEvidence = (project.evidenceBundles || []).some((bundle) => bundle.testRunId === run.id && bundle.state === 'ready' && bundle.integrity === 'verified' && bundle.provenance?.hostExecutionId === run.provenance?.hostExecutionId && bundle.provenance?.hostResultDigest === run.provenance?.hostResultDigest);
+    if (!completeHostRun || !matchingEvidence) blockers.push('Host 测试运行缺少已验证证据或未通过');
+  }
   if ((project.evidenceBundles || []).some((bundle) => bundle.state !== 'ready' || bundle.integrity !== 'verified')) blockers.push('存在未就绪证据包');
   if ((project.risks || []).some((risk) => risk.severity === 'high' && risk.status !== 'closed' && risk.status !== 'accepted')) blockers.push('存在未关闭高风险');
   return { status: blockers.length ? 'blocked' : 'passed', blockers, evaluatedAt: new Date().toISOString() };
