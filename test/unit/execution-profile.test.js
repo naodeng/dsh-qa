@@ -86,3 +86,42 @@ test('normalizes project-level host profiles while keeping legacy local profiles
   assert.equal(executionProfiles.currentExecutionProfileVersion(local).executor, 'node-test');
   assert.deepEqual(resolveExecutionCommand(project, executionProfiles.currentExecutionProfileVersion(local)), [process.execPath, '--test', 'test/fixtures/runner/pass.fixture.mjs']);
 });
+
+test('does not expose nested host profile aliases across snapshots or version returns', () => {
+  const project = makeProject({ workspacePath: process.cwd() });
+  const profile = createExecutionProfile(project, {
+    name: 'browser host',
+    kind: 'host',
+    provider: 'mcp',
+    capabilities: ['tool-call'],
+    targetPolicy: { origins: [], mcpTargets: [{ serverId: 'server_1', toolNames: ['inspect'] }] },
+    artifactPolicy: { logs: true, screenshots: false, trace: true },
+    timeoutMs: 30_000,
+  });
+  const storedV1 = profile.versions[0];
+
+  assert.notStrictEqual(profile.targetPolicy, storedV1.targetPolicy);
+  assert.notStrictEqual(profile.targetPolicy.mcpTargets, storedV1.targetPolicy.mcpTargets);
+  assert.notStrictEqual(profile.artifactPolicy, storedV1.artifactPolicy);
+
+  const current = executionProfiles.currentExecutionProfileVersion(profile);
+  current.targetPolicy.mcpTargets[0].toolNames.push('inspect-extra');
+  current.artifactPolicy.logs = false;
+  assert.deepEqual(executionProfiles.currentExecutionProfileVersion(profile).targetPolicy, {
+    origins: [],
+    mcpTargets: [{ serverId: 'server_1', toolNames: ['inspect'] }],
+  });
+  assert.deepEqual(executionProfiles.currentExecutionProfileVersion(profile).artifactPolicy, {
+    logs: true,
+    screenshots: false,
+    trace: true,
+  });
+
+  const version2 = createExecutionProfileVersion(project, profile.id, { name: 'browser host v2' });
+  assert.notStrictEqual(version2.targetPolicy, profile.versions[1].targetPolicy);
+  assert.notStrictEqual(version2.targetPolicy.mcpTargets, profile.versions[1].targetPolicy.mcpTargets);
+  version2.targetPolicy.mcpTargets[0].toolNames.push('run');
+  version2.artifactPolicy.trace = false;
+  assert.deepEqual(profile.versions[1].targetPolicy.mcpTargets, [{ serverId: 'server_1', toolNames: ['inspect'] }]);
+  assert.deepEqual(profile.versions[1].artifactPolicy, { logs: true, screenshots: false, trace: true });
+});

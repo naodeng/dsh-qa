@@ -17,6 +17,10 @@ const HOST_ARTIFACT_FIELDS = ['logs', 'screenshots', 'trace'];
 const MIN_HOST_TIMEOUT_MS = 1000;
 const MAX_HOST_TIMEOUT_MS = 1800000;
 
+function cloneHostVersion(value) {
+  return structuredClone(value);
+}
+
 function assertObject(value, message) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(message);
 }
@@ -124,9 +128,10 @@ export function isHostCapabilitySupported(provider, capability) {
 export function createExecutionProfile(project, fields = {}) {
   project.executionProfiles ||= [];
   const version = fields.kind === 'host' ? normalizeHostExecutionProfile(project, fields) : validateLocal(project, fields);
+  const snapshot = fields.kind === 'host' ? cloneHostVersion(version) : version;
   const profile = fields.kind === 'host'
-    ? { id: uid('profile'), kind: 'host', version: 1, ...version, versions: [{ version: 1, ...version, createdAt: now() }], disabled: false, createdAt: now() }
-    : { id: uid('profile'), version: 1, ...version, versions: [{ version: 1, ...version, createdAt: now() }], disabled: false, createdAt: now() };
+    ? { id: uid('profile'), kind: 'host', version: 1, ...version, versions: [{ version: 1, ...snapshot, createdAt: now() }], disabled: false, createdAt: now() }
+    : { id: uid('profile'), version: 1, ...version, versions: [{ version: 1, ...snapshot, createdAt: now() }], disabled: false, createdAt: now() };
   project.executionProfiles.push(profile);
   return profile;
 }
@@ -141,9 +146,9 @@ export function createExecutionProfileVersion(project, id, fields = {}) {
     : { ...current };
   const next = isHost ? normalizeHostExecutionProfile(project, { ...base, ...fields }) : validateLocal(project, { ...base, ...fields });
   const version = (profile.currentVersion || profile.version) + 1;
-  profile.versions.push({ version, ...next, createdAt: now() });
+  profile.versions.push({ version, ...(isHost ? cloneHostVersion(next) : next), createdAt: now() });
   profile.currentVersion = version;
-  return { id: profile.id, version, ...next, disabled: profile.disabled };
+  return { id: profile.id, version, ...(isHost ? cloneHostVersion(next) : next), disabled: profile.disabled };
 }
 
 export function currentExecutionProfileVersion(profile) {
@@ -152,7 +157,8 @@ export function currentExecutionProfileVersion(profile) {
   const snapshot = profile.versions?.find((item) => item.version === version);
   if (!snapshot) throw new Error('执行配置当前版本不存在');
   if (profile.kind === 'host' || snapshot.kind === 'host') {
-    return { id: profile.id, version, ...Object.fromEntries(HOST_VERSION_FIELDS.map((field) => [field, snapshot[field] ?? (field === 'kind' ? 'host' : undefined)])), disabled: Boolean(profile.disabled) };
+    const hostVersion = Object.fromEntries(HOST_VERSION_FIELDS.map((field) => [field, snapshot[field] ?? (field === 'kind' ? 'host' : undefined)]));
+    return { id: profile.id, version, ...cloneHostVersion(hostVersion), disabled: Boolean(profile.disabled) };
   }
   return { id: profile.id, version, ...Object.fromEntries(LOCAL_VERSION_FIELDS.map((field) => [field, snapshot[field]])), disabled: Boolean(profile.disabled) };
 }
