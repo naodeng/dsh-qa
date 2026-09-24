@@ -4,6 +4,8 @@ import { createQualityTask, getQualityTask, listQualityTasks, normalizeQualityPr
 import { createAnalysisRequest, commitQualityMutation } from './analysis.js';
 import { captureSources } from './source.js';
 import { createExecutionProfile, createExecutionProfileVersion, disableExecutionProfile } from './execution-profile.js';
+import { mapHostExecutionResult, startHostExecution, validateHostExecutionRequest } from './harness-execution.js';
+import { createTestRun } from './test-run.js';
 import { cancelRun, createRunPreview, startRun } from './test-runner.js';
 import { createTestPlanVersion, getTestPlan, reviewTestPlan } from './test-plan.js';
 import { ensureEvidenceIntegrity, finalizeEvidence, getEvidenceItemMetadata, resolveEvidence, verifyEvidence } from './evidence.js';
@@ -59,6 +61,113 @@ function onlyFields(body, fields) {
   return Object.keys(body || {}).every((field) => fields.includes(field));
 }
 
+const LOCAL_PROFILE_FIELDS = ['name', 'executor', 'cwdRelative', 'targetFiles', 'networkIntent', 'timeoutMs'];
+const HOST_PROFILE_FIELDS = ['name', 'kind', 'provider', 'capabilities', 'targetPolicy', 'artifactPolicy', 'timeoutMs'];
+const HOST_EXECUTION_FIELDS = ['profileId', 'provider', 'capability', 'target', 'timeoutMs', 'artifactPolicy', 'expectedRevision', 'attemptGroupId'];
+const HOST_EXECUTION_STATUSES = new Set(['queued', 'running', 'passed', 'failed', 'cancelled', 'timed_out', 'provider_error', 'blocked', 'not_run']);
+const TERMINAL_HOST_EXECUTION_STATUSES = new Set(['passed', 'failed', 'cancelled', 'timed_out', 'provider_error', 'blocked', 'not_run']);
+
+function hostAdapterFor(hostAdapters, request) {
+  if (!hostAdapters) return undefined;
+  if (hostAdapters instanceof Map) return hostAdapters.get(request.adapterId) || hostAdapters.get(request.provider);
+  if (typeof hostAdapters === 'object') return hostAdapters[request.adapterId] || hostAdapters[request.provider];
+  return undefined;
+}
+
+function hostResultFromExecution(execution) {
+  return {
+    status: execution.status,
+    artifacts: execution.artifacts || [],
+    ...(execution.providerExecutionId ? { providerExecutionId: execution.providerExecutionId } : {}),
+    ...(execution.errorCode ? { errorCode: execution.errorCode } : {}),
+    ...(execution.errorSummary ? { errorSummary: execution.errorSummary } : {}),
+    ...(execution.summary ? { summary: execution.summary } : {}),
+  };
+}
+
+function defaultHostErrorCode(status) {
+  if (status === 'provider_error') return 'provider_error';
+  if (status === 'blocked' || status === 'not_run') return 'provider_unavailable';
+  return undefined;
+}
+
+function normalizeHostExecutionForStore(execution, testRunId) {
+  const safe = structuredClone(execution);
+  delete safe.stagingRoot;
+  delete safe.artifactDir;
+  delete safe.command;
+  if (safe.request && typeof safe.request === 'object') {
+    delete safe.request.stagingRoot;
+    delete safe.request.artifactDir;
+    delete safe.request.command;
+  }
+  if (testRunId) safe.testRunId = testRunId;
+  if (HOST_EXECUTION_STATUSES.has(safe.status)) safe.errorCode ||= defaultHostErrorCode(safe.status);
+  return safe;
+}
+
+function publicHostExecution(execution) {
+  return normalizeHostExecutionForStore(execution);
+}
+
+function publicTestRun(run) {
+  if (!run) return null;
+  const { artifactDir, command, ...safe } = run;
+  return safe;
+}
+
+function hostExecutionForMapping(project, execution) {
+  if (execution.stagingRoot || !project?.artifactRoot) return execution;
+  return { ...execution, stagingRoot: path.join(project.artifactRoot, `${execution.id}.staging`) };
+}
+
+function createHostTestRun(project, execution, testRunPatch, clock = () => new Date().toISOString()) {
+  const run = createTestRun(project, {
+    mode: 'local',
+    executor: `host:${execution.provider}:${execution.capability}`,
+    summary: testRunPatch.summary || '',
+    provenance: testRunPatch.provenance,
+  });
+  Object.assign(run, testRunPatch, { revision: 1, updatedAt: clock() });
+  return run;
+}
+
+function findHostExecution(project, executionId) {
+  return project?.hostExecutions?.find((item) => item.id === executionId) || null;
+}
+
+function hostFailure(res, fail, error) {
+  const status = error?.code === 'QUALITY_REVISION_CONFLICT' || error?.code === 'HOST_EXECUTION_NOT_CANCELLABLE' || error?.code === 'HOST_EXECUTION_SUPERSEDED' ? 409 : 400;
+  return fail(res, status, error?.message || 'Host execution 请求无效', error?.code);
+}
+
+function publishHostExecution(broadcast, project, execution) {
+  broadcast('quality.host-execution.updated', {
+    projectId: project.id,
+    entityId: execution.id,
+    attemptGroupId: execution.attemptGroupId,
+    status: execution.status,
+    revision: execution.revision,
+    updatedAt: execution.updatedAt,
+  });
+}
+
+function publishTestRun(broadcast, project, run) {
+  broadcast('quality.test-run.updated', { projectId: project.id, runId: run.id, status: run.status, revision: run.revision, updatedAt: run.updatedAt });
+}
+
+async function startAndPersistHostExecution(project, normalizedRequest, adapter, store) {
+  const execution = await startHostExecution(project, normalizedRequest, adapter);
+  if (HOST_EXECUTION_STATUSES.has(execution.status)) execution.errorCode ||= defaultHostErrorCode(execution.status);
+  const testRunPatch = mapHostExecutionResult(project, hostExecutionForMapping(project, execution), hostResultFromExecution(execution));
+  const run = createHostTestRun(project, execution, testRunPatch, store.now);
+  execution.testRunId = run.id;
+  const record = normalizeHostExecutionForStore(execution, run.id);
+  project.hostExecutions ||= [];
+  project.hostExecutions.push(record);
+  return { execution: record, run };
+}
+
 function gateFacts(project, task) {
   const runs = project.testruns || [];
   const latestRun = runs.at(-1);
@@ -80,7 +189,7 @@ function gateFacts(project, task) {
   };
 }
 
-export async function handleQualityRoutes({ req, res, url, body, store, broadcast, emitProject, ok, created, accepted, fail }) {
+export async function handleQualityRoutes({ req, res, url, body, store, hostAdapters, broadcast, emitProject, ok, created, accepted, fail }) {
   const parts = url.pathname.split('/').filter(Boolean);
   const m = (method) => req.method === method;
   const refreshEvidence = async (project) => {
@@ -165,10 +274,99 @@ export async function handleQualityRoutes({ req, res, url, body, store, broadcas
     return created(res, { task: updated });
   }
 
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'quality-tasks' && parts[4] && parts[5] === 'host-executions' && parts[6] === 'preview' && !parts[7] && m('POST')) {
+    const c = store.getProject(parts[2]);
+    if (!c) return fail(res, 404, '项目不存在');
+    if (!getQualityTask(c, parts[4])) return fail(res, 404, '质量任务不存在');
+    if (!onlyFields(body, HOST_EXECUTION_FIELDS)) return fail(res, 400, '包含不允许的字段');
+    try {
+      const request = validateHostExecutionRequest(c, parts[4], body);
+      return ok(res, { preview: { ...request, adapterAvailable: Boolean(hostAdapterFor(hostAdapters, request)) } });
+    } catch (error) { return hostFailure(res, fail, error); }
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'quality-tasks' && parts[4] && parts[5] === 'host-executions' && !parts[6] && m('POST')) {
+    const c = store.getProject(parts[2]);
+    if (!c) return fail(res, 404, '项目不存在');
+    if (!getQualityTask(c, parts[4])) return fail(res, 404, '质量任务不存在');
+    if (!onlyFields(body, HOST_EXECUTION_FIELDS)) return fail(res, 400, '包含不允许的字段');
+    try {
+      const request = validateHostExecutionRequest(c, parts[4], body);
+      const result = await startAndPersistHostExecution(c, request, hostAdapterFor(hostAdapters, request), store);
+      store.touch(c); store.persist();
+      publishHostExecution(broadcast, c, result.execution);
+      publishTestRun(broadcast, c, result.run);
+      emitProject(c.id);
+      return accepted(res, { execution: result.execution, testRun: publicTestRun(result.run) });
+    } catch (error) { return hostFailure(res, fail, error); }
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'host-executions' && parts[4] && !parts[5] && m('GET')) {
+    const c = store.getProject(parts[2]);
+    const execution = findHostExecution(c, parts[4]);
+    if (!execution) return fail(res, 404, 'Host execution 不存在');
+    const run = c.testruns?.find((item) => item.id === execution.testRunId) || null;
+    return ok(res, { execution: publicHostExecution(execution), testRun: publicTestRun(run) });
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'host-executions' && parts[4] && parts[5] === 'cancel' && !parts[6] && m('POST')) {
+    const c = store.getProject(parts[2]);
+    const execution = findHostExecution(c, parts[4]);
+    if (!execution) return fail(res, 404, 'Host execution 不存在');
+    if (!onlyFields(body, ['expectedRevision'])) return fail(res, 400, '包含不允许的字段');
+    if (body.expectedRevision !== execution.revision) return revisionConflict(res, fail, 'Host execution 版本已变化，请重新加载');
+    if (!['queued', 'running'].includes(execution.status)) return hostFailure(res, fail, Object.assign(new Error('Host execution 当前不可取消'), { code: 'HOST_EXECUTION_NOT_CANCELLABLE' }));
+    execution.status = 'cancelled';
+    execution.revision += 1;
+    execution.updatedAt = store.now();
+    const run = c.testruns?.find((item) => item.id === execution.testRunId) || null;
+    if (run) {
+      const patch = mapHostExecutionResult(c, hostExecutionForMapping(c, execution), hostResultFromExecution(execution));
+      Object.assign(run, patch, { revision: (run.revision || 1) + 1, updatedAt: store.now() });
+    }
+    store.touch(c); store.persist();
+    publishHostExecution(broadcast, c, execution);
+    if (run) publishTestRun(broadcast, c, run);
+    emitProject(c.id);
+    return ok(res, { execution: publicHostExecution(execution), testRun: publicTestRun(run) });
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'host-executions' && parts[4] && parts[5] === 'retry' && !parts[6] && m('POST')) {
+    const c = store.getProject(parts[2]);
+    const previous = findHostExecution(c, parts[4]);
+    if (!previous) return fail(res, 404, 'Host execution 不存在');
+    if (!onlyFields(body, ['expectedRevision'])) return fail(res, 400, '包含不允许的字段');
+    if (body.expectedRevision !== previous.revision) return revisionConflict(res, fail, 'Host execution 版本已变化，请重新加载');
+    if (!TERMINAL_HOST_EXECUTION_STATUSES.has(previous.status)) return hostFailure(res, fail, Object.assign(new Error('只有终态 Host execution 可以重试'), { code: 'HOST_EXECUTION_NOT_RETRYABLE' }));
+    if (previous.supersededBy) return hostFailure(res, fail, Object.assign(new Error('Host execution 已被新的尝试替代'), { code: 'HOST_EXECUTION_SUPERSEDED' }));
+    try {
+      const request = validateHostExecutionRequest(c, previous.qualityTaskId, {
+        profileId: previous.profileId,
+        provider: previous.provider,
+        capability: previous.capability,
+        target: previous.target,
+        timeoutMs: previous.timeoutMs,
+        artifactPolicy: previous.artifactPolicy,
+        expectedRevision: previous.request?.expectedRevision,
+        attemptGroupId: previous.attemptGroupId,
+      });
+      const result = await startAndPersistHostExecution(c, request, hostAdapterFor(hostAdapters, request), store);
+      previous.supersededBy = result.execution.id;
+      previous.revision += 1;
+      previous.updatedAt = store.now();
+      store.touch(c); store.persist();
+      publishHostExecution(broadcast, c, previous);
+      publishHostExecution(broadcast, c, result.execution);
+      publishTestRun(broadcast, c, result.run);
+      emitProject(c.id);
+      return accepted(res, { execution: result.execution, testRun: publicTestRun(result.run) });
+    } catch (error) { return hostFailure(res, fail, error); }
+  }
+
   if (parts[1] === 'projects' && parts[2] && parts[3] === 'execution-profiles' && !parts[4] && m('POST')) {
     const c = store.getProject(parts[2]);
     if (!c) return fail(res, 404, '项目不存在');
-    if (!onlyFields(body, ['name', 'executor', 'cwdRelative', 'targetFiles', 'networkIntent', 'timeoutMs'])) return fail(res, 400, '包含不允许的字段');
+    if (!onlyFields(body, [...LOCAL_PROFILE_FIELDS, ...HOST_PROFILE_FIELDS])) return fail(res, 400, '包含不允许的字段');
     try { const profile = createExecutionProfile(c, body); store.touch(c); store.persist(); return created(res, { profile }); }
     catch (error) { return fail(res, 400, error.message); }
   }
@@ -177,9 +375,13 @@ export async function handleQualityRoutes({ req, res, url, body, store, broadcas
     const c = store.getProject(parts[2]);
     const profile = c?.executionProfiles?.find((item) => item.id === parts[4]);
     if (!profile) return fail(res, 404, '执行配置不存在');
-    if (!onlyFields(body, ['expectedRevision', 'name', 'executor', 'cwdRelative', 'targetFiles', 'networkIntent', 'timeoutMs'])) return fail(res, 400, '包含不允许的字段');
+    if (!onlyFields(body, ['expectedRevision', ...LOCAL_PROFILE_FIELDS, ...HOST_PROFILE_FIELDS])) return fail(res, 400, '包含不允许的字段');
     if (body.expectedRevision !== (profile.currentVersion || profile.version)) return revisionConflict(res, fail, '执行配置版本已变化，请重新加载');
-    try { const version = createExecutionProfileVersion(c, profile.id, body); store.touch(c); store.persist(); return created(res, { profile: version }); }
+    try {
+      const { expectedRevision, ...versionFields } = body;
+      void expectedRevision;
+      const version = createExecutionProfileVersion(c, profile.id, versionFields); store.touch(c); store.persist(); return created(res, { profile: version });
+    }
     catch (error) { return fail(res, 400, error.message); }
   }
 

@@ -28,3 +28,18 @@ test('migration normalizes existing approval gates without inventing computed re
   assert.equal('checks' in gate, false);
   assert.equal(migrateDb(migrated).projects[0].gates[0].kind, 'approval');
 });
+
+test('v3 to v4 migration initializes project hostExecutions without changing local collections', () => {
+  const migrated = migrateDb({
+    schemaVersion: 3,
+    projects: [{ id: 'project_host_migration', executionProfiles: [{ id: 'local_profile' }], testruns: [] }],
+    feed: [],
+    artifactCleanupJobs: [],
+  });
+
+  assert.equal(migrated.schemaVersion, CURRENT_SCHEMA_VERSION);
+  assert.deepEqual(migrated.projects[0].hostExecutions, []);
+  assert.deepEqual(migrated.projects[0].executionProfiles, [{ id: 'local_profile' }]);
+  assert.deepEqual(migrated.projects[0].testruns, []);
+  assert.deepEqual(migrateDb(migrated), migrated);
+});
