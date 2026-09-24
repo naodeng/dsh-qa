@@ -139,14 +139,20 @@ async function writeManifestAtomic(root, bundle) {
 async function finalizeEvidenceOnce(project, testRunId) {
   project.evidenceBundles ||= [];
   const existing = project.evidenceBundles.find((bundle) => bundle.testRunId === testRunId);
+  const run = (project.testruns || []).find((item) => item.id === testRunId);
+  if (!run || run.projectId !== project.id) throw new Error('测试运行不存在');
+  const hostRun = run.resultTrust === 'controlled-host';
+  if (hostRun) {
+    if (run.status !== 'passed' || typeof run.provenance?.hostExecutionId !== 'string' || !run.provenance.hostExecutionId || typeof run.provenance?.hostResultDigest !== 'string' || !run.provenance.hostResultDigest) throw new Error('Host 测试运行缺少终态 provenance');
+    if (!Array.isArray(run.artifacts) || run.artifacts.length === 0 || run.artifacts.some((item) => !item || typeof item.relativePath !== 'string' || !item.relativePath)) throw new Error('Host 测试运行缺少受控 artifact references');
+    if (existing && !provenanceMatches(existing.provenance || {}, run.provenance || {})) throw new Error('Host execution 结果摘要已变化，不能复用已有证据');
+  }
   if (existing?.state === 'ready') {
     const integrity = await verifyEvidence(existing);
     if (integrity.ok) return existing;
     failIntegrity(existing, integrity.reason);
     throw new Error(`证据完整性校验失败：${integrity.reason}`);
   }
-  const run = (project.testruns || []).find((item) => item.id === testRunId);
-  if (!run || run.projectId !== project.id) throw new Error('测试运行不存在');
   if (!TERMINAL.has(run.status)) throw new Error('只有终态测试运行才能生成证据');
   const artifactRoot = await controlledArtifactRoot(project);
   const configuredStaging = run.artifactDir;
@@ -174,6 +180,12 @@ async function finalizeEvidenceOnce(project, testRunId) {
       if (total > MAX_BUNDLE) throw new Error('证据包超过 500MiB');
       if (Number(project.artifactUsageBytes || 0) + total > Number(project.artifactQuotaBytes || MAX_PROJECT)) throw new Error('项目产物配额超过 5GiB');
       items.push({ id: uid('evidence_item'), relativePath: candidate.relativePath, ...getEvidenceItemMetadata(candidate.relativePath), ...digest, capturedAt: now() });
+    }
+    if (hostRun) {
+      for (const reference of run.artifacts) {
+        const item = items.find((entry) => entry.relativePath === reference.relativePath);
+        if (!item || (reference.type && reference.type !== item.type) || (reference.size !== undefined && reference.size !== item.size) || (reference.sha256 && reference.sha256 !== item.sha256)) throw new Error('Host artifact reference 与实际证据不一致');
+      }
     }
     const provenance = structuredClone(run.provenance || {});
     const verifiedAt = now();

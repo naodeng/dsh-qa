@@ -130,7 +130,8 @@ function createHostTestRun(project, execution, testRunPatch, clock = () => new D
     summary: testRunPatch.summary || '',
     provenance: testRunPatch.provenance,
   });
-  Object.assign(run, testRunPatch, { revision: 1, updatedAt: clock() });
+  const artifactDir = execution.stagingRoot || (project?.artifactRoot ? path.join(project.artifactRoot, `${execution.id}.staging`) : undefined);
+  Object.assign(run, testRunPatch, { ...(artifactDir ? { artifactDir } : {}), revision: 1, updatedAt: clock() });
   return run;
 }
 
@@ -217,6 +218,8 @@ function gateFacts(project, task) {
       regressionSetVersion: regression?.version || latestRun?.provenance?.regressionSetVersion || null,
       profileId: profile?.id ?? latestRun?.provenance?.profileId ?? null,
       profileVersion: profile?.currentVersion || latestRun?.provenance?.profileVersion || null,
+      hostExecutionId: latestRun?.provenance?.hostExecutionId ?? null,
+      hostResultDigest: latestRun?.provenance?.hostResultDigest ?? null,
     },
   };
 }

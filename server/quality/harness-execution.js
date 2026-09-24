@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { now, uid } from '../store.js';
 import {
   currentExecutionProfileVersion,
@@ -18,7 +19,7 @@ const MAX_TARGET_LENGTH = 4096;
 const MAX_SUMMARY_LENGTH = 512;
 const MAX_ID_LENGTH = 256;
 const MIN_TIMEOUT_MS = 1000;
-const PROVENANCE_FIELDS = new Set(['projectId', 'qualityTaskId', 'profileId', 'profileVersion', 'provider', 'capability', 'sourceDigests', 'testPlanVersion', 'commit']);
+const PROVENANCE_FIELDS = new Set(['projectId', 'qualityTaskId', 'profileId', 'profileVersion', 'provider', 'capability', 'sourceDigests', 'testPlanVersion', 'commit', 'hostResultDigest']);
 
 const TEST_RUN_STATUS = Object.freeze({
   queued: 'queued',
@@ -233,7 +234,7 @@ function rejectSymlinkPath(value, label, base) {
 
 function realPathIfPresent(value, label) {
   try {
-    return fs.realpathSync.native(value);
+    return fs.realpathSync(value);
   } catch (error) {
     if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR') return path.resolve(value);
     throw hostError('HOST_ARTIFACT_PATH_DENIED', `${label} 不可解析`);
@@ -255,15 +256,56 @@ function controlledRoot(project, hostExecution) {
   if (typeof stagingRoot !== 'string' || !path.isAbsolute(stagingRoot)) throw hostError('HOST_ARTIFACT_PATH_DENIED', 'Host staging root 必须是绝对路径');
   const staging = path.resolve(stagingRoot);
   if (!isWithinOrSame(root, staging)) throw hostError('HOST_ARTIFACT_PATH_DENIED', 'Host staging root 必须位于项目 artifactRoot');
+  const stagingStat = lstatIfPresent(staging, 'Host staging root');
   rejectSymlinkPath(staging, 'Host staging root', root);
   const realStaging = realPathIfPresent(staging, 'Host staging root');
-  if (!isWithinOrSame(realRoot, realStaging)) throw hostError('HOST_ARTIFACT_PATH_DENIED', 'Host staging root 必须位于项目 artifactRoot');
+  if (stagingStat && !isWithinOrSame(realRoot, realStaging)) throw hostError('HOST_ARTIFACT_PATH_DENIED', 'Host staging root 必须位于项目 artifactRoot');
   return { root, realRoot, staging, realStaging };
 }
 
 function normalizeRelativeArtifactPath(relativePath) {
   if (typeof relativePath !== 'string' || !relativePath || relativePath.length > 1024 || relativePath.includes('\0') || path.posix.isAbsolute(relativePath) || path.win32.isAbsolute(relativePath) || relativePath.split(/[\\/]/).includes('..')) throw hostError('HOST_ARTIFACT_PATH_DENIED', 'artifact relativePath 必须位于受控 staging root');
   return relativePath.replaceAll('\\', '/');
+}
+
+function artifactBytes(value) {
+  if (typeof value === 'string') return Buffer.from(value, 'utf8');
+  if (value instanceof ArrayBuffer) return Buffer.from(new Uint8Array(value));
+  if (ArrayBuffer.isView(value)) return Buffer.from(value.buffer, value.byteOffset, value.byteLength);
+  throw hostError('HOST_ARTIFACT_INVALID', 'artifact 内容必须是字符串或二进制数据');
+}
+
+function createControlledArtifactWriter(project, hostExecution) {
+  const initial = controlledRoot(project, hostExecution);
+  if (!initial?.staging || !initial.root) throw hostError('HOST_ARTIFACT_PATH_DENIED', 'Host artifact writer 需要受控 staging root');
+  fs.mkdirSync(initial.root, { recursive: true });
+  fs.mkdirSync(initial.staging, { recursive: true });
+  const controlled = controlledRoot(project, hostExecution);
+  return (relativePath, content) => {
+    const normalized = normalizeRelativeArtifactPath(relativePath);
+    const resolved = path.resolve(controlled.staging, normalized);
+    if (!isWithinOrSame(controlled.staging, resolved) || !isWithinOrSame(controlled.root, resolved)) throw hostError('HOST_ARTIFACT_PATH_DENIED', 'artifact descriptor 必须位于受控 artifactRoot');
+    const bytes = artifactBytes(content);
+    if (bytes.length > 100 * 1024 * 1024) throw hostError('HOST_ARTIFACT_INVALID', 'artifact 超过 100MiB');
+    const parent = path.dirname(resolved);
+    fs.mkdirSync(parent, { recursive: true });
+    rejectSymlinkPath(parent, 'artifact writer', controlled.staging);
+    rejectSymlinkPath(resolved, 'artifact writer', controlled.staging);
+    let fd;
+    try {
+      fd = fs.openSync(resolved, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o600);
+      fs.writeFileSync(fd, bytes);
+    } catch (error) {
+      throw hostError('HOST_ARTIFACT_WRITE_FAILED', error?.code === 'EEXIST' ? 'artifact 已存在' : 'artifact 写入失败');
+    } finally {
+      if (fd !== undefined) fs.closeSync(fd);
+    }
+    return {
+      relativePath: normalized,
+      size: bytes.length,
+      sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+    };
+  };
 }
 
 function artifactPolicyAllows(policy, type) {
@@ -294,8 +336,9 @@ function normalizeArtifactDescriptors(project, hostExecution, artifacts = []) {
     const resolvedPath = path.resolve(controlled.staging, relativePath);
     if (!isWithinOrSame(controlled.staging, resolvedPath) || !isWithinOrSame(controlled.root, resolvedPath)) throw hostError('HOST_ARTIFACT_PATH_DENIED', 'artifact descriptor 必须位于受控 artifactRoot');
     rejectSymlinkPath(resolvedPath, 'artifact descriptor', controlled.staging);
+    const artifactStat = lstatIfPresent(resolvedPath, 'artifact descriptor');
     const realPath = realPathIfPresent(resolvedPath, 'artifact descriptor');
-    if (!isWithinOrSame(controlled.realStaging, realPath) || !isWithinOrSame(controlled.realRoot, realPath)) throw hostError('HOST_ARTIFACT_PATH_DENIED', 'artifact descriptor 必须位于受控 artifactRoot');
+    if (artifactStat && (!isWithinOrSame(controlled.realStaging, realPath) || !isWithinOrSame(controlled.realRoot, realPath))) throw hostError('HOST_ARTIFACT_PATH_DENIED', 'artifact descriptor 必须位于受控 artifactRoot');
     const normalized = { relativePath, type: artifact.type };
     if (artifact.mimeType !== undefined) {
       if (typeof artifact.mimeType !== 'string' || artifact.mimeType.length > 128) throw hostError('HOST_ARTIFACT_INVALID', 'artifact mimeType 无效');
@@ -328,7 +371,19 @@ function normalizeResult(project, hostExecution, result = {}) {
   };
 }
 
-function normalizedProvenance(hostExecution) {
+function hostResultDigest(result) {
+  const canonical = {
+    status: result.status,
+    artifacts: [...(result.artifacts || [])].sort((left, right) => left.relativePath.localeCompare(right.relativePath)),
+    ...(result.providerExecutionId ? { providerExecutionId: result.providerExecutionId } : {}),
+    ...(result.errorCode ? { errorCode: result.errorCode } : {}),
+    ...(result.errorSummary ? { errorSummary: result.errorSummary } : {}),
+    ...(result.summary ? { summary: result.summary } : {}),
+  };
+  return crypto.createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
+}
+
+function normalizedProvenance(hostExecution, resultDigest) {
   const provenance = {};
   for (const [key, value] of Object.entries(hostExecution?.provenance || {})) {
     if (!PROVENANCE_FIELDS.has(key)) continue;
@@ -340,6 +395,7 @@ function normalizedProvenance(hostExecution) {
   if (hostExecution?.profileVersion !== undefined) provenance.profileVersion = hostExecution.profileVersion;
   if (hostExecution?.provider !== undefined) provenance.provider = hostExecution.provider;
   if (hostExecution?.capability !== undefined) provenance.capability = hostExecution.capability;
+  if (hostExecution?.resultDigest || resultDigest) provenance.hostResultDigest = hostExecution.resultDigest || resultDigest;
   provenance.hostExecutionId = boundedId(hostExecution.id, 'hostExecutionId');
   return provenance;
 }
@@ -372,14 +428,6 @@ function baseHostExecution(project, normalizedRequest, adapterId) {
     createdAt,
     updatedAt: createdAt,
   };
-}
-
-function unavailableHostExecution(project, normalizedRequest, adapterId) {
-  const execution = baseHostExecution(project, normalizedRequest, adapterId);
-  execution.status = 'not_run';
-  execution.errorCode = 'provider_unavailable';
-  execution.errorSummary = '没有可用的受控 Host adapter';
-  return execution;
 }
 
 function adapterStart(adapter) {
@@ -421,11 +469,14 @@ export async function startHostExecution(project, normalizedRequest, adapter, op
   if (shouldStop()) return execution;
 
   try {
-    const adapterResult = await start(clone(normalizedRequest));
+    const adapterResult = await start(clone(normalizedRequest), {
+      hostExecutionId: execution.id,
+      writeArtifact: createControlledArtifactWriter(project, execution),
+    });
     if (shouldStop()) return execution;
     if (adapterResult === null || adapterResult === undefined) throw hostError('HOST_ADAPTER_EMPTY_RESULT', 'Host adapter 必须返回结果');
     const result = normalizeResult(project, execution, adapterResult);
-    Object.assign(execution, result, { revision: execution.revision + 1, updatedAt: now() });
+    Object.assign(execution, result, { resultDigest: hostResultDigest(result), revision: execution.revision + 1, updatedAt: now() });
   } catch (error) {
     if (shouldStop()) return execution;
     execution.status = error?.code === 'HOST_ARTIFACT_PATH_DENIED' || error?.code === 'HOST_ARTIFACT_POLICY_DENIED' ? 'blocked' : 'provider_error';
@@ -447,7 +498,7 @@ export function mapHostExecutionResult(project, hostExecution, result) {
     mode: 'local',
     status,
     resultTrust: 'controlled-host',
-    provenance: normalizedProvenance(hostExecution),
+    provenance: normalizedProvenance(hostExecution, hostResultDigest(normalized)),
     hostExecutionRef: { id: hostExecution.id, provider: hostExecution.provider, profileVersion: hostExecution.profileVersion },
     artifacts: normalized.artifacts,
   };
