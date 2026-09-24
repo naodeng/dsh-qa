@@ -57,7 +57,7 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
   };
 
   const state = {
-    view: 'dashboard', columns: [], cards: new Map(), feed: [], schedule: [], reminders: [], stats: {}, settings: {},
+    view: 'dashboard', columns: [], cards: new Map(), feed: [], schedule: [], reminders: [], actionQueue: [], actionQueueLoaded: false, actionQueueError: false, stats: {}, settings: {},
     activeProjectId: null, activeProject: null, drawerProject: null, drawerTab: 'overview', detailProject: null, detailTab: 'overview', detailReturnView: 'board',
     streams: new Map(), evidenceRevisions: new Map(), busy: new Set(), justDragged: false, search: '', caseFilter: 'all',
     dshEmbedded: location.pathname.startsWith('/api/dsh-qa/workbench'),
@@ -66,7 +66,7 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
     dsh: { projectId: null, sessionId: '', skills: [], commands: [], models: null, qaPreset: null, busy: false, turnToken: 0 },
     skillCatalog: { lang: '', categories: [], groups: [], skills: [] }, skillSearch: '', installingSkill: '', uninstallingSkill: '',
     calendarCursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), selectedDate: localDate(new Date()),
-    refreshTimer: null,
+    refreshTimer: null, actionQueueRefreshTimer: null, sseReconnectTimer: null,
   };
   const dshRpc = createDshRpc(globalThis.fetch.bind(globalThis), { embedded: state.dshEmbedded });
 
@@ -380,8 +380,37 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
     if (item.days === 1) return t('todo.tomorrow');
     return t('todo.days', { n: item.days });
   }
-  function renderReminders() {
-    const list = $('#dashboard-reminders');
+  function actionStatusLabel(status) {
+    return t(`action.status.${status}`);
+  }
+  function actionPriorityClass(item) {
+    if (item.status === 'blocked' || item.priority === 'critical' || item.priority === 'high') return 'danger';
+    if (item.priority === 'medium') return 'warning';
+    return 'normal';
+  }
+  function actionTitle(item) {
+    return t(item.titleKey, item.reasonArgs || {});
+  }
+  function actionReason(item) {
+    return t(`action.reason.${item.reasonCode}`, item.reasonArgs || {}) === `action.reason.${item.reasonCode}`
+      ? t('action.reason.default')
+      : t(`action.reason.${item.reasonCode}`, item.reasonArgs || {});
+  }
+  function openActionItem(item) {
+    const target = item?.target || {};
+    const allowedTabs = new Set(['overview', 'qualityTasks', 'requirements', 'testcases', 'defects', 'milestones', 'reports', 'knowledge', 'minutes', 'gates']);
+    if (!item?.projectId) return;
+    if (target.view === 'project-detail' && allowedTabs.has(target.tab)) {
+      openProjectDetail(item.projectId, 'dashboard').then(() => {
+        state.detailTab = target.tab;
+        renderProjectDetailTabs();
+        renderProjectDetailTab(target.tab);
+      }).catch((error) => toast(error.message, 'err'));
+      return;
+    }
+    if (target.view === 'dsh') openProject(item.projectId);
+  }
+  function renderLegacyReminders(list) {
     const items = state.reminders.filter((item) => item.type !== 'milestone' || item.days <= 14).slice(0, 5);
     list.innerHTML = items.length ? items.map((item) => `
       <button class="attention-item ${item.severity}" data-project-id="${item.projectId}" type="button">
@@ -394,6 +423,33 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
     const alertCount = state.reminders.filter((x) => x.severity !== 'normal').length;
     $('#nav-alert-count').textContent = alertCount;
     $('#nav-alert-count').classList.toggle('hidden', !alertCount);
+  }
+  function renderActionQueue() {
+    const list = $('#dashboard-reminders');
+    if (!list) return;
+    if (!state.actionQueueLoaded) return renderLegacyReminders(list);
+    if (state.actionQueueError && !state.actionQueue.length) {
+      list.innerHTML = emptyHtml(t('action.queueUnavailable'));
+    } else {
+      const items = state.actionQueue.slice(0, 5);
+      list.innerHTML = items.length ? items.map((item) => {
+        const severity = actionPriorityClass(item);
+        const status = actionStatusLabel(item.status);
+        return `<button class="attention-item action-item ${severity}" data-action-id="${esc(item.id)}" type="button">
+          <span class="attention-mark">${tinyIcon(item.kind.startsWith('gate_') ? 'gate' : item.kind.startsWith('milestone_') ? 'milestone' : 'workflow')}</span>
+          <div class="action-copy"><div class="attention-title">${esc(actionTitle(item))}</div><div class="attention-meta">${esc(item.projectTitle)} · ${esc(actionReason(item))}</div></div>
+          <span class="attention-action">${item.actionRequired ? esc(t('action.needsAction')) : esc(t('action.monitoring'))}</span>
+          <span class="attention-time">${esc(status)}</span>
+        </button>`;
+      }).join('') : emptyHtml(t('action.empty'));
+      $$('.action-item', list).forEach((el) => el.addEventListener('click', () => openActionItem(state.actionQueue.find((item) => item.id === el.dataset.actionId))));
+    }
+    const alertCount = state.actionQueue.filter((item) => item.actionRequired).length;
+    $('#nav-alert-count').textContent = alertCount;
+    $('#nav-alert-count').classList.toggle('hidden', !alertCount);
+  }
+  function renderReminders() {
+    renderActionQueue();
   }
   function renderDashboardCases() {
     const cards = sortedCards().filter((card) => card.status !== 'closed').slice(0, 5);
@@ -1080,6 +1136,71 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
     const regressions = p.regressionSets || [];
     const evidenceState = (item) => ({ ready: q('已验证', 'Verified'), finalizing: q('处理中', 'Finalizing'), expired: q('已过期', 'Expired'), 'integrity-failed': q('完整性失败', 'Integrity failed') }[item.state] || item.state || q('未知', 'Unknown'));
     body.innerHTML = `<section class="detail-card" id="quality-gate-summary"><div class="detail-card-head"><div><span>QUALITY GATE</span><h3>${q('质量门禁', 'Quality gate')}</h3></div><span class="badge">${q('计算中', 'Checking')}</span></div><div class="li-sub">${q('正在检查测试运行、证据包和高风险项。', 'Checking test runs, evidence bundles, and high risks.')}</div></section><section class="detail-card quality-assets"><div class="detail-card-head"><div><span>QUALITY EVIDENCE</span><h3>${q('质量证据', 'Quality evidence')}</h3></div></div><div class="radar-grid"><div class="radar-stat"><b>${evidence.filter((item) => item.state === 'ready' && item.integrity === 'verified').length}</b><span>${q('就绪证据包', 'Ready bundles')}</span></div><div class="radar-stat"><b>${analyses.length}</b><span>${q('故障分析', 'Failure analyses')}</span></div><div class="radar-stat"><b>${regressions.length}</b><span>${q('回归集', 'Regression sets')}</span></div><div class="radar-stat"><b>${(p.testruns || []).length}</b><span>${q('测试运行', 'Test runs')}</span></div></div><div class="list quality-asset-list"><div class="list-item"><div class="li-title">${q('证据包', 'Evidence bundles')}</div><div class="li-sub">${evidence.map((item) => `${esc(item.id)} · ${esc(evidenceState(item))}`).join('、') || q('暂无证据包', 'No evidence bundles')}</div>${evidenceItems ? `<div class="li-meta evidence-items">${evidenceItems}</div>` : ''}</div><div class="list-item"><div class="li-title">${q('故障分析', 'Failure analyses')}</div><div class="li-sub">${analyses.map((item) => `${esc(item.summary || item.id)} · ${esc(item.status || 'proposed')}${item.failureStep ? ` · ${esc(item.failureStep)}` : ''}${item.confidence === null || item.confidence === undefined ? '' : ` · ${Math.round(Number(item.confidence) * 100)}%`}`).join('、') || q('暂无故障分析', 'No failure analyses')}</div></div><div class="list-item"><div class="li-title">${q('回归集', 'Regression sets')}</div><div class="li-sub">${regressions.map((item) => { const total = item.cases?.length || item.testCaseIds?.length || 0; const included = item.cases ? item.cases.filter((entry) => entry.included !== false).length : total; return `${esc(item.name || item.id)} · ${esc(item.status || 'manual')} · ${included}/${total} ${q('个用例', 'cases')}`; }).join('、') || q('暂无回归集', 'No regression sets')}</div></div><div class="list-item"><div class="li-title">${q('修复前后对比', 'Before/after comparison')}</div><div class="li-sub">${q('选择同一测试计划的两个终态运行进行对比。', 'Compare two terminal runs from the same test plan.')}</div></div></div></section><div class="tab-toolbar"><div><b>${q('质量任务', 'Quality tasks')}</b><span>${q('记录验收标准、风险、测试范围和分析决策', 'Track acceptance criteria, risks, scope, and analysis decisions')}</span></div><button class="btn primary sm" id="qt-add" type="button">＋ ${q('新建质量任务', 'New quality task')}</button></div><div class="list">${tasks.map((task) => `<article class="list-item quality-task-card"><div class="li-title">${esc(task.title)} <span class="badge">v${task.version || 1}</span></div><div class="li-meta">${q('阶段', 'Stage')}：${esc(task.stage || 'intake')} · ${q('结果来源', 'Origin')}：${task.analysisOrigin === 'agent' ? 'DSH 分析' : q('人工录入', 'Manual')}</div><h4>${q('验收标准', 'Acceptance criteria')}</h4><div class="li-sub">${task.acceptanceCriteria?.map((item) => esc(item.condition || item)).join('、') || q('暂无验收标准', 'No acceptance criteria')}</div></article>`).join('') || emptyHtml(q('暂无质量任务', 'No quality tasks'))}</div><section class="detail-card execution-card"><div class="detail-card-head"><div><span>LOCAL EXECUTION</span><h3>${q('执行配置', 'Execution profiles')}</h3></div><button class="btn primary sm" id="ep-add" type="button">＋ ${q('新建执行配置', 'New execution profile')}</button></div><div class="list">${(p.executionProfiles || []).map((profile) => `<div class="list-item"><div class="li-title">${esc(profile.name)} · v${profile.currentVersion || profile.version || 1}</div></div>`).join('') || emptyHtml(q('暂无执行配置', 'No execution profiles'))}</div></section>`;
+    const hostProfileVersion = (profile) => profile.versions?.find((item) => item.version === (profile.currentVersion || profile.version)) || profile;
+    const hostStatusLabel = (status) => status ? t(`host.${status}`) : t('host.noExecution');
+    const hostProfiles = (p.executionProfiles || []).filter((profile) => profile.kind === 'host');
+    const latestHostExecution = (profile) => [...(p.hostExecutions || [])]
+      .filter((execution) => execution.profileId === profile.id && !execution.supersededBy)
+      .sort((left, right) => String(left.updatedAt || '').localeCompare(String(right.updatedAt || '')) || Number(left.revision || 0) - Number(right.revision || 0))
+      .at(-1);
+    const hostSection = `<section class="detail-card execution-card host-execution-card" id="host-execution-card"><div class="detail-card-head"><div><span>HOST EXECUTION</span><h3>${q('Host 执行配置', 'Host execution profiles')}</h3><p class="field-note">${q('由宿主能力执行受控目标；结果和证据由服务端确认。', 'Run controlled targets through host capabilities; the server confirms results and evidence.')}</p></div><button class="btn primary sm" id="host-ep-add" type="button">＋ ${q('新建 Host 配置', 'New Host profile')}</button></div><div class="list">${hostProfiles.map((profile) => {
+      const version = hostProfileVersion(profile);
+      const execution = latestHostExecution(profile);
+      const targetValue = version.provider === 'mcp' ? '{"serverId":"server_1","toolName":"inspect"}' : (version.targetPolicy?.origins?.[0] || 'https://example.test/');
+      const capability = version.capabilities?.[0] || '';
+      const canStart = Boolean(tasks[0]);
+      const running = ['queued', 'running'].includes(execution?.status);
+      const terminal = execution && !running;
+      return `<article class="list-item host-profile-card" data-host-profile-id="${esc(profile.id)}"><div class="li-title">${esc(version.name || profile.name)} · v${esc(version.version || profile.currentVersion || 1)} <span class="badge">${esc(version.provider)}</span></div><div class="li-meta"><span>${q('能力', 'Capability')}：${esc(capability)}</span><span>${q('超时', 'Timeout')}：${Number(version.timeoutMs || 0)}ms</span><span>${q('证据', 'Evidence')}：${Object.entries(version.artifactPolicy || {}).filter(([, enabled]) => enabled).map(([key]) => key).join(', ') || q('无', 'none')}</span></div><div class="host-run-controls"><div class="field"><label>${q('目标', 'Target')}</label><input data-host-target type="text" value="${esc(targetValue)}" placeholder="${esc(version.provider === 'mcp' ? t('host.mcpTargetPlaceholder') : t('host.targetPlaceholder'))}" ${canStart ? '' : 'disabled'}/></div><select data-host-capability aria-label="${esc(q('宿主能力', 'Host capability'))}" ${canStart ? '' : 'disabled'}>${(version.capabilities || []).map((item) => `<option value="${esc(item)}">${esc(item)}</option>`).join('')}</select><button class="btn primary sm" data-host-preview type="button" ${canStart ? '' : 'disabled'}>${q('预览并执行', 'Preview and run')}</button></div><div class="host-run-status" data-host-status><span class="badge ${running ? 'warn' : terminal && execution.status !== 'passed' ? 'danger' : ''}">${q('状态', 'Status')}：${esc(hostStatusLabel(execution?.status))}</span>${execution?.updatedAt ? `<span class="li-meta-inline">${esc(fmtTime(execution.updatedAt))}</span>` : ''}${execution?.errorSummary ? `<span class="li-meta-inline">${esc(execution.errorSummary)}</span>` : ''}${running ? `<button class="btn sm danger" data-host-cancel type="button">${q('取消执行', 'Cancel execution')}</button>` : ''}${terminal ? `<button class="btn sm" data-host-retry type="button">${q('重试', 'Retry')}</button>` : ''}</div></article>`;
+    }).join('') || emptyHtml(q('暂无 Host 执行配置', 'No Host execution profiles yet'))}</div><p class="field-note host-evidence-note">${q('首页不把 Host 返回当作最终交付结论；证据包必须经过服务端校验。', 'The dashboard does not treat a Host response as a final delivery verdict; evidence must pass server-side verification.')}</p></section>`;
+    body.insertAdjacentHTML('beforeend', hostSection);
+    $('.execution-card:not(.host-execution-card) .list', body).innerHTML = (p.executionProfiles || []).filter((profile) => profile.kind !== 'host').map((profile) => `<div class="list-item"><div class="li-title">${esc(profile.name)} · v${profile.currentVersion || profile.version || 1}</div></div>`).join('') || emptyHtml(q('暂无执行配置', 'No execution profiles'));
+    const runHostExecution = async (profile, targetValue, capability, action = 'start') => {
+      const task = tasks[0];
+      if (!task) return toast(q('请先创建质量任务。', 'Create a quality task first.'), 'err');
+      const version = hostProfileVersion(profile);
+      const busyKey = `host-${action}:${profile.id}`;
+      if (state.busy.has(busyKey)) return;
+      let request;
+      if (action === 'start') {
+        let target = targetValue.trim();
+        if (version.provider === 'mcp') {
+          try { target = JSON.parse(target); } catch { return toast(q('MCP target 必须是合法 JSON。', 'MCP target must be valid JSON.'), 'err'); }
+        }
+        if (!target || (typeof target === 'string' && !target.trim())) return toast(q('请填写执行目标。', 'Enter an execution target.'), 'err');
+        request = { profileId: profile.id, provider: version.provider, capability, target, timeoutMs: version.timeoutMs, expectedRevision: task.version };
+      }
+      state.busy.add(busyKey);
+      $$(`[data-host-profile-id="${CSS.escape(profile.id)}"] button`, body).forEach((button) => { if (button.matches('[data-host-preview], [data-host-retry], [data-host-cancel]')) button.disabled = true; });
+      try {
+        if (action === 'start') {
+          const preview = await api(`api/projects/${p.id}/quality-tasks/${task.id}/host-executions/preview`, { method: 'POST', body: request });
+          const availability = preview.preview.adapterAvailable ? q('适配器可用', 'Adapter available') : q('适配器不可用，将记录为未执行', 'Adapter unavailable; it will be recorded as not run');
+          if (!confirm(`${q('执行预览', 'Execution preview')}：${availability}\n${q('确认开始 Host 执行吗？', 'The preview is ready. Start the Host execution?')}`)) return;
+          await api(`api/projects/${p.id}/quality-tasks/${task.id}/host-executions`, { method: 'POST', body: request });
+        } else if (action === 'retry') {
+          const execution = latestHostExecution(profile);
+          await api(`api/projects/${p.id}/host-executions/${execution.id}/retry`, { method: 'POST', body: { expectedRevision: execution.revision } });
+        } else {
+          const execution = latestHostExecution(profile);
+          await api(`api/projects/${p.id}/host-executions/${execution.id}/cancel`, { method: 'POST', body: { expectedRevision: execution.revision } });
+        }
+        await refreshAfterMutation(p.id);
+      } catch (error) { toast(error.message, 'err'); }
+      finally {
+        state.busy.delete(busyKey);
+        $$(`[data-host-profile-id="${CSS.escape(profile.id)}"] button`, body).forEach((button) => { if (button.matches('[data-host-preview], [data-host-retry], [data-host-cancel]')) button.disabled = false; });
+      }
+    };
+    $('#host-ep-add', body)?.addEventListener('click', () => openHostExecutionProfileModal(p));
+    $$('.host-profile-card', body).forEach((card) => {
+      const profile = hostProfiles.find((item) => item.id === card.dataset.hostProfileId);
+      const targetInput = $('[data-host-target]', card);
+      const capabilitySelect = $('[data-host-capability]', card);
+      $('[data-host-preview]', card)?.addEventListener('click', () => runHostExecution(profile, targetInput.value, capabilitySelect.value));
+      $('[data-host-retry]', card)?.addEventListener('click', () => runHostExecution(profile, targetInput.value, capabilitySelect.value, 'retry'));
+      $('[data-host-cancel]', card)?.addEventListener('click', () => runHostExecution(profile, targetInput.value, capabilitySelect.value, 'cancel'));
+    });
     const gateCard = $('#quality-gate-summary', body);
     if (gateCard) {
       const actions = document.createElement('div');
@@ -1275,6 +1396,35 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
       const targetFiles = $('#ep-targets', modal).value.split('\n').map((value) => value.trim()).filter(Boolean);
       try { await api(`api/projects/${project.id}/execution-profiles`, { method: 'POST', body: { name: $('#ep-name', modal).value.trim(), executor: $('#ep-executor', modal).value, cwdRelative: '.', targetFiles, networkIntent: 'none' } }); closeModal(); await refreshAfterMutation(project.id); toast('执行配置已保存', 'ok'); }
       catch (error) { toast(error.message, 'err'); }
+    });
+  }
+
+  function openHostExecutionProfileModal(project) {
+    const capabilities = { 'browser-use': ['navigate', 'interact', 'inspect'], 'computer-use': ['navigate', 'interact', 'inspect'], mcp: ['tool-call'] };
+    const modal = modalShell(t('host.createTitle'), t('host.createSub'), `<div class="field"><label for="hep-name">${t('host.name')}</label><input id="hep-name" value="browser host"/></div><div class="modal-grid"><div class="field"><label for="hep-provider">${t('host.provider')}</label><select id="hep-provider"><option value="browser-use">browser-use</option><option value="computer-use">computer-use</option><option value="mcp">mcp</option></select></div><div class="field"><label for="hep-capability">${t('host.capability')}</label><select id="hep-capability"></select></div><div class="field span-2" id="hep-origins-wrap"><label for="hep-origins">${t('host.origins')}</label><textarea id="hep-origins" rows="2">https://example.test</textarea></div><div class="field span-2 hidden" id="hep-mcp-wrap"><label for="hep-mcp">${t('host.mcpTargets')}</label><textarea id="hep-mcp" rows="2" placeholder="${esc(t('host.mcpTargetPlaceholder'))}">server_1:inspect</textarea></div><div class="field"><label for="hep-timeout">${t('host.timeout')}</label><input id="hep-timeout" type="number" min="1000" max="1800000" value="120000"/></div><div class="field"><label>${t('host.artifacts')}</label><div class="artifact-checks"><label><input id="hep-logs" type="checkbox" checked/> ${t('host.logs')}</label><label><input id="hep-screenshots" type="checkbox" checked/> ${t('host.screenshots')}</label><label><input id="hep-trace" type="checkbox" checked/> ${t('host.trace')}</label></div></div></div><div class="modal-foot"><button class="btn" id="hep-cancel" type="button">${t('modal.cancel')}</button><button class="btn primary" id="hep-ok" type="button">${t('host.save')}</button></div>`, true);
+    const renderProviderFields = () => {
+      const provider = $('#hep-provider', modal).value;
+      $('#hep-capability', modal).innerHTML = (capabilities[provider] || []).map((capability) => `<option value="${capability}">${capability}</option>`).join('');
+      $('#hep-origins-wrap', modal).classList.toggle('hidden', provider === 'mcp');
+      $('#hep-mcp-wrap', modal).classList.toggle('hidden', provider !== 'mcp');
+    };
+    $('#hep-provider', modal).addEventListener('change', renderProviderFields);
+    renderProviderFields();
+    $('#hep-cancel', modal).addEventListener('click', closeModal);
+    $('#hep-ok', modal).addEventListener('click', async () => {
+      const provider = $('#hep-provider', modal).value;
+      const targetPolicy = provider === 'mcp'
+        ? { mcpTargets: $('#hep-mcp', modal).value.split(/\r?\n|,/).map((value) => value.trim()).filter(Boolean).map((value) => { const [serverId, ...toolParts] = value.split(':'); return { serverId: serverId.trim(), toolNames: [toolParts.join(':').trim()] }; }) }
+        : { origins: $('#hep-origins', modal).value.split(/\r?\n|,/).map((value) => value.trim()).filter(Boolean) };
+      if (provider !== 'mcp' && !targetPolicy.origins.length) return toast(t('host.noTarget'), 'err');
+      if (provider === 'mcp' && targetPolicy.mcpTargets.some((target) => !target.serverId || !target.toolNames[0])) return toast(t('host.noTarget'), 'err');
+      try {
+        await api(`api/projects/${project.id}/execution-profiles`, { method: 'POST', body: {
+          name: $('#hep-name', modal).value.trim(), kind: 'host', provider, capabilities: [$('#hep-capability', modal).value], targetPolicy,
+          artifactPolicy: { logs: $('#hep-logs', modal).checked, screenshots: $('#hep-screenshots', modal).checked, trace: $('#hep-trace', modal).checked }, timeoutMs: Number($('#hep-timeout', modal).value),
+        } });
+        closeModal(); await refreshAfterMutation(project.id); toast(currentLang() === 'en' ? 'Host profile saved' : 'Host 配置已保存', 'ok');
+      } catch (error) { toast(error.message, 'err'); }
     });
   }
 
@@ -1544,14 +1694,43 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
     if (state.activeProjectId === id) { state.activeProjectId = null; state.activeProject = null; renderMessages([]); updateChatHead(null); }
     renderRailCases(); renderCaseList(); renderDashboard(); updateColCounts();
   }
+  function scheduleActionQueueRefresh() {
+    clearTimeout(state.actionQueueRefreshTimer);
+    state.actionQueueRefreshTimer = setTimeout(() => { state.actionQueueRefreshTimer = null; refreshActionQueue(); }, 300);
+  }
+  async function refreshActionQueue({ render = true } = {}) {
+    try {
+      const queue = await api('api/action-queue?limit=50');
+      state.actionQueue = Array.isArray(queue.items) ? queue.items : [];
+      state.actionQueueLoaded = true;
+      state.actionQueueError = false;
+      if (render) renderDashboard();
+      return queue;
+    } catch (error) {
+      state.actionQueueError = true;
+      if (state.actionQueueLoaded && render) renderActionQueue();
+      return null;
+    }
+  }
   function connectSSE() {
+    state.sseReconnectTimer = null;
     const events = new EventSource('api/events');
-    events.addEventListener('hello', () => refreshBoard(false));
+    events.addEventListener('hello', () => { refreshBoard(false); scheduleActionQueueRefresh(); });
     events.addEventListener('project.updated', (event) => { updateCard(JSON.parse(event.data).project); scheduleRefresh(); });
     events.addEventListener('project.created', (event) => { const card = JSON.parse(event.data).project; state.cards.set(card.id, card); renderRailCases(); renderCaseList(); scheduleRefresh(); });
     events.addEventListener('project.deleted', (event) => { removeCard(JSON.parse(event.data).projectId); scheduleRefresh(); });
+    const qualityRefresh = (event) => {
+      const update = JSON.parse(event.data);
+      scheduleActionQueueRefresh();
+      if (state.drawerProject?.id === update.projectId) refreshDrawer(update.projectId).catch(() => {});
+      if (state.detailProject?.id === update.projectId) refreshProjectDetail(update.projectId).catch(() => {});
+    };
+    events.addEventListener('quality.task.updated', qualityRefresh);
+    events.addEventListener('quality.test-run.updated', qualityRefresh);
+    events.addEventListener('quality.host-execution.updated', qualityRefresh);
     events.addEventListener('quality.evidence.updated', (event) => {
       const update = JSON.parse(event.data);
+      scheduleActionQueueRefresh();
       const seen = state.evidenceRevisions.get(update.entityId) || 0;
       if (Number(update.revision || 0) <= seen) return;
       state.evidenceRevisions.set(update.entityId, Number(update.revision));
@@ -1560,12 +1739,16 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
     });
     events.addEventListener('quality.gate.updated', (event) => {
       const update = JSON.parse(event.data);
+      scheduleActionQueueRefresh();
       if (state.drawerProject?.id === update.projectId) refreshDrawer(update.projectId).catch(() => {});
       if (state.detailProject?.id === update.projectId) refreshProjectDetail(update.projectId).catch(() => {});
     });
     events.addEventListener('feed', (event) => { state.feed.unshift(JSON.parse(event.data).entry); state.feed = state.feed.slice(0, 100); renderFeed(); renderDashboardFeed(); });
     events.addEventListener('stats', (event) => { state.stats = JSON.parse(event.data); renderMetrics(); });
-    events.onerror = () => {};
+    events.onerror = () => {
+      events.close();
+      if (!state.sseReconnectTimer) state.sseReconnectTimer = setTimeout(() => connectSSE(), 1500);
+    };
   }
   async function refreshBoard(loadInitialProject = true) {
     try {
@@ -1573,6 +1756,7 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
       state.columns = board.columns; state.cards = new Map(board.projects.map((card) => [card.id, card])); state.feed = board.feed; state.stats = board.stats; state.schedule = board.schedule || []; state.reminders = board.reminders || [];
       renderBoard(); renderRailCases(); renderCaseList(); renderDashboard(); renderFeed();
       applyStaticCopy();
+      await refreshActionQueue();
       if (state.activeProjectId && !state.cards.has(state.activeProjectId)) { state.activeProjectId = null; state.activeProject = null; }
       if (loadInitialProject && !state.activeProjectId && state.cards.size) await loadChat(sortedCards()[0].id, false);
     } catch (error) { toast(error.message, 'err'); }
