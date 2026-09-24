@@ -48,8 +48,8 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
   const RELEASE_PAGE_SIZE = 5;
   const RELEASE_SEEN_KEY = 'dsh-qa-release-seen';
   const DEFAULT_APP_INFO = {
-    currentVersion: '0.5.4', latestVersion: '0.5.4', isOutdated: false,
-    dshVersion: 'dsh-v0.1.7-alpha.1',
+    currentVersion: '0.6.0', latestVersion: '0.6.0', isOutdated: false,
+    dshVersion: 'dsh-v0.1.7-rc.1',
     repositoryUrl: 'https://github.com/naodeng/dsh-qa',
     websiteZhUrl: 'https://inaodeng.com/zh-cn/dsh-qa/',
     websiteEnUrl: 'https://inaodeng.com/en/dsh-qa/',

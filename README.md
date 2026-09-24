@@ -3,14 +3,14 @@
 # dsh-qa · 质量工作台
 
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-0.5.4-informational)]()
+[![Version](https://img.shields.io/badge/version-0.6.0-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
-[![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.7--alpha.1%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-alpha.1)
+[![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.7--rc.1%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-rc.1)
 
 **dsh-qa** 是 DeepSeek Harness 的本地 QA 工作台：在一个项目空间中管理需求、测试用例、风险、执行、证据和交付决策。项目与迭代的对话复用 DSH 原生会话，并自动使用「测试模式」（preset id: `qa`）；业务数据保留在本机，运行时没有生产依赖。
 
-当前发布版本是 `v0.5.4`；本版本修复 Harness 0.1.7 加载 `quality-control` bundle 时因 `dsh-plan-mode` 缺少非空 `section` 配置而失败的问题，同时保持上一版本的工作台能力和 Harness 官方 Panel/Slot API。`quality-control` 独立 bundle 的真实宿主运行验证仍未评估。
+当前发布版本是 `v0.6.0`；本版本以 Native QA Execution 为主线，新增受控 Host 执行、执行证据与 Action Desk，同时修复 DSH `v0.1.7-rc.1` 的可选宿主上下文兼容问题，并保持 Harness 官方 Panel/Slot API。任意外部提供方的真实执行仍需按具体 provider 单独验收。
 
 ```
 测试首页 → DSH 测试对话 → 项目看板 → 日历排期
@@ -48,6 +48,7 @@
 
 - **质量任务与来源快照**：围绕单个测试目标创建质量任务，服务端采集并校验需求、工作区文件或允许的 Git 修订来源；记录摘要、指纹、验收标准、风险、测试范围和分析决策，避免把客户端提交的路径或内容当作可信输入
 - **测试计划与受控执行**：质量任务下维护可评审的测试计划和不可变执行配置版本；只允许基于当前已评审计划、当前配置版本和来源摘要生成预览令牌，再启动最小化环境中的本地受控测试运行
+- **Native QA Execution 与 Action Desk**：Host 执行经过预览、确认、启动、取消、重试和证据归档；首页行动台按 canonical Action Queue 汇总需要处理的执行状态，不把运行中状态误报为待处理结果
 - **证据、分析与回归**：终态运行可归档为带完整性校验的证据包；支持失败分析、人工确认后升级缺陷、同计划运行前后对比，以及可追溯、可排除的确定性回归集
 - **计算型质量门禁**：依据执行来源、已验证证据、关键测试结果和风险状态计算 `PASS / WARN / BLOCK`；可查看交付报告与趋势，仅允许对合格的警告项创建带责任人、原因和过期时间的受控例外
 - **项目详情直达**：首页在办项目和项目看板卡片主体可直接进入完整项目详情；首页最多展示 5 个在办项目，全部项目仍可在项目看板查看
@@ -149,7 +150,7 @@ npm start          # 或双击 start.command
 
 ```
 lib/index.js      宿主半（cordis 插件）：进程内拉起工作台 + /api/dsh-qa 路由 + 系统提示播报
-lib/client.js     浏览器半（0.5.4）：官方 Panel/Slot 侧边栏与 main keyed slot + Workbench iframe
+lib/client.js     浏览器半（0.6.0）：官方 Panel/Slot 侧边栏与 main keyed slot + Workbench iframe
 lib/panel-contract.js  Panel/Slot 语义契约（运行时适配层只在 client.js）
 cordis.patch.yml  profile bundle 补丁（插入插件行）
 preset/qa/cordis.patch.yml  声明式 QA preset bundle
@@ -225,7 +226,7 @@ scripts/install-qa-skills.sh --dry-run           # 预览不写入
 - 运行：`npm start` 独立启动；`npm run dev` 监听重启
 - 测试：`npm test` 运行单元/API 测试（node:test）与 Chromium 端到端测试（Playwright）；`npm run test:unit` / `npm run test:e2e` 可单独执行
 - 测试端口冲突时：`QA_E2E_PORT=8900 npm test`；默认端口仍为 `8899`
-- Harness 宿主冒烟：`DSH_WEB_URL='<dsh web 打印的完整 URL，包含 ?token=...>' DSH_HOST_VERSION=dsh-v0.1.7-alpha.1 npm run test:host-smoke`；`dsh-v0.1.6-alpha.1` 仅保留为历史证据，不属于当前 bundle 迁移后的目标宿主；必须使用启动时打印的带 token URL，让 Playwright 先换取浏览器会话 cookie；面板生命周期可单独运行 `npm run test:host-smoke -- test/e2e/dsh-panel-lifecycle.spec.js`；这些命令不属于标准 `npm test`
+- Harness 宿主冒烟：`DSH_WEB_URL='<dsh web 打印的完整 URL，包含 ?token=...>' DSH_HOST_VERSION=dsh-v0.1.7-rc.1 npm run test:host-smoke`；当前配置同时保留 `dsh-v0.1.7-alpha.1` 兼容入口；必须使用启动时打印的带 token URL，让 Playwright 先换取浏览器会话 cookie；面板生命周期可单独运行 `npm run test:host-smoke -- test/e2e/dsh-panel-lifecycle.spec.js`；这些命令不属于标准 `npm test`
 - 发布：`npm publish` 后使用 `dsh plugin --profile web add dsh-qa` 安装；模型与密钥由使用者自己的 DSH 配置管理
 - 欢迎提交 Issue 与 PR（Conventional Commits）
 

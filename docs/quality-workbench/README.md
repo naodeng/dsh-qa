@@ -1,6 +1,6 @@
 # 质量工作台文档索引
 
-当前路线以 [版本语义与路线边界](./2026-09-15-version-map.md) 为准。当前发布基线是 `v0.5.4`；本版本修复 Harness 0.1.7 加载 `quality-control` bundle 时 `dsh-plan-mode` 缺少非空 `section` 配置的问题，`quality-control` 真实宿主运行仍未评估。
+当前路线以 [版本语义与路线边界](./2026-09-15-version-map.md) 为准。当前发布基线是 `v0.6.0`；本版本交付 Native QA Execution 与 Action Desk，并完成 DSH `v0.1.7-rc.1` 的宿主兼容修复。外部 provider 的真实执行仍需单独验收。
 
 ## 已发布质量基线
 

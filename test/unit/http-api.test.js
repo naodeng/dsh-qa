@@ -43,20 +43,20 @@ test('app info exposes the installed version, compatibility, links, and descendi
   assert.equal(payload.ok, true);
   assert.match(payload.currentVersion, /^\d+\.\d+\.\d+$/);
   assert.match(payload.latestVersion, /^\d+\.\d+\.\d+$/);
-  assert.equal(payload.dshVersion, 'dsh-v0.1.7-alpha.1');
+  assert.equal(payload.dshVersion, 'dsh-v0.1.7-rc.1');
   assert.equal(payload.repositoryUrl, 'https://github.com/naodeng/dsh-qa');
   assert.equal(payload.websiteZhUrl, 'https://inaodeng.com/zh-cn/dsh-qa/');
   assert.equal(payload.websiteEnUrl, 'https://inaodeng.com/en/dsh-qa/');
   assert.ok(Array.isArray(payload.releases));
   assert.ok(payload.releases.length >= 3);
-  assert.equal(payload.releases[0].version, '0.5.4');
+  assert.equal(payload.releases[0].version, '0.6.0');
   assert.match(payload.releases[0].date, /^2026-09-24$/);
   assert.match(payload.releases[0].publishedAt, /^2026-09-24T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   assert.equal(typeof payload.releases[0].summaryZh, 'string');
   assert.equal(typeof payload.releases[0].summaryEn, 'string');
-  assert.match(payload.releases[0].summaryZh, /修复|Harness|quality-control/);
-  assert.match(payload.releases[0].summaryEn, /quality-control|section/i);
-  assert.match(payload.releases[0].detailUrl, /github\.com\/naodeng\/dsh-qa\/releases\/tag\/v0\.5\.4$/);
+  assert.match(payload.releases[0].summaryZh, /Native|Action Desk|执行/);
+  assert.match(payload.releases[0].summaryEn, /Native|Action Desk|execution/i);
+  assert.match(payload.releases[0].detailUrl, /github\.com\/naodeng\/dsh-qa\/releases\/tag\/v0\.6\.0$/);
   for (let index = 1; index < payload.releases.length; index += 1) {
     assert.ok(
       Date.parse(payload.releases[index - 1].publishedAt) >= Date.parse(payload.releases[index].publishedAt),

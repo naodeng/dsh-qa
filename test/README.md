@@ -43,7 +43,7 @@ npm test
 
 ```sh
 DSH_WEB_URL='http://127.0.0.1:3080/?key=...' \
-DSH_HOST_VERSION='dsh-v0.1.7-alpha.1' \
+DSH_HOST_VERSION='dsh-v0.1.7-rc.1' \
 npm run test:host-smoke
 ```
 

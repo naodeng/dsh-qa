@@ -3,14 +3,14 @@
 # dsh-qa · QA Workbench
 
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-0.5.4-informational)]()
+[![Version](https://img.shields.io/badge/version-0.6.0-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
-[![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.7--alpha.1%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-alpha.1)
+[![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.7--rc.1%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-rc.1)
 
 **dsh-qa** is a local QA workbench for DeepSeek Harness. It keeps requirements, test cases, risks, execution, evidence, and delivery decisions in one project space. Project and iteration conversations reuse native DSH sessions with **Test Mode** (preset id: `qa`); business data stays local and the runtime has no production dependencies.
 
-The published version is `v0.5.4`; it fixes `quality-control` bundle loading in Harness 0.1.7 when `dsh-plan-mode` lacks its required non-empty `section` configuration, while retaining the previous workbench capabilities and Harness's official Panel/Slot API. Runtime verification of the independent `quality-control` bundle in a real host remains unassessed.
+The published version is `v0.6.0`; it adds controlled Native QA Execution, execution evidence, and an Action Desk, fixes optional host-context compatibility in DSH `v0.1.7-rc.1`, and retains Harness's official Panel/Slot API. Real execution through any external provider still requires provider-specific acceptance.
 
 ```
 Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
@@ -48,6 +48,7 @@ Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
 
 - **Quality tasks and source snapshots**: Create a quality task for each test objective. The server captures and validates requirements, workspace files, or allowed Git revisions, then records summaries, digests, acceptance criteria, risks, test scope, and analysis decisions instead of trusting client-supplied paths or content.
 - **Test plans and controlled execution**: Maintain reviewed test plans and immutable execution-profile versions per quality task. A run preview token is issued only for the current reviewed plan, current profile version, and source digest before a controlled local run starts in a minimal environment.
+- **Native QA Execution & Action Desk**: Host execution goes through preview, confirmation, start, cancel, retry, and evidence archiving; the Action Desk summarizes actionable execution states from the canonical Action Queue without treating running items as completed results.
 - **Evidence, analysis, and regression**: Archive terminal runs as integrity-checked evidence bundles; analyze failures, promote confirmed defects with human confirmation, compare runs from the same plan, and manage traceable deterministic regression sets with exclusions.
 - **Computed quality gates**: Calculate `PASS / WARN / BLOCK` from execution provenance, verified evidence, critical test results, and risk state. Delivery reports and trends remain available after refresh; controlled exceptions require an owner, reason, and expiry and apply only to eligible warnings.
 - **Direct project details**: The active-project list and kanban card body open the full project detail directly. The dashboard shows up to five active projects, while the kanban retains the complete project list.
@@ -149,7 +150,7 @@ The standalone address lets you view and manage test projects, the kanban, and t
 
 ```
 lib/index.js      Host half (cordis plugin): starts the workbench in-process + /api/dsh-qa routes + system-prompt announcement
-lib/client.js     Browser half (0.5.4): official Panel/Slot sidebar + main keyed slot + Workbench iframe
+lib/client.js     Browser half (0.6.0): official Panel/Slot sidebar + main keyed slot + Workbench iframe
 lib/panel-contract.js  Panel/Slot semantic contract (runtime adapter stays in client.js)
 cordis.patch.yml  Profile bundle patch (inserts the plugin line)
 preset/qa/cordis.patch.yml  Declarative QA preset bundle
@@ -225,7 +226,7 @@ After installing, restart `dsh web` and type `/` in the workbench chat to see th
 - Run: `npm start` for standalone; `npm run dev` for watch mode
 - Test: `npm test` runs unit/API tests (node:test) plus Chromium end-to-end tests (Playwright); `npm run test:unit` / `npm run test:e2e` run each separately
 - If the default test port is occupied: `QA_E2E_PORT=8900 npm test`; the default remains `8899`
-- Harness host smoke: `DSH_WEB_URL='<full URL printed by dsh web, including ?token=...>' DSH_HOST_VERSION=dsh-v0.1.7-alpha.1 npm run test:host-smoke`; `dsh-v0.1.6-alpha.1` remains historical evidence only and is not the target host after this bundle migration; Playwright exchanges the launch token for its browser-session cookie before testing. Run only the Panel lifecycle with `npm run test:host-smoke -- test/e2e/dsh-panel-lifecycle.spec.js`; these commands are not part of standard `npm test`
+- Harness host smoke: `DSH_WEB_URL='<full URL printed by dsh web, including ?token=...>' DSH_HOST_VERSION=dsh-v0.1.7-rc.1 npm run test:host-smoke`; the configuration also keeps `dsh-v0.1.7-alpha.1` as a supported compatibility entry; Playwright exchanges the launch token for its browser-session cookie before testing. Run only the Panel lifecycle with `npm run test:host-smoke -- test/e2e/dsh-panel-lifecycle.spec.js`; these commands are not part of standard `npm test`
 - Publish: after `npm publish`, install with `dsh plugin --profile web add dsh-qa`; models and keys are managed by the user's DSH configuration
 - Issues and PRs welcome (Conventional Commits)
 

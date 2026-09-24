@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+## 0.6.0 - 2026-09-24
+
+## 中文
+
+### 新功能
+
+- 新增 Native QA Execution：为 Host 执行配置、预览确认、启动、取消、重试、超时和证据归档建立受控链路。
+- 新增 Action Desk：从 canonical Action Queue 汇总需要处理的执行状态，保留首页提醒兼容投影，并支持双语状态、稳定排序和 SSE 刷新。
+- 新增 Host Execution 证据边界与生命周期持久化，区分宿主执行事件和本地 TestRun，阻止无证据的执行结果进入质量结论。
+
+### 修复
+
+- 修复 DSH `v0.1.7-rc.1` 宿主中可选 `hostAdapters` 上下文的兼容访问，避免未注入属性导致插件初始化失败。
+- 强化 Action Desk 的 revision、重复启动、重试抑制、取消和错误路径。
+
+### 验证
+
+- `QA_E2E_PORT=8917 npm test`：213 个单元/API 测试和 37 个 Chromium E2E 测试通过。
+- `npm pack --dry-run`：通过。
+- 真实 `dsh-v0.1.7-rc.1` 宿主兼容验收：用户本地操作无异常。
+
+## English
+
+### Features
+
+- Add Native QA Execution with controlled Host execution profiles, preview/confirmation, start, cancel, retry, timeout, and evidence archiving.
+- Add Action Desk backed by the canonical Action Queue, with a legacy dashboard-reminder projection, bilingual states, stable ordering, and SSE refresh.
+- Persist Host Execution evidence boundaries and lifecycle transitions separately from local TestRun events, preventing evidence-free execution results from becoming quality conclusions.
+
+### Fixes
+
+- Fix optional `hostAdapters` context access in the DSH `v0.1.7-rc.1` host so plugin initialization does not fail on an undeclared context property.
+- Harden Action Desk revision checks, duplicate-start suppression, retry suppression, cancellation, and error paths.
+
+### Verification
+
+- `QA_E2E_PORT=8917 npm test`: 213 unit/API tests and 37 Chromium E2E tests passed.
+- `npm pack --dry-run`: passed.
+- Real `dsh-v0.1.7-rc.1` host compatibility acceptance: no issues found in the user's local validation.
+
 ## 0.5.4 - 2026-09-24
 
 ## 中文
