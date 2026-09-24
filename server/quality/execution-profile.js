@@ -4,9 +4,64 @@ import { now, uid } from '../store.js';
 
 const EXECUTORS = new Set(['node-test', 'playwright']);
 const NETWORK_INTENTS = new Set(['none', 'declared']);
-const VERSION_FIELDS = ['name', 'executor', 'cwdRelative', 'targetFiles', 'networkIntent', 'timeoutMs'];
+const HOST_PROVIDERS = new Set(['browser-use', 'computer-use', 'mcp']);
+const HOST_CAPABILITIES = new Set(['navigate', 'interact', 'inspect', 'tool-call']);
+const PROVIDER_CAPABILITIES = new Map([
+  ['browser-use', new Set(['navigate', 'interact', 'inspect'])],
+  ['computer-use', new Set(['navigate', 'interact', 'inspect'])],
+  ['mcp', new Set(['tool-call'])],
+]);
+const LOCAL_VERSION_FIELDS = ['name', 'executor', 'cwdRelative', 'targetFiles', 'networkIntent', 'timeoutMs'];
+const HOST_VERSION_FIELDS = ['name', 'kind', 'provider', 'capabilities', 'targetPolicy', 'artifactPolicy', 'timeoutMs'];
+const HOST_ARTIFACT_FIELDS = ['logs', 'screenshots', 'trace'];
+const MIN_HOST_TIMEOUT_MS = 1000;
+const MAX_HOST_TIMEOUT_MS = 1800000;
 
-function validate(project, fields) {
+function assertObject(value, message) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(message);
+}
+
+function rejectUnknownFields(value, allowed, label) {
+  assertObject(value, `${label} 必须是对象`);
+  const unknown = Object.keys(value).filter((key) => !allowed.includes(key));
+  if (unknown.length) throw new Error(`${label} 包含未知字段：${unknown[0]}`);
+}
+
+function normalizeOrigin(value) {
+  if (typeof value !== 'string' || value.length > 2048) throw new Error('targetPolicy origin 无效');
+  let url;
+  try { url = new URL(value); } catch { throw new Error('targetPolicy origin 无效'); }
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.pathname !== '/' || url.search || url.hash) throw new Error('targetPolicy origin 无效');
+  return url.origin;
+}
+
+function normalizeMcpTargets(value) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new Error('targetPolicy.mcpTargets 必须是数组');
+  return value.map((entry) => {
+    rejectUnknownFields(entry, ['serverId', 'toolNames'], 'MCP target');
+    const serverId = typeof entry.serverId === 'string' ? entry.serverId.trim() : '';
+    const toolNames = Array.isArray(entry.toolNames) ? entry.toolNames : [];
+    if (!serverId || serverId.length > 128 || !toolNames.length || toolNames.some((tool) => typeof tool !== 'string' || !tool.trim() || tool.length > 128)) throw new Error('MCP server/tool 登记无效');
+    return { serverId, toolNames: [...new Set(toolNames.map((tool) => tool.trim()))].sort() };
+  });
+}
+
+function normalizeHostTargetPolicy(value = {}) {
+  rejectUnknownFields(value, ['origins', 'mcpTargets'], 'targetPolicy');
+  const origins = value.origins === undefined ? [] : value.origins;
+  if (!Array.isArray(origins) || origins.some((origin) => typeof origin !== 'string')) throw new Error('targetPolicy.origins 必须是数组');
+  return { origins: [...new Set(origins.map(normalizeOrigin))].sort(), mcpTargets: normalizeMcpTargets(value.mcpTargets) };
+}
+
+function normalizeHostArtifactPolicy(value = {}) {
+  rejectUnknownFields(value, HOST_ARTIFACT_FIELDS, 'artifactPolicy');
+  const policy = Object.fromEntries(HOST_ARTIFACT_FIELDS.map((field) => [field, value[field] === undefined ? false : value[field]]));
+  if (HOST_ARTIFACT_FIELDS.some((field) => typeof policy[field] !== 'boolean')) throw new Error('artifactPolicy 必须使用布尔白名单');
+  return policy;
+}
+
+function validateLocal(project, fields) {
   if (!EXECUTORS.has(fields.executor)) throw new Error('不支持的 executor');
   const cwdRelative = String(fields.cwdRelative || '.');
   const cwd = path.resolve(project.workspacePath || '.', cwdRelative);
@@ -34,10 +89,44 @@ function validate(project, fields) {
   return { name: String(fields.name || '未命名执行配置'), executor: fields.executor, cwdRelative, targetFiles: [...fields.targetFiles], networkIntent: fields.networkIntent || 'none', timeoutMs };
 }
 
+export function normalizeHostExecutionProfile(project, fields = {}) {
+  void project;
+  rejectUnknownFields(fields, HOST_VERSION_FIELDS, 'host profile');
+  if (fields.kind !== 'host') throw new Error('host profile 必须声明 kind: host');
+  const name = fields.name === undefined ? '未命名宿主执行配置' : fields.name;
+  if (typeof name !== 'string' || !name.trim() || name.length > 120) throw new Error('host profile name 无效');
+  if (!HOST_PROVIDERS.has(fields.provider)) throw new Error('不支持的 host provider');
+  if (!Array.isArray(fields.capabilities) || !fields.capabilities.length || fields.capabilities.some((capability) => typeof capability !== 'string' || !HOST_CAPABILITIES.has(capability))) throw new Error('host capabilities 无效');
+  const capabilities = [...new Set(fields.capabilities)];
+  const providerCapabilities = PROVIDER_CAPABILITIES.get(fields.provider);
+  if (capabilities.some((capability) => !providerCapabilities.has(capability))) throw new Error('provider 不支持该 capability');
+  const timeoutMs = fields.timeoutMs;
+  if (!Number.isInteger(timeoutMs) || timeoutMs < MIN_HOST_TIMEOUT_MS || timeoutMs > MAX_HOST_TIMEOUT_MS) throw new Error('host timeoutMs 超出范围');
+  return {
+    name: name.trim(),
+    kind: 'host',
+    provider: fields.provider,
+    capabilities,
+    targetPolicy: normalizeHostTargetPolicy(fields.targetPolicy),
+    artifactPolicy: normalizeHostArtifactPolicy(fields.artifactPolicy),
+    timeoutMs,
+  };
+}
+
+export function isHostProvider(provider) {
+  return HOST_PROVIDERS.has(provider);
+}
+
+export function isHostCapabilitySupported(provider, capability) {
+  return Boolean(PROVIDER_CAPABILITIES.get(provider)?.has(capability));
+}
+
 export function createExecutionProfile(project, fields = {}) {
   project.executionProfiles ||= [];
-  const version = validate(project, fields);
-  const profile = { id: uid('profile'), version: 1, ...version, versions: [{ version: 1, ...version, createdAt: now() }], disabled: false, createdAt: now() };
+  const version = fields.kind === 'host' ? normalizeHostExecutionProfile(project, fields) : validateLocal(project, fields);
+  const profile = fields.kind === 'host'
+    ? { id: uid('profile'), kind: 'host', version: 1, ...version, versions: [{ version: 1, ...version, createdAt: now() }], disabled: false, createdAt: now() }
+    : { id: uid('profile'), version: 1, ...version, versions: [{ version: 1, ...version, createdAt: now() }], disabled: false, createdAt: now() };
   project.executionProfiles.push(profile);
   return profile;
 }
@@ -45,7 +134,12 @@ export function createExecutionProfile(project, fields = {}) {
 export function createExecutionProfileVersion(project, id, fields = {}) {
   const profile = project.executionProfiles?.find((item) => item.id === id);
   if (!profile) throw new Error('执行配置不存在');
-  const next = validate(project, { ...currentExecutionProfileVersion(profile), ...fields });
+  const current = currentExecutionProfileVersion(profile);
+  const isHost = profile.kind === 'host' || current.kind === 'host';
+  const base = isHost
+    ? Object.fromEntries(HOST_VERSION_FIELDS.map((field) => [field, current[field]]))
+    : { ...current };
+  const next = isHost ? normalizeHostExecutionProfile(project, { ...base, ...fields }) : validateLocal(project, { ...base, ...fields });
   const version = (profile.currentVersion || profile.version) + 1;
   profile.versions.push({ version, ...next, createdAt: now() });
   profile.currentVersion = version;
@@ -57,7 +151,10 @@ export function currentExecutionProfileVersion(profile) {
   const version = profile.currentVersion || profile.version;
   const snapshot = profile.versions?.find((item) => item.version === version);
   if (!snapshot) throw new Error('执行配置当前版本不存在');
-  return { id: profile.id, version, ...Object.fromEntries(VERSION_FIELDS.map((field) => [field, snapshot[field]])), disabled: Boolean(profile.disabled) };
+  if (profile.kind === 'host' || snapshot.kind === 'host') {
+    return { id: profile.id, version, ...Object.fromEntries(HOST_VERSION_FIELDS.map((field) => [field, snapshot[field] ?? (field === 'kind' ? 'host' : undefined)])), disabled: Boolean(profile.disabled) };
+  }
+  return { id: profile.id, version, ...Object.fromEntries(LOCAL_VERSION_FIELDS.map((field) => [field, snapshot[field]])), disabled: Boolean(profile.disabled) };
 }
 
 export function disableExecutionProfile(project, id) {

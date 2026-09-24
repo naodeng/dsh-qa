@@ -61,3 +61,28 @@ test('bases each new profile version on the current version', () => {
   assert.equal(current.timeoutMs, 30_000);
   assert.deepEqual(current.targetFiles, ['test/fixtures/runner/pass.fixture.mjs']);
 });
+
+test('normalizes project-level host profiles while keeping legacy local profiles executable', () => {
+  const project = makeProject({ workspacePath: process.cwd() });
+  const host = createExecutionProfile(project, {
+    name: 'browser host',
+    kind: 'host',
+    provider: 'browser-use',
+    capabilities: ['navigate'],
+    targetPolicy: { origins: ['https://example.test'] },
+    artifactPolicy: { logs: true, screenshots: true, trace: true },
+    timeoutMs: 30_000,
+  });
+
+  const currentHost = executionProfiles.currentExecutionProfileVersion(host);
+  assert.equal(host.kind, 'host');
+  assert.equal(currentHost.kind, 'host');
+  assert.equal(currentHost.provider, 'browser-use');
+  assert.deepEqual(currentHost.targetPolicy, { origins: ['https://example.test'], mcpTargets: [] });
+
+  const local = createExecutionProfile(project, {
+    name: 'local', executor: 'node-test', cwdRelative: '.', targetFiles: ['test/fixtures/runner/pass.fixture.mjs'], networkIntent: 'none',
+  });
+  assert.equal(executionProfiles.currentExecutionProfileVersion(local).executor, 'node-test');
+  assert.deepEqual(resolveExecutionCommand(project, executionProfiles.currentExecutionProfileVersion(local)), [process.execPath, '--test', 'test/fixtures/runner/pass.fixture.mjs']);
+});
