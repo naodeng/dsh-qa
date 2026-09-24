@@ -388,27 +388,53 @@ function adapterStart(adapter) {
   return null;
 }
 
-export async function startHostExecution(project, normalizedRequest, adapter) {
+export async function startHostExecution(project, normalizedRequest, adapter, options = {}) {
   assertObject(normalizedRequest, 'HOST_EXECUTION_INVALID', 'normalizedRequest 必须是对象');
   if (!normalizedRequest.projectId || !normalizedRequest.qualityTaskId || !normalizedRequest.profileId || !normalizedRequest.provider || !normalizedRequest.capability || !normalizedRequest.adapterId || !normalizedRequest.provenance) throw hostError('HOST_EXECUTION_INVALID', 'normalizedRequest 缺少受控字段');
   const start = adapterStart(adapter);
   const adapterId = typeof adapter?.id === 'string' && adapter.id.trim() ? adapter.id.trim() : normalizedRequest.adapterId;
   if (adapter?.provider !== undefined && adapter.provider !== normalizedRequest.provider) throw hostError('HOST_ADAPTER_MISMATCH', 'adapter provider 与 request 不一致');
   if (adapter?.capabilities !== undefined && (!Array.isArray(adapter.capabilities) || !adapter.capabilities.includes(normalizedRequest.capability))) throw hostError('HOST_ADAPTER_MISMATCH', 'adapter capability 与 request 不一致');
-  if (!start) return unavailableHostExecution(project, normalizedRequest, adapterId);
-
   const execution = baseHostExecution(project, normalizedRequest, adapterId);
+  const notify = async () => {
+    if (typeof options.onTransition === 'function') await options.onTransition(execution);
+  };
+  const shouldStop = () => typeof options.shouldStop === 'function' && options.shouldStop(execution);
+
+  await notify();
+  if (!start) {
+    if (shouldStop()) return execution;
+    execution.status = 'not_run';
+    execution.errorCode = 'provider_unavailable';
+    execution.errorSummary = '没有可用的受控 Host adapter';
+    execution.revision += 1;
+    execution.updatedAt = now();
+    await notify();
+    return execution;
+  }
+
+  if (shouldStop()) return execution;
+  execution.status = 'running';
+  execution.revision += 1;
+  execution.updatedAt = now();
+  await notify();
+  if (shouldStop()) return execution;
+
   try {
     const adapterResult = await start(clone(normalizedRequest));
+    if (shouldStop()) return execution;
     if (adapterResult === null || adapterResult === undefined) throw hostError('HOST_ADAPTER_EMPTY_RESULT', 'Host adapter 必须返回结果');
     const result = normalizeResult(project, execution, adapterResult);
-    Object.assign(execution, result, { updatedAt: now() });
+    Object.assign(execution, result, { revision: execution.revision + 1, updatedAt: now() });
   } catch (error) {
+    if (shouldStop()) return execution;
     execution.status = error?.code === 'HOST_ARTIFACT_PATH_DENIED' || error?.code === 'HOST_ARTIFACT_POLICY_DENIED' ? 'blocked' : 'provider_error';
     execution.errorCode = error?.code === 'HOST_ARTIFACT_PATH_DENIED' || error?.code === 'HOST_ARTIFACT_POLICY_DENIED' ? 'artifact_policy_denied' : 'provider_error';
     execution.errorSummary = boundedText(error?.message || 'Host adapter failed');
+    execution.revision += 1;
     execution.updatedAt = now();
   }
+  await notify();
   return execution;
 }
 
