@@ -1,6 +1,6 @@
 # 质量工作台文档索引
 
-当前路线以 [版本语义与路线边界](./2026-09-15-version-map.md) 为准。当前发布基线是 `v0.5.3`；本版本完成 Quiet Studio 视觉整理、项目目录与测试入口归档，并修复初始化期间的页面选择保持，`quality-control` 运行验证仍未评估。
+当前路线以 [版本语义与路线边界](./2026-09-15-version-map.md) 为准。当前发布基线是 `v0.5.4`；本版本修复 Harness 0.1.7 加载 `quality-control` bundle 时 `dsh-plan-mode` 缺少非空 `section` 配置的问题，`quality-control` 真实宿主运行仍未评估。
 
 ## 已发布质量基线
 

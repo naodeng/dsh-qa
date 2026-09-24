@@ -3,14 +3,14 @@
 # dsh-qa · 质量工作台
 
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-0.5.3-informational)]()
+[![Version](https://img.shields.io/badge/version-0.5.4-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
 [![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.7--alpha.1%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-alpha.1)
 
 **dsh-qa** 是 DeepSeek Harness 的本地 QA 工作台：在一个项目空间中管理需求、测试用例、风险、执行、证据和交付决策。项目与迭代的对话复用 DSH 原生会话，并自动使用「测试模式」（preset id: `qa`）；业务数据保留在本机，运行时没有生产依赖。
 
-当前发布版本是 `v0.5.3`；本版本完成 Quiet Studio「安静工作室」视觉整理、项目目录与测试入口归档，并修复应用初始化期间页面选择被覆盖的问题，同时保持 Harness 官方 Panel/Slot API 与 `dsh-v0.1.7-alpha.1` 兼容性。`quality-control` 独立 bundle 的真实运行验证仍未评估。
+当前发布版本是 `v0.5.4`；本版本修复 Harness 0.1.7 加载 `quality-control` bundle 时因 `dsh-plan-mode` 缺少非空 `section` 配置而失败的问题，同时保持上一版本的工作台能力和 Harness 官方 Panel/Slot API。`quality-control` 独立 bundle 的真实宿主运行验证仍未评估。
 
 ```
 测试首页 → DSH 测试对话 → 项目看板 → 日历排期
@@ -149,7 +149,7 @@ npm start          # 或双击 start.command
 
 ```
 lib/index.js      宿主半（cordis 插件）：进程内拉起工作台 + /api/dsh-qa 路由 + 系统提示播报
-lib/client.js     浏览器半（0.5.3）：官方 Panel/Slot 侧边栏与 main keyed slot + Workbench iframe
+lib/client.js     浏览器半（0.5.4）：官方 Panel/Slot 侧边栏与 main keyed slot + Workbench iframe
 lib/panel-contract.js  Panel/Slot 语义契约（运行时适配层只在 client.js）
 cordis.patch.yml  profile bundle 补丁（插入插件行）
 preset/qa/cordis.patch.yml  声明式 QA preset bundle

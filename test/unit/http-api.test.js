@@ -29,14 +29,14 @@ test('app info exposes the installed version, compatibility, links, and descendi
   assert.equal(payload.websiteEnUrl, 'https://inaodeng.com/en/dsh-qa/');
   assert.ok(Array.isArray(payload.releases));
   assert.ok(payload.releases.length >= 3);
-  assert.equal(payload.releases[0].version, '0.5.3');
-  assert.match(payload.releases[0].date, /^2026-09-23$/);
-  assert.match(payload.releases[0].publishedAt, /^2026-09-23T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  assert.equal(payload.releases[0].version, '0.5.4');
+  assert.match(payload.releases[0].date, /^2026-09-24$/);
+  assert.match(payload.releases[0].publishedAt, /^2026-09-24T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   assert.equal(typeof payload.releases[0].summaryZh, 'string');
   assert.equal(typeof payload.releases[0].summaryEn, 'string');
-  assert.match(payload.releases[0].summaryZh, /安静|视觉|工作台/);
-  assert.match(payload.releases[0].summaryEn, /Quiet Studio|workbench/i);
-  assert.match(payload.releases[0].detailUrl, /github\.com\/naodeng\/dsh-qa\/releases\/tag\/v0\.5\.3$/);
+  assert.match(payload.releases[0].summaryZh, /修复|Harness|quality-control/);
+  assert.match(payload.releases[0].summaryEn, /quality-control|section/i);
+  assert.match(payload.releases[0].detailUrl, /github\.com\/naodeng\/dsh-qa\/releases\/tag\/v0\.5\.4$/);
   for (let index = 1; index < payload.releases.length; index += 1) {
     assert.ok(
       Date.parse(payload.releases[index - 1].publishedAt) >= Date.parse(payload.releases[index].publishedAt),

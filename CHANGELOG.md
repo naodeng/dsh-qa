@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+## 0.5.4 - 2026-09-24
+
+## 中文
+
+### 修复
+
+- 修复 Harness 0.1.7 加载 `quality-control` bundle 时，`dsh-plan-mode` 缺少非空 `section` 配置而导致 Agent 预设加载失败的问题。
+
+### 验证
+
+- `npm test`：162 个单元/API 测试和 32 个 Chromium E2E 测试通过。
+- `git diff --check`：通过。
+- `scripts/install-quality-control-preset.sh --profile web --dry-run`：通过。
+
+## English
+
+### Fixes
+
+- Fix `quality-control` bundle loading in Harness 0.1.7 by supplying the required non-empty `section` configuration for `dsh-plan-mode`.
+
+### Verification
+
+- `npm test`: 162 unit/API tests and 32 Chromium E2E tests passed.
+- `git diff --check`: passed.
+- `scripts/install-quality-control-preset.sh --profile web --dry-run`: passed.
+
 ## 0.5.3 - 2026-09-23
 
 ## 中文
