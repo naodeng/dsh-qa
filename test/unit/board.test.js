@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { computeStats, getReminders, getSchedule, projectCard } from '../../server/board.js';
+import { computeStats, getBoard, getReminders, getSchedule, projectCard } from '../../server/board.js';
 
 const project = (overrides = {}) => ({
   id: 'p1', kind: 'project', title: '订单测试', projectKey: 'ORD-1', product: '订单', owner: 'QA', type: 'web',
@@ -48,4 +48,17 @@ test('projectCard counts overdue and upcoming milestones independently', () => {
   assert.equal(card.counts.milestones, 3);
   assert.equal(card.counts.milestoneOverdue, 1);
   assert.equal(card.counts.milestoneSoon, 1);
+});
+
+test('getBoard projects canonical Action Queue items back to the legacy reminder shape', () => {
+  const current = project({
+    milestones: [{ id: 'm-board', title: 'UAT', dueDate: '2030-03-01', done: false }],
+    gates: [{ id: 'g-board', title: '发布门禁', status: 'pending', requestedAt: '2030-02-01T00:00:00Z' }],
+  });
+  const board = getBoard({ listProjects: () => [current], getFeed: () => [] });
+  const milestone = board.reminders.find((item) => item.type === 'milestone');
+  const gate = board.reminders.find((item) => item.type === 'gate');
+  assert.deepEqual(Object.keys(milestone).sort(), ['date', 'days', 'id', 'projectId', 'projectTitle', 'severity', 'title', 'type']);
+  assert.deepEqual(Object.keys(gate).sort(), ['date', 'id', 'projectId', 'projectTitle', 'severity', 'title', 'type']);
+  assert.equal(gate.title, '发布门禁');
 });

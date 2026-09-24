@@ -8,6 +8,7 @@ import { getAppInfo } from './app-info.js';
 import * as store from './store.js';
 import { sseHandler, broadcast } from './sse.js';
 import { getBoard, projectCard, computeStats, KANBAN_COLUMNS } from './board.js';
+import { ActionQueueSourceError, readActionQueue } from './action-queue.js';
 import { evaluateQualityGate } from './quality/gate.js';
 import { handleQualityRoutes, publicEvidence } from './quality/http-routes.js';
 import { ensureEvidenceIntegrity } from './quality/evidence.js';
@@ -208,6 +209,19 @@ async function api(req, res, url, body) {
   }
 
   if (p === '/api/board' && m('GET')) { ok(res, getBoard(store)); return true; }
+
+  if (p === '/api/action-queue' && m('GET')) {
+    const rawLimit = url.searchParams.get('limit');
+    if (rawLimit !== null && !/^(?:[1-9]|[1-4][0-9]|50)$/.test(rawLimit)) return fail(res, 400, 'limit 必须是 1 到 50 的整数');
+    const limit = rawLimit === null ? 50 : Number(rawLimit);
+    try {
+      ok(res, readActionQueue(store, { limit }));
+    } catch (error) {
+      if (error instanceof ActionQueueSourceError || error?.code === 'ACTION_QUEUE_SOURCE_UNAVAILABLE') return fail(res, 503, error.message, 'ACTION_QUEUE_SOURCE_UNAVAILABLE');
+      throw error;
+    }
+    return true;
+  }
 
   if (p === '/api/stats' && m('GET')) { ok(res, computeStats(store.listProjects().map(projectCard))); return true; }
 

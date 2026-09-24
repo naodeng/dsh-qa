@@ -66,6 +66,33 @@ test('board API exposes created project and rejects invalid transition', async (
   assert.equal(invalid.status, 400);
 });
 
+test('action queue API returns bounded read-only canonical items', async () => {
+  const project = store.createProject({ title: 'Action Queue API 项目' });
+  project.milestones.push({ id: 'milestone_action_api', title: 'UAT', dueDate: '2030-04-20', done: false });
+  project.gates.push({ id: 'gate_action_api', title: '发布门禁', status: 'pending', requestedAt: '2030-04-19T00:00:00.000Z' });
+  store.flush();
+  const dataPath = path.join(dataDir, 'data.json');
+  const before = fs.statSync(dataPath).mtimeMs;
+
+  const response = await fetch(`${base}/api/action-queue`);
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.ok, true);
+  assert.ok(Array.isArray(payload.items));
+  assert.ok(payload.items.some((item) => item.id === 'gate_approval:' + project.id + ':gate_action_api'));
+  assert.match(payload.generatedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(fs.statSync(dataPath).mtimeMs, before);
+
+  const limited = await fetch(`${base}/api/action-queue?limit=1`);
+  assert.equal(limited.status, 200);
+  assert.equal((await limited.json()).items.length, 1);
+  for (const limit of ['0', '51', '1.5', 'abc']) {
+    const invalid = await fetch(`${base}/api/action-queue?limit=${limit}`);
+    assert.equal(invalid.status, 400);
+    assert.equal((await invalid.json()).ok, false);
+  }
+});
+
 test('project API transitions stages and manages scheduled items', async () => {
   const created = await (await fetch(`${base}/api/projects`, {
     method: 'POST',
