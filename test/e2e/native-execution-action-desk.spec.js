@@ -43,6 +43,19 @@ test('Action Queue receives a missing Host adapter result without a page reload'
   await page.locator('#dashboard-reminders .action-item').filter({ hasText: fixture.project.title }).click();
   await expect(page.locator('#view-project-detail')).toHaveClass(/active/);
   await expect(page.locator('#host-execution-card')).toContainText('未执行');
+  const retryResponsePromise = page.waitForResponse((response) => response.request().method() === 'POST'
+    && response.url().includes(`/api/projects/${fixture.project.id}/host-executions/`)
+    && response.url().endsWith('/retry'));
+  await page.locator('#host-execution-card [data-host-retry]').click();
+  const retryResponse = await retryResponsePromise;
+  expect(retryResponse.status()).toBe(202);
+  const retried = await retryResponse.json();
+  expect(retried.execution.status).toBe('not_run');
+  const queueAfterRetry = await page.request.get('/api/action-queue?limit=50');
+  const queueBody = await queueAfterRetry.json();
+  const attemptItems = queueBody.items.filter((item) => item.source?.attemptGroupId === retried.execution.attemptGroupId);
+  expect(attemptItems).toHaveLength(1);
+  expect(attemptItems[0].source.id).toBe(retried.testRun.id);
 
   await page.locator('#btn-settings').click();
   await page.getByRole('button', { name: 'English' }).click();
@@ -71,6 +84,35 @@ test('项目详情支持 Host 配置、预览确认和受控 not_run 结果', as
   await expect(page.locator('#host-execution-card')).toContainText('预览并执行');
 
   page.on('dialog', (dialog) => dialog.accept());
+  const previewResponsePromise = page.waitForResponse((response) => response.request().method() === 'POST'
+    && response.url().includes(`/api/projects/${project.id}/quality-tasks/`)
+    && response.url().endsWith('/host-executions/preview'));
+  const startResponsePromise = page.waitForResponse((response) => response.request().method() === 'POST'
+    && response.url().includes(`/api/projects/${project.id}/quality-tasks/`)
+    && response.url().endsWith('/host-executions')
+    && response.status() === 202);
   await page.locator('[data-host-preview]').click();
+  const [previewResponse, startResponse] = await Promise.all([previewResponsePromise, startResponsePromise]);
+  expect(previewResponse.status()).toBe(200);
+  const preview = await previewResponse.json();
+  expect(preview.preview.adapterAvailable).toBe(false);
+  expect(startResponse.status()).toBe(202);
+  const started = await startResponse.json();
+  expect(started.execution.status).toBe('not_run');
   await expect(page.locator('#host-execution-card')).toContainText('未执行', { timeout: 5000 });
+});
+
+test('Host 缺失目标在界面显示可验证错误且不会启动', async ({ page }) => {
+  const fixture = await createHostFixture(page, `Host 缺失目标项目-${Date.now()}`);
+  await page.goto('/');
+  await page.getByRole('button', { name: '项目看板' }).click();
+  await page.locator('.card').filter({ hasText: fixture.project.title }).click();
+  await page.locator('#project-detail-tabs button[data-detail-tab="qualityTasks"]').click();
+  await page.locator('[data-host-target]').fill('');
+  await page.locator('[data-host-preview]').click();
+  await expect(page.locator('#toast-root .toast.err')).toContainText('请填写执行目标');
+  const projectResponse = await page.request.get(`/api/projects/${fixture.project.id}`);
+  expect(projectResponse.ok()).toBeTruthy();
+  const projectBody = await projectResponse.json();
+  expect(projectBody.project.hostExecutions).toHaveLength(0);
 });

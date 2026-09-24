@@ -399,7 +399,7 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
   function openActionItem(item) {
     const target = item?.target || {};
     const allowedTabs = new Set(['overview', 'qualityTasks', 'requirements', 'testcases', 'defects', 'milestones', 'reports', 'knowledge', 'minutes', 'gates']);
-    if (!item?.projectId) return;
+    if (!item?.projectId) return toast(t('action.targetUnavailable'), 'err');
     if (target.view === 'project-detail' && allowedTabs.has(target.tab)) {
       openProjectDetail(item.projectId, 'dashboard').then(() => {
         state.detailTab = target.tab;
@@ -408,7 +408,11 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
       }).catch((error) => toast(error.message, 'err'));
       return;
     }
-    if (target.view === 'dsh') openProject(item.projectId);
+    if (target.view === 'dsh') {
+      openProject(item.projectId);
+      return;
+    }
+    toast(t('action.targetUnavailable'), 'err');
   }
   function renderLegacyReminders(list) {
     const items = state.reminders.filter((item) => item.type !== 'milestone' || item.days <= 14).slice(0, 5);
@@ -427,12 +431,23 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
   function renderActionQueue() {
     const list = $('#dashboard-reminders');
     if (!list) return;
-    if (!state.actionQueueLoaded) return renderLegacyReminders(list);
-    if (state.actionQueueError && !state.actionQueue.length) {
-      list.innerHTML = emptyHtml(t('action.queueUnavailable'));
-    } else {
-      const items = state.actionQueue.slice(0, 5);
-      list.innerHTML = items.length ? items.map((item) => {
+    if (!state.actionQueueLoaded) {
+      if (state.actionQueueError) {
+        list.innerHTML = `<div class="action-queue-error" role="alert">${esc(t('action.queueUnavailable'))}</div>`;
+      } else {
+        renderLegacyReminders(list);
+      }
+      $('#nav-alert-count').textContent = '0';
+      $('#nav-alert-count').classList.add('hidden');
+      return;
+    }
+    const items = state.actionQueue.slice(0, 5);
+    const errorNotice = state.actionQueueError
+      ? `<div class="action-queue-error" role="alert">${esc(t('action.queueStale'))}</div>`
+      : '';
+    const content = state.actionQueueError && !items.length
+      ? emptyHtml(t('action.queueUnavailable'))
+      : items.length ? items.map((item) => {
         const severity = actionPriorityClass(item);
         const status = actionStatusLabel(item.status);
         return `<button class="attention-item action-item ${severity}" data-action-id="${esc(item.id)}" type="button">
@@ -442,8 +457,8 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
           <span class="attention-time">${esc(status)}</span>
         </button>`;
       }).join('') : emptyHtml(t('action.empty'));
-      $$('.action-item', list).forEach((el) => el.addEventListener('click', () => openActionItem(state.actionQueue.find((item) => item.id === el.dataset.actionId))));
-    }
+    list.innerHTML = `${errorNotice}${content}`;
+    $$('.action-item', list).forEach((el) => el.addEventListener('click', () => openActionItem(state.actionQueue.find((item) => item.id === el.dataset.actionId))));
     const alertCount = state.actionQueue.filter((item) => item.actionRequired).length;
     $('#nav-alert-count').textContent = alertCount;
     $('#nav-alert-count').classList.toggle('hidden', !alertCount);
@@ -1138,6 +1153,14 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
     body.innerHTML = `<section class="detail-card" id="quality-gate-summary"><div class="detail-card-head"><div><span>QUALITY GATE</span><h3>${q('质量门禁', 'Quality gate')}</h3></div><span class="badge">${q('计算中', 'Checking')}</span></div><div class="li-sub">${q('正在检查测试运行、证据包和高风险项。', 'Checking test runs, evidence bundles, and high risks.')}</div></section><section class="detail-card quality-assets"><div class="detail-card-head"><div><span>QUALITY EVIDENCE</span><h3>${q('质量证据', 'Quality evidence')}</h3></div></div><div class="radar-grid"><div class="radar-stat"><b>${evidence.filter((item) => item.state === 'ready' && item.integrity === 'verified').length}</b><span>${q('就绪证据包', 'Ready bundles')}</span></div><div class="radar-stat"><b>${analyses.length}</b><span>${q('故障分析', 'Failure analyses')}</span></div><div class="radar-stat"><b>${regressions.length}</b><span>${q('回归集', 'Regression sets')}</span></div><div class="radar-stat"><b>${(p.testruns || []).length}</b><span>${q('测试运行', 'Test runs')}</span></div></div><div class="list quality-asset-list"><div class="list-item"><div class="li-title">${q('证据包', 'Evidence bundles')}</div><div class="li-sub">${evidence.map((item) => `${esc(item.id)} · ${esc(evidenceState(item))}`).join('、') || q('暂无证据包', 'No evidence bundles')}</div>${evidenceItems ? `<div class="li-meta evidence-items">${evidenceItems}</div>` : ''}</div><div class="list-item"><div class="li-title">${q('故障分析', 'Failure analyses')}</div><div class="li-sub">${analyses.map((item) => `${esc(item.summary || item.id)} · ${esc(item.status || 'proposed')}${item.failureStep ? ` · ${esc(item.failureStep)}` : ''}${item.confidence === null || item.confidence === undefined ? '' : ` · ${Math.round(Number(item.confidence) * 100)}%`}`).join('、') || q('暂无故障分析', 'No failure analyses')}</div></div><div class="list-item"><div class="li-title">${q('回归集', 'Regression sets')}</div><div class="li-sub">${regressions.map((item) => { const total = item.cases?.length || item.testCaseIds?.length || 0; const included = item.cases ? item.cases.filter((entry) => entry.included !== false).length : total; return `${esc(item.name || item.id)} · ${esc(item.status || 'manual')} · ${included}/${total} ${q('个用例', 'cases')}`; }).join('、') || q('暂无回归集', 'No regression sets')}</div></div><div class="list-item"><div class="li-title">${q('修复前后对比', 'Before/after comparison')}</div><div class="li-sub">${q('选择同一测试计划的两个终态运行进行对比。', 'Compare two terminal runs from the same test plan.')}</div></div></div></section><div class="tab-toolbar"><div><b>${q('质量任务', 'Quality tasks')}</b><span>${q('记录验收标准、风险、测试范围和分析决策', 'Track acceptance criteria, risks, scope, and analysis decisions')}</span></div><button class="btn primary sm" id="qt-add" type="button">＋ ${q('新建质量任务', 'New quality task')}</button></div><div class="list">${tasks.map((task) => `<article class="list-item quality-task-card"><div class="li-title">${esc(task.title)} <span class="badge">v${task.version || 1}</span></div><div class="li-meta">${q('阶段', 'Stage')}：${esc(task.stage || 'intake')} · ${q('结果来源', 'Origin')}：${task.analysisOrigin === 'agent' ? 'DSH 分析' : q('人工录入', 'Manual')}</div><h4>${q('验收标准', 'Acceptance criteria')}</h4><div class="li-sub">${task.acceptanceCriteria?.map((item) => esc(item.condition || item)).join('、') || q('暂无验收标准', 'No acceptance criteria')}</div></article>`).join('') || emptyHtml(q('暂无质量任务', 'No quality tasks'))}</div><section class="detail-card execution-card"><div class="detail-card-head"><div><span>LOCAL EXECUTION</span><h3>${q('执行配置', 'Execution profiles')}</h3></div><button class="btn primary sm" id="ep-add" type="button">＋ ${q('新建执行配置', 'New execution profile')}</button></div><div class="list">${(p.executionProfiles || []).map((profile) => `<div class="list-item"><div class="li-title">${esc(profile.name)} · v${profile.currentVersion || profile.version || 1}</div></div>`).join('') || emptyHtml(q('暂无执行配置', 'No execution profiles'))}</div></section>`;
     const hostProfileVersion = (profile) => profile.versions?.find((item) => item.version === (profile.currentVersion || profile.version)) || profile;
     const hostStatusLabel = (status) => status ? t(`host.${status}`) : t('host.noExecution');
+    const hostEvidenceStatus = (execution) => {
+      if (!execution) return null;
+      const bundle = evidence.find((item) => item.testRunId === execution.testRunId);
+      if (bundle?.state === 'ready' && bundle.integrity === 'verified') return { label: t('host.evidenceVerified'), className: 'verified' };
+      if (bundle?.state === 'integrity-failed' || bundle?.integrity === 'failed') return { label: t('host.evidenceRejected'), className: 'danger' };
+      if (execution.status === 'passed' || bundle) return { label: t('host.evidencePending'), className: 'warn' };
+      return null;
+    };
     const hostProfiles = (p.executionProfiles || []).filter((profile) => profile.kind === 'host');
     const latestHostExecution = (profile) => [...(p.hostExecutions || [])]
       .filter((execution) => execution.profileId === profile.id && !execution.supersededBy)
@@ -1151,7 +1174,8 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
       const canStart = Boolean(tasks[0]);
       const running = ['queued', 'running'].includes(execution?.status);
       const terminal = execution && !running;
-      return `<article class="list-item host-profile-card" data-host-profile-id="${esc(profile.id)}"><div class="li-title">${esc(version.name || profile.name)} · v${esc(version.version || profile.currentVersion || 1)} <span class="badge">${esc(version.provider)}</span></div><div class="li-meta"><span>${q('能力', 'Capability')}：${esc(capability)}</span><span>${q('超时', 'Timeout')}：${Number(version.timeoutMs || 0)}ms</span><span>${q('证据', 'Evidence')}：${Object.entries(version.artifactPolicy || {}).filter(([, enabled]) => enabled).map(([key]) => key).join(', ') || q('无', 'none')}</span></div><div class="host-run-controls"><div class="field"><label>${q('目标', 'Target')}</label><input data-host-target type="text" value="${esc(targetValue)}" placeholder="${esc(version.provider === 'mcp' ? t('host.mcpTargetPlaceholder') : t('host.targetPlaceholder'))}" ${canStart ? '' : 'disabled'}/></div><select data-host-capability aria-label="${esc(q('宿主能力', 'Host capability'))}" ${canStart ? '' : 'disabled'}>${(version.capabilities || []).map((item) => `<option value="${esc(item)}">${esc(item)}</option>`).join('')}</select><button class="btn primary sm" data-host-preview type="button" ${canStart ? '' : 'disabled'}>${q('预览并执行', 'Preview and run')}</button></div><div class="host-run-status" data-host-status><span class="badge ${running ? 'warn' : terminal && execution.status !== 'passed' ? 'danger' : ''}">${q('状态', 'Status')}：${esc(hostStatusLabel(execution?.status))}</span>${execution?.updatedAt ? `<span class="li-meta-inline">${esc(fmtTime(execution.updatedAt))}</span>` : ''}${execution?.errorSummary ? `<span class="li-meta-inline">${esc(execution.errorSummary)}</span>` : ''}${running ? `<button class="btn sm danger" data-host-cancel type="button">${q('取消执行', 'Cancel execution')}</button>` : ''}${terminal ? `<button class="btn sm" data-host-retry type="button">${q('重试', 'Retry')}</button>` : ''}</div></article>`;
+      const evidenceState = hostEvidenceStatus(execution);
+      return `<article class="list-item host-profile-card" data-host-profile-id="${esc(profile.id)}"><div class="li-title">${esc(version.name || profile.name)} · v${esc(version.version || profile.currentVersion || 1)} <span class="badge">${esc(version.provider)}</span></div><div class="li-meta"><span>${q('能力', 'Capability')}：${esc(capability)}</span><span>${q('超时', 'Timeout')}：${Number(version.timeoutMs || 0)}ms</span><span>${q('证据', 'Evidence')}：${Object.entries(version.artifactPolicy || {}).filter(([, enabled]) => enabled).map(([key]) => key).join(', ') || q('无', 'none')}</span></div><div class="host-run-controls"><div class="field"><label>${q('目标', 'Target')}</label><input data-host-target type="text" value="${esc(targetValue)}" placeholder="${esc(version.provider === 'mcp' ? t('host.mcpTargetPlaceholder') : t('host.targetPlaceholder'))}" ${canStart ? '' : 'disabled'}/></div><select data-host-capability aria-label="${esc(q('宿主能力', 'Host capability'))}" ${canStart ? '' : 'disabled'}>${(version.capabilities || []).map((item) => `<option value="${esc(item)}">${esc(item)}</option>`).join('')}</select><button class="btn primary sm" data-host-preview type="button" ${canStart ? '' : 'disabled'}>${q('预览并执行', 'Preview and run')}</button></div><div class="host-run-status" data-host-status><span class="badge ${running ? 'warn' : terminal && execution.status !== 'passed' ? 'danger' : ''}">${q('状态', 'Status')}：${esc(hostStatusLabel(execution?.status))}</span>${evidenceState ? `<span class="badge ${evidenceState.className}">${esc(evidenceState.label)}</span>` : ''}${execution?.updatedAt ? `<span class="li-meta-inline">${esc(fmtTime(execution.updatedAt))}</span>` : ''}${execution?.errorSummary ? `<span class="li-meta-inline">${esc(execution.errorSummary)}</span>` : ''}${running ? `<button class="btn sm danger" data-host-cancel type="button">${q('取消执行', 'Cancel execution')}</button>` : ''}${terminal ? `<button class="btn sm" data-host-retry type="button">${q('重试', 'Retry')}</button>` : ''}</div></article>`;
     }).join('') || emptyHtml(q('暂无 Host 执行配置', 'No Host execution profiles yet'))}</div><p class="field-note host-evidence-note">${q('首页不把 Host 返回当作最终交付结论；证据包必须经过服务端校验。', 'The dashboard does not treat a Host response as a final delivery verdict; evidence must pass server-side verification.')}</p></section>`;
     body.insertAdjacentHTML('beforeend', hostSection);
     $('.execution-card:not(.host-execution-card) .list', body).innerHTML = (p.executionProfiles || []).filter((profile) => profile.kind !== 'host').map((profile) => `<div class="list-item"><div class="li-title">${esc(profile.name)} · v${profile.currentVersion || profile.version || 1}</div></div>`).join('') || emptyHtml(q('暂无执行配置', 'No execution profiles'));
@@ -1708,14 +1732,14 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
       return queue;
     } catch (error) {
       state.actionQueueError = true;
-      if (state.actionQueueLoaded && render) renderActionQueue();
+      if (render) renderActionQueue();
       return null;
     }
   }
   function connectSSE() {
     state.sseReconnectTimer = null;
     const events = new EventSource('api/events');
-    events.addEventListener('hello', () => { refreshBoard(false); scheduleActionQueueRefresh(); });
+    events.addEventListener('hello', () => { refreshBoard(false); });
     events.addEventListener('project.updated', (event) => { updateCard(JSON.parse(event.data).project); scheduleRefresh(); });
     events.addEventListener('project.created', (event) => { const card = JSON.parse(event.data).project; state.cards.set(card.id, card); renderRailCases(); renderCaseList(); scheduleRefresh(); });
     events.addEventListener('project.deleted', (event) => { removeCard(JSON.parse(event.data).projectId); scheduleRefresh(); });
