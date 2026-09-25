@@ -104,22 +104,16 @@ test.describe('首页', () => {
     await page.locator('#st-close').click();
   });
 
-  test('设置页提供可选 quality-control preset 安装入口', async ({ page }) => {
+  test('设置页显示 quality-control 随主 bundle 安装', async ({ page }) => {
     await page.goto('/');
     await page.locator('#btn-settings').click();
     await expect(page.locator('#st-quality-control')).toBeVisible();
     await expect(page.locator('#st-quality-control')).toContainText('研发质量控制模式');
-    await page.locator('#st-qc-install').click();
-    await expect(page.locator('#preset-install-modal')).toBeVisible();
-    await expect(page.locator('#preset-install-modal')).toHaveAttribute('data-preset-install-mode', 'web');
-    await expect(page.locator('#preset-install-modal')).toContainText('quality-control');
-    await expect(page.locator('#preset-install-command')).toContainText('npx --yes @deepseek-ai/dsh');
-    await expect(page.locator('#preset-install-command')).toContainText('@0.1.7-rc.1');
-    await expect(page.locator('#preset-install-command')).toContainText('export DSH_HOME=');
-    await expect(page.locator('#preset-install-command')).toContainText('node_modules/dsh-qa/preset/quality-control');
+    await expect(page.locator('#st-quality-control .about-status')).toContainText('插件模式可用');
+    await expect(page.locator('#st-qc-install')).toHaveCount(0);
   });
 
-  test('嵌入 DSH 时设置页提供桌面插件安装指引', async ({ page }) => {
+  test('嵌入 DSH 时设置页同样显示已安装 quality-control', async ({ page }) => {
     const embeddedPrefix = '/api/dsh-qa/workbench';
     await page.route('**/*', async (route) => {
       const requestUrl = new URL(route.request().url());
@@ -132,12 +126,8 @@ test.describe('首页', () => {
     });
     await page.goto(`${embeddedPrefix}/`);
     await page.locator('#btn-settings').click();
-    await page.locator('#st-qc-install').click();
-    await expect(page.locator('#preset-install-modal')).toHaveAttribute('data-preset-install-mode', 'desktop');
-    await expect(page.locator('#preset-install-modal')).toContainText('插件');
-    await expect(page.locator('#preset-install-path')).toContainText('profiles/desktop/node_modules/dsh-qa/preset/quality-control');
-    await expect(page.locator('#preset-install-command')).toHaveCount(0);
-    await expect(page.locator('#preset-copy')).toHaveCount(0);
+    await expect(page.locator('#st-quality-control .about-status')).toContainText('已安装');
+    await expect(page.locator('#st-qc-install')).toHaveCount(0);
   });
 
   test('设置按钮在浅色背景下保持高对比度', async ({ page }) => {
@@ -168,7 +158,7 @@ test.describe('首页', () => {
 
   test('设置弹窗承载语言和关于信息，版本历史支持倒序分页', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('#app-version')).toContainText('v0.6.2');
+    await expect(page.locator('#app-version')).toContainText('v0.6.3');
     await expect(page.locator('.avatar')).toHaveCount(0);
     await expect(page.locator('.theme-toggle')).toHaveCount(0);
     await expect(page.locator('#btn-lang')).toHaveCount(0);
@@ -187,13 +177,13 @@ test.describe('首页', () => {
     await page.locator('#st-close').click();
     await page.locator('#app-version').click();
     await expect(page.locator('#release-modal')).toBeVisible();
-    await expect(page.locator('#release-list .release-row').first()).toContainText('v0.6.2');
+    await expect(page.locator('#release-list .release-row').first()).toContainText('v0.6.3');
     await expect(page.locator('#release-list .release-row').first()).toContainText('quality-control');
     await expect(page.locator('#release-list .release-row')).toHaveCount(5);
     await expect(page.locator('#release-next')).toBeEnabled();
     await page.locator('#release-next').click();
     await expect(page.locator('#release-page-label')).toContainText('2');
-    await expect(page.locator('#release-list .release-row').first()).not.toContainText('v0.6.2');
+    await expect(page.locator('#release-list .release-row').first()).not.toContainText('v0.6.3');
   });
 
   test('切回中文后服务状态和首页操作按钮同步恢复中文', async ({ page }) => {

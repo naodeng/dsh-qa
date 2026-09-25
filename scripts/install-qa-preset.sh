@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Install the dsh-qa profile bundle that declares the `qa` agent preset.
+# Install the dsh-qa profile bundle that declares the `qa` and
+# `quality-control` agent presets.
 # Harness 0.1.7+ owns preset declarations in profile bundles; this script
 # installs the current checkout as a link so the bundle is reconciled by DSH.
 #
@@ -65,13 +66,14 @@ echo "----------------------------------------"
 
 if [[ "$DRY_RUN" == "1" ]]; then
   printf '[DRY-RUN] %q plugin --profile %q add %q\n' "$DSH_BIN" "$PROFILE" "$BUNDLE_SPEC"
-else
-  if ! command -v "$DSH_BIN" >/dev/null 2>&1; then
-    echo "✗ 未找到 DSH executable: $DSH_BIN（可用 --dsh 或 DSH_BIN 指定）" >&2
-    exit 1
-  fi
-  "$DSH_BIN" plugin --profile "$PROFILE" add "$BUNDLE_SPEC"
-  echo "✔ 已将 dsh-qa bundle 安装到 profile：${PROFILE}"
+  exit 0
 fi
 
-echo "完成。Harness 将从当前 profile 的声明中提供 id=qa（测试模式）。"
+if ! command -v "$DSH_BIN" >/dev/null 2>&1; then
+  echo "✗ 未找到 DSH executable: $DSH_BIN（可用 --dsh 或 DSH_BIN 指定）" >&2
+  exit 1
+fi
+"$DSH_BIN" plugin --profile "$PROFILE" add "$BUNDLE_SPEC"
+echo "✔ 已将 dsh-qa bundle 安装到 profile：${PROFILE}"
+
+echo "完成。Harness 将从当前 profile 的声明中提供 id=qa（测试模式）和 id=quality-control（研发质量控制模式）。"

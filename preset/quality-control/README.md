@@ -2,7 +2,13 @@
 
 这是一个覆盖研发全流程的 DSH profile bundle。它保留完整编码、文件、技能、计划、协作和浏览能力，并通过角色协议提供 BA、PM、Product、QA、Developer、Tech Lead、Automation、UX、Security、DevOps/SRE、Data 和 Release 视角。
 
-## 安装
+## 常规安装
+
+正常使用 `dsh-qa` 时，直接安装或更新 `dsh-qa` 即可。主 bundle 会同时声明 `qa` 和 `quality-control` 两个 preset；重启 DSH 后即可使用，无需单独执行本目录的安装命令。
+
+如果之前单独安装过 `dsh-qa-quality-control`，请先从对应 DSH profile 移除或禁用它，再更新 `dsh-qa`，避免同一个 preset 被声明两次。
+
+## 独立 bundle 安装（高级用法）
 
 如果 `dsh-qa` 已通过 DSH 插件安装，独立 Web UI 可直接引用 `web` profile 的已安装包，无需源码目录：
 

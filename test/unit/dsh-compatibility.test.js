@@ -70,10 +70,11 @@ test('QA preset uses the current persona config schema', () => {
   assert.doesNotMatch(qaPreset, /^(\s+)text:/m, 'QA persona still uses the retired text config key');
 });
 
-test('Harness 0.1.7 main bundle declares the QA preset instead of a directory preset', () => {
+test('Harness 0.1.7 main bundle declares the QA and quality-control presets', () => {
   assert.deepEqual(packageManifest.dsh?.bundle?.patch, [
     './cordis.patch.yml',
     './preset/qa/cordis.patch.yml',
+    './preset/quality-control/cordis.patch.yml',
   ]);
   assert.match(qaPreset, /- id: preset-qa\n\s+name: '@deepseek-ai\/dsh-agent-preset'/);
   assert.match(qaPreset, /config:\n\s+id: qa[\s\S]*?order: 5[\s\S]*?plugins:/);
@@ -83,6 +84,7 @@ test('Harness 0.1.7 main bundle declares the QA preset instead of a directory pr
 test('published package shape exposes bundle patches and removes legacy preset sources', () => {
   assert.equal(packageManifest.exports?.['./cordis.patch.yml'], './cordis.patch.yml');
   assert.equal(packageManifest.exports?.['./preset/qa/cordis.patch.yml'], './preset/qa/cordis.patch.yml');
+  assert.equal(packageManifest.exports?.['./preset/quality-control/cordis.patch.yml'], './preset/quality-control/cordis.patch.yml');
   assert.ok(packageManifest.files?.includes('preset'), 'published package must include preset bundles');
   for (const legacyPath of [
     'preset/qa/agent.cordis.yml',
@@ -140,6 +142,22 @@ test('preset installers reject missing option values before invoking DSH', () =>
   }
 });
 
+test('preset installers dry-run without claiming installation completed', () => {
+  for (const script of [
+    'scripts/install-qa-preset.sh',
+    'scripts/install-quality-control-preset.sh',
+  ]) {
+    const result = spawnSync('bash', [path.join(root, script), '--profile', 'web', '--dry-run'], {
+      cwd: root,
+      env: { ...process.env, DSH_BIN: 'true' },
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, `${script} dry-run failed`);
+    assert.match(result.stdout, /DRY-RUN/);
+    assert.doesNotMatch(result.stdout, /完成|completed/i);
+  }
+});
+
 test('host smoke pins the exact Harness 0.1.7 release targeted by the bundle migration', () => {
   assert.match(hostConfig, /dsh-v0\.1\.7-alpha\.1/);
   assert.match(hostConfig, /dsh-v0\.1\.7-rc\.1/);
@@ -154,20 +172,19 @@ test('DSH follow opens the Harness Remote stream WebSocket', () => {
   assert.equal(app.includes('`${scheme}//${location.host}/api`'), false, 'follow still uses the retired WebSocket path');
 });
 
-test('settings exposes optional quality-control preset installation guidance', () => {
+test('settings exposes quality-control as part of the main bundle', () => {
   assert.match(app, /id="st-quality-control"/);
-  assert.match(app, /id="st-qc-install"/);
-  assert.match(app, /openPresetInstallGuide/);
-  assert.match(app, /npx --yes @deepseek-ai\/dsh/);
-  assert.match(app, /export DSH_HOME=/);
-  assert.match(app, /node_modules\/dsh-qa\/preset\/quality-control/);
+  assert.match(app, /settings\.qualityControlPresetTip/);
+  assert.match(app, /settings\.presetInstalled/);
+  assert.match(app, /settings\.presetPluginOnly/);
+  assert.doesNotMatch(app, /id="st-qc-install"/);
+  assert.doesNotMatch(app, /openPresetInstallGuide/);
 });
 
-test('settings separates Electron desktop installation from the CLI web command', () => {
-  assert.match(app, /settings\.presetGuideDesktopBody/);
-  assert.match(app, /data-preset-install-mode/);
-  assert.match(app, /settings\.presetGuideDesktopStep/);
-  assert.doesNotMatch(app, /const profile = state\.dshEmbedded \? 'desktop' : 'web'/);
+test('settings does not expose a separate quality-control installer', () => {
+  assert.doesNotMatch(app, /preset-install-modal/);
+  assert.doesNotMatch(app, /preset-install-command/);
+  assert.doesNotMatch(app, /presetGuideDesktop/);
 });
 
 test('preset installers reject the Electron-managed desktop profile', () => {

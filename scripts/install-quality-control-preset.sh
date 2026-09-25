@@ -65,13 +65,14 @@ echo "----------------------------------------"
 
 if [[ "$DRY_RUN" == "1" ]]; then
   printf '[DRY-RUN] %q plugin --profile %q add %q\n' "$DSH_BIN" "$PROFILE" "$BUNDLE_SPEC"
-else
-  if ! command -v "$DSH_BIN" >/dev/null 2>&1; then
-    echo "✗ 未找到 DSH executable: $DSH_BIN（可用 --dsh 或 DSH_BIN 指定）" >&2
-    exit 1
-  fi
-  "$DSH_BIN" plugin --profile "$PROFILE" add "$BUNDLE_SPEC"
-  echo "✔ 已将 quality-control bundle 安装到 profile：${PROFILE}"
+  exit 0
 fi
+
+if ! command -v "$DSH_BIN" >/dev/null 2>&1; then
+  echo "✗ 未找到 DSH executable: $DSH_BIN（可用 --dsh 或 DSH_BIN 指定）" >&2
+  exit 1
+fi
+"$DSH_BIN" plugin --profile "$PROFILE" add "$BUNDLE_SPEC"
+echo "✔ 已将 quality-control bundle 安装到 profile：${PROFILE}"
 
 echo "完成。Harness 将从当前 profile 的声明中提供 id=quality-control。"

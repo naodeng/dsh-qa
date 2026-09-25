@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 0.6.3 - 2026-09-25
+
+## 中文
+
+### 改进
+
+- 安装 `dsh-qa` 主 bundle 时同时提供 `qa` 与 `quality-control` preset，无需再执行单独的 preset 安装命令。
+
+## English
+
+### Improvements
+
+- Include both the `qa` and `quality-control` presets in the main `dsh-qa` bundle so users no longer need a separate preset-install command.
+
 ## 0.6.2 - 2026-09-25
 
 ## 中文

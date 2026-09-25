@@ -3,14 +3,14 @@
 # dsh-qa · QA Workbench
 
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-0.6.2-informational)]()
+[![Version](https://img.shields.io/badge/version-0.6.3-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
 [![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.7--rc.1%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-rc.1)
 
 **dsh-qa** is a local QA workbench for DeepSeek Harness. It keeps requirements, test cases, risks, execution, evidence, and delivery decisions in one project space. Project and iteration conversations reuse native DSH sessions with **Test Mode** (preset id: `qa`); business data stays local and the runtime has no production dependencies.
 
-The published version is `v0.6.2`; it fixes the `quality-control` preset installation guide in the official Electron client, which previously emitted the rejected `--profile desktop` CLI command, while preserving HTTP/HTTPS compatibility for the standalone Web UI. It also makes the Web installation guide preserve a custom `DSH_HOME`. Real execution through any external provider still requires provider-specific acceptance.
+The published version is `v0.6.3`; installing the `dsh-qa` main bundle now provides both the `qa` and `quality-control` presets, so no separate preset-install command is needed. Real execution through any external provider still requires provider-specific acceptance.
 
 ```
 Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
@@ -70,7 +70,7 @@ The diagram makes the control boundary explicit: a run that is not terminal or l
 ### UI & Connectivity
 
 - **Language switching (zh / en)**: switch the UI language from the settings dialog — Chinese by default and persisted in your local browser; navigation, dashboard, kanban, lists, calendar, radar and drawer/modal titles are all bilingual
-- **Settings and release information**: the settings dialog shows installed/latest versions, compatible DSH version, GitHub repository, and project website; the brand version button opens bilingual, paginated release history; Appearance supports Light, Dark, and System, while Presets provides profile-aware installation guidance for the optional `quality-control` bundle
+- **Settings and release information**: the settings dialog shows installed/latest versions, compatible DSH version, GitHub repository, and project website; the brand version button opens bilingual, paginated release history; Appearance supports Light, Dark, and System, while Presets shows the `qa` and `quality-control` bundles included by the main plugin
 - **Adjustable workspace**: Main nav, project rail, and project radar widths are draggable and collapsible; double-click edges to reset; layout presets are no longer exposed in the settings dialog
 - Overdue milestones in red, due-within-7-days in yellow, pending gates in purple — live counts in the top bar
 
@@ -150,10 +150,11 @@ The standalone address lets you view and manage test projects, the kanban, and t
 
 ```
 lib/index.js      Host half (cordis plugin): starts the workbench in-process + /api/dsh-qa routes + system-prompt announcement
-lib/client.js     Browser half (0.6.2): official Panel/Slot sidebar + main keyed slot + Workbench iframe
+lib/client.js     Browser half (0.6.3): official Panel/Slot sidebar + main keyed slot + Workbench iframe
 lib/panel-contract.js  Panel/Slot semantic contract (runtime adapter stays in client.js)
 cordis.patch.yml  Profile bundle patch (inserts the plugin line)
 preset/qa/cordis.patch.yml  Declarative QA preset bundle
+preset/quality-control/cordis.patch.yml  Declarative quality-control preset bundle
 server/           Workbench service (native http + SSE; projects, quality tasks, execution, evidence, and gates)
 public/           Four-view frontend (vanilla JS, no build step; relative paths, mountable under any prefix)
 ```
@@ -177,7 +178,7 @@ The workbench ships 23 QA-domain tools that DSH sessions call through function c
 
 ## Test Mode Preset (plugin mode)
 
-In plugin mode, workbench chat automatically uses DSH's **Test Mode** (preset id: `qa`). Installing the `dsh-qa` main bundle declares this preset; standalone local-project management does not require it.
+In plugin mode, workbench chat automatically uses DSH's **Test Mode** (preset id: `qa`). Installing the `dsh-qa` main bundle declares both `qa` and `quality-control`; standalone local-project management does not require either preset.
 
 ```bash
 # Install the dsh-qa bundle from the current checkout into the web profile
@@ -186,35 +187,17 @@ scripts/install-qa-preset.sh
 scripts/install-qa-preset.sh --profile web --dry-run
 ```
 
-The preset is based on DSH's official `standard` (full coding capabilities) with a QA-testing persona and built-in QA quality principles (executable, judgeable test cases covering positive/exception/boundary; defects separating facts from guesses; no fabricated data). Harness 0.1.7+ discovers id=`qa` from the active profile's bundle declarations.
+The preset is based on DSH's official `standard` (full coding capabilities) with a QA-testing persona and built-in QA quality principles (executable, judgeable test cases covering positive/exception/boundary; defects separating facts from guesses; no fabricated data). Harness 0.1.7+ discovers ids=`qa` and `quality-control` from the active profile's bundle declarations.
 
-### Optional quality-control preset
+### quality-control preset (included in the main bundle)
 
-If `dsh-qa` was already installed through the DSH plugin manager, no source checkout is needed. Use the CLI for the standalone Web UI and install into the `web` profile:
+The `dsh-qa` main bundle now declares both `qa` and `quality-control`. Install or update `dsh-qa`, restart DSH, and both **Test Mode** and **R&D Quality Control Mode** are available; no separate preset-install command is needed.
 
-```bash
-PROFILE=web
-export DSH_HOME="${DSH_HOME:-$HOME/.dsh}"
-npx --yes @deepseek-ai/dsh@0.1.7-rc.1 plugin --profile "$PROFILE" add "link:$DSH_HOME/profiles/$PROFILE/node_modules/dsh-qa/preset/quality-control"
-```
+For independently managed `quality-control` bundles (advanced use), see [`preset/quality-control/README.md`](./preset/quality-control/README.md). The official Electron desktop client still exclusively owns the `desktop` profile, so it must not be changed through the CLI or `npx --profile desktop`.
 
-The official Electron desktop client exclusively owns the `desktop` profile, so it must not be changed through the CLI or `npx --profile desktop`. In the DSH application, open **Plugins**, choose **Add plugin**, paste the absolute path printed by the command below as a local plugin directory, then install and enable it:
+If `dsh-qa-quality-control` was installed separately before, remove or disable it from the DSH profile before updating `dsh-qa` so the same preset is not declared twice.
 
-```bash
-printf '%s\n' "${DSH_HOME:-$HOME}/profiles/desktop/node_modules/dsh-qa/preset/quality-control"
-```
-
-The application requires an absolute path; restart DSH when it asks. The repository installers follow the same boundary and reject `--profile desktop` instead of invoking the CLI.
-
-If you have a source checkout, you can also use the repository script:
-
-```bash
-# Install from the current checkout into the web profile
-scripts/install-quality-control-preset.sh
-# Preview: scripts/install-quality-control-preset.sh --profile web --dry-run
-```
-
-This preset is now an independent bundle at `preset/quality-control`; it does not copy or mutate user preset directories.
+`preset/quality-control` remains available as an independently installable bundle and does not copy or mutate user preset directories.
 
 ## Companion QA Skills
 

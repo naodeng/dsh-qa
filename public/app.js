@@ -50,7 +50,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
   const THEME_KEY = 'dsh-qa-theme';
   const THEME_VALUES = ['system', 'light', 'dark'];
   const DEFAULT_APP_INFO = {
-    currentVersion: '0.6.2', latestVersion: '0.6.2', isOutdated: false,
+    currentVersion: '0.6.3', latestVersion: '0.6.3', isOutdated: false,
     dshVersion: 'dsh-v0.1.7-rc.1',
     repositoryUrl: 'https://github.com/naodeng/dsh-qa',
     websiteZhUrl: 'https://inaodeng.com/zh-cn/dsh-qa/',
@@ -1694,49 +1694,12 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
     if (state.activeProjectId === p.id) state.dsh = { projectId: null, sessionId: '', skills: [], commands: [], models: null, qaPreset, busy: false, turnToken: state.dsh.turnToken + 1 };
     return created.sessionId;
   }
-  function openPresetInstallGuide() {
-    const isDesktop = state.dshEmbedded;
-    const command = [
-      'PROFILE=web',
-      'export DSH_HOME="${DSH_HOME:-$HOME/.dsh}"',
-      'npx --yes @deepseek-ai/dsh@0.1.7-rc.1 plugin --profile "$PROFILE" add "link:$DSH_HOME/profiles/$PROFILE/node_modules/dsh-qa/preset/quality-control"',
-    ].join('\n');
-    const guide = isDesktop ? `
-      <div data-preset-install-mode="desktop">
-        <p class="settings-guide-copy">${esc(t('settings.presetGuideDesktopBody'))}</p>
-        <ol class="preset-install-steps">
-          <li>${esc(t('settings.presetGuideDesktopStep1'))}</li>
-          <li>${esc(t('settings.presetGuideDesktopStep2'))}</li>
-          <li>${esc(t('settings.presetGuideDesktopStep3'))}</li>
-        </ol>
-        <p class="field-note">${esc(t('settings.presetGuideDesktopPathTip'))}</p>
-        <pre class="preset-install-command" id="preset-install-path">${esc(t('settings.presetGuideDesktopPath'))}</pre>
-      </div>` : `
-      <div data-preset-install-mode="web">
-        <p class="settings-guide-copy">${esc(t('settings.presetGuideBody'))}</p>
-        <pre class="preset-install-command" id="preset-install-command">${esc(command)}</pre>
-        <p class="field-note">${esc(t('settings.presetGuideRestart'))}</p>
-      </div>`;
-    const copy = isDesktop ? '' : `<button class="btn" id="preset-copy" type="button">${esc(t('settings.presetCopy'))}</button>`;
-    const modal = modalShell(t('settings.presetGuideTitle'), isDesktop ? t('settings.presetGuideDesktopSub') : t('settings.presetGuideSub'), `
-      ${guide}
-      <div class="modal-foot">${copy}<button class="btn primary" id="preset-install-close" type="button">${esc(t('settings.done'))}</button></div>`, true);
-    modal.id = 'preset-install-modal';
-    modal.dataset.presetInstallMode = isDesktop ? 'desktop' : 'web';
-    if (!isDesktop) $('#preset-copy', modal).addEventListener('click', async () => {
-      try {
-        if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
-        await navigator.clipboard.writeText(command);
-        toast(t('settings.presetCopied'), 'ok');
-      } catch { toast(t('settings.presetCopyFailed'), 'err'); }
-    });
-    $('#preset-install-close', modal).addEventListener('click', closeModal);
-  }
   function openSettings() {
     const info = state.appInfo || DEFAULT_APP_INFO;
     const outdated = Boolean(info.isOutdated) || compareVersions(info.currentVersion, info.latestVersion) < 0;
     const websiteUrl = currentLang() === 'en' ? info.websiteEnUrl : info.websiteZhUrl;
     const theme = readThemePreference();
+    const presetStatus = state.dshEmbedded ? t('settings.presetInstalled') : t('settings.presetPluginOnly');
     const modal = modalShell(t('settings.title'), t('settings.sub'), `
       <section class="settings-section settings-language" aria-labelledby="settings-language-title">
         <div class="settings-section-head"><div><h4 id="settings-language-title">${esc(t('settings.language'))}</h4><p>${esc(t('settings.languageTip'))}</p></div><div class="language-picker" role="group" aria-label="${esc(t('settings.language'))}"><button class="language-option ${currentLang() === 'zh' ? 'active' : ''}" data-settings-lang="zh" aria-pressed="${currentLang() === 'zh'}" type="button">中文</button><button class="language-option ${currentLang() === 'en' ? 'active' : ''}" data-settings-lang="en" aria-pressed="${currentLang() === 'en'}" type="button">English</button></div></div>
@@ -1752,8 +1715,8 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
       <section class="settings-section" aria-labelledby="settings-presets-title">
         <div class="settings-section-head"><div><h4 id="settings-presets-title">${esc(t('settings.presets'))}</h4><p>${esc(t('settings.presetsTip'))}</p></div></div>
         <dl class="about-grid preset-grid">
-          <div class="about-item" id="st-qa-preset"><dt>${esc(t('settings.qaPreset'))}</dt><dd><code>qa</code><span class="about-status">${esc(t('settings.presetInstalled'))}</span></dd><p class="field-note">${esc(t('settings.qaPresetTip'))}</p></div>
-          <div class="about-item" id="st-quality-control"><dt>${esc(t('settings.qualityControlPreset'))}</dt><dd><code>quality-control</code><span class="about-status optional">${esc(t('settings.presetOptional'))}</span><button class="btn subtle sm" id="st-qc-install" type="button">${esc(t('settings.presetInstall'))}</button></dd><p class="field-note">${esc(t('settings.qualityControlPresetTip'))}</p></div>
+          <div class="about-item" id="st-qa-preset"><dt>${esc(t('settings.qaPreset'))}</dt><dd><code>qa</code><span class="about-status">${esc(presetStatus)}</span></dd><p class="field-note">${esc(t('settings.qaPresetTip'))}</p></div>
+          <div class="about-item" id="st-quality-control"><dt>${esc(t('settings.qualityControlPreset'))}</dt><dd><code>quality-control</code><span class="about-status">${esc(presetStatus)}</span></dd><p class="field-note">${esc(t('settings.qualityControlPresetTip'))}</p></div>
         </dl>
       </section>
       <section class="settings-section about-section" aria-labelledby="settings-about-title">
@@ -1783,7 +1746,6 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
         option.setAttribute('aria-checked', String(active));
       });
     }));
-    $('#st-qc-install', modal).addEventListener('click', openPresetInstallGuide);
     $('#st-close', modal).addEventListener('click', closeModal);
   }
   function renderReleasePage(modal = $('#release-modal')) {

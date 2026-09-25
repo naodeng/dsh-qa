@@ -3,14 +3,14 @@
 # dsh-qa · 质量工作台
 
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-0.6.2-informational)]()
+[![Version](https://img.shields.io/badge/version-0.6.3-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
 [![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.7--rc.1%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-rc.1)
 
 **dsh-qa** 是 DeepSeek Harness 的本地 QA 工作台：在一个项目空间中管理需求、测试用例、风险、执行、证据和交付决策。项目与迭代的对话复用 DSH 原生会话，并自动使用「测试模式」（preset id: `qa`）；业务数据保留在本机，运行时没有生产依赖。
 
-当前发布版本是 `v0.6.2`；本版本修复官方 Electron 客户端中 `quality-control` 预设安装指引错误使用 `--profile desktop` 的问题，并保留独立 Web UI 的 HTTP/HTTPS 兼容；同时完善自定义 `DSH_HOME` 的 Web 安装指引。任意外部提供方的真实执行仍需按具体 provider 单独验收。
+当前发布版本是 `v0.6.3`；安装 `dsh-qa` 主 bundle 会同时提供 `qa` 与 `quality-control` 两个 preset，无需再执行单独的 preset 安装命令。任意外部提供方的真实执行仍需按具体 provider 单独验收。
 
 ```
 测试首页 → DSH 测试对话 → 项目看板 → 日历排期
@@ -70,7 +70,7 @@
 ### 界面与连接
 
 - **中英文语言切换**：在设置弹窗中切换，默认中文，选择在本机浏览器中持久保存；导航、首页、看板、列表、日历、雷达与抽屉/模态框标题均双语化
-- **设置与版本信息**：设置弹窗展示当前/最新版本、兼容 DSH 版本、GitHub 仓库和项目官网；品牌区域的版本号可打开双语、分页的版本迭代记录；外观支持明亮、暗黑和跟随系统，预设区按 Web / 官方桌面客户端提供可选 `quality-control` 的安装指引
+- **设置与版本信息**：设置弹窗展示当前/最新版本、兼容 DSH 版本、GitHub 仓库和项目官网；品牌区域的版本号可打开双语、分页的版本迭代记录；外观支持明亮、暗黑和跟随系统，预设区显示随主 bundle 安装的 `qa` 与 `quality-control`
 - **可调工作区**：主导航、项目栏与项目雷达均可拖动边缘改变宽度，可分别收起；双击边缘恢复默认，布局预设不再放在设置弹窗中
 - 逾期里程碑红标、7 日内临期黄标、待批门禁紫标，顶栏实时统计
 
@@ -150,10 +150,11 @@ npm start          # 或双击 start.command
 
 ```
 lib/index.js      宿主半（cordis 插件）：进程内拉起工作台 + /api/dsh-qa 路由 + 系统提示播报
-lib/client.js     浏览器半（0.6.2）：官方 Panel/Slot 侧边栏与 main keyed slot + Workbench iframe
+lib/client.js     浏览器半（0.6.3）：官方 Panel/Slot 侧边栏与 main keyed slot + Workbench iframe
 lib/panel-contract.js  Panel/Slot 语义契约（运行时适配层只在 client.js）
 cordis.patch.yml  profile bundle 补丁（插入插件行）
 preset/qa/cordis.patch.yml  声明式 QA preset bundle
+preset/quality-control/cordis.patch.yml  声明式 quality-control preset bundle
 server/           工作台服务（原生 http + SSE；项目、质量任务、执行、证据与门禁数据）
 public/           四视图前端（原生 JS，无构建步骤；相对路径，可挂任意前缀）
 ```
@@ -177,7 +178,7 @@ public/           四视图前端（原生 JS，无构建步骤；相对路径�
 
 ## 测试模式 preset（插件模式）
 
-插件模式下，质量工作台对话自动使用 DSH 的「测试模式」（preset id: `qa`）。安装 `dsh-qa` 主 bundle 时会一并声明该 preset；仅使用独立模式管理本地项目时无需安装。
+插件模式下，质量工作台对话自动使用 DSH 的「测试模式」（preset id: `qa`）。安装 `dsh-qa` 主 bundle 时会一并声明 `qa` 和 `quality-control` 两个 preset；仅使用独立模式管理本地项目时无需安装。
 
 ```bash
 # 从当前 checkout 将 dsh-qa bundle 安装到 web profile
@@ -186,35 +187,17 @@ scripts/install-qa-preset.sh
 scripts/install-qa-preset.sh --profile web --dry-run
 ```
 
-preset 基于 DSH 官方 `standard`（完整编码能力），persona 定制为 QA 测试助手，并内置 QA 质量原则（用例可执行可判定、覆盖正向/异常/边界、缺陷区分事实与猜测、不编造数据）。Harness 0.1.7+ 从当前 profile 的 bundle 声明发现 id=`qa`。
+preset 基于 DSH 官方 `standard`（完整编码能力），persona 定制为 QA 测试助手，并内置 QA 质量原则（用例可执行可判定、覆盖正向/异常/边界、缺陷区分事实与猜测、不编造数据）。Harness 0.1.7+ 从当前 profile 的 bundle 声明发现 id=`qa` 和 `quality-control`。
 
-### 可选研发质量控制 preset
+### quality-control preset（随主 bundle 安装）
 
-如果 `dsh-qa` 已经通过 DSH 插件安装，不需要 checkout 源码。独立 Web UI 使用 CLI 安装到 `web` profile：
+`dsh-qa` 主 bundle 现在同时声明 `qa` 与 `quality-control`。安装或更新 `dsh-qa` 后重启 DSH，即可直接使用「测试模式」和「研发质量控制模式」，无需再执行单独的 preset 安装命令。
 
-```bash
-PROFILE=web
-export DSH_HOME="${DSH_HOME:-$HOME/.dsh}"
-npx --yes @deepseek-ai/dsh@0.1.7-rc.1 plugin --profile "$PROFILE" add "link:$DSH_HOME/profiles/$PROFILE/node_modules/dsh-qa/preset/quality-control"
-```
+如需单独管理 `quality-control` bundle（高级用法），请参阅 [`preset/quality-control/README.md`](./preset/quality-control/README.md)。官方 Electron 客户端的 `desktop` profile 仍由客户端独占管理，不能使用 CLI 或 `npx --profile desktop` 修改。
 
-官方 Electron 桌面客户端的 `desktop` profile 由客户端独占管理，不能使用 CLI 或 `npx --profile desktop` 修改。请在 DSH 主应用的「插件」页点击「添加插件」，将下面命令输出的绝对路径粘贴为本地插件目录，然后安装并启用：
+如果之前单独安装过 `dsh-qa-quality-control`，请先从对应 DSH profile 移除或禁用它，再更新 `dsh-qa`，避免同一个 preset 被声明两次。
 
-```bash
-printf '%s\n' "${DSH_HOME:-$HOME}/profiles/desktop/node_modules/dsh-qa/preset/quality-control"
-```
-
-安装页要求绝对路径；安装完成后按客户端提示重启 DSH。仓库脚本同样只支持可由 CLI 管理的 profile，传入 `--profile desktop` 会直接拒绝。
-
-如果你有源码 checkout，也可以继续使用仓库内脚本：
-
-```bash
-# 从当前 checkout 安装到 web profile
-scripts/install-quality-control-preset.sh
-# 预览：scripts/install-quality-control-preset.sh --profile web --dry-run
-```
-
-该 preset 现在是独立 bundle `preset/quality-control`，不会修改或复制用户目录中的 preset 文件。
+`preset/quality-control` 仍保留为可独立安装的 bundle，不会修改或复制用户目录中的 preset 文件。
 
 ## 配套 QA 技能库
 
