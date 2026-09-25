@@ -60,24 +60,35 @@ ${snapshot}
 请用中文回复，专业、简洁、有结构；关键术语可附英文。`;
 }
 
+// 出错信息可能回显请求细节，登录凭据绝不能随之泄露给客户端/日志
+function redactApiKey(msg, apiKey) {
+  const text = String(msg);
+  return apiKey ? text.split(apiKey).join('[REDACTED]') : text;
+}
+
 // 流式调用 DeepSeek，解析 SSE，累积文本与工具调用
 async function streamChat(messages, cfg, onDelta, toolsEnabled = true) {
   const url = cfg.baseUrl.replace(/\/+$/, '') + '/chat/completions';
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.apiKey}` },
-    body: JSON.stringify({
-      model: cfg.model,
-      messages,
-      ...(toolsEnabled ? { tools: TOOL_DEFS } : {}),
-      stream: true,
-      temperature: cfg.temperature,
-    }),
-  });
+  let resp;
+  try {
+    resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.apiKey}` },
+      body: JSON.stringify({
+        model: cfg.model,
+        messages,
+        ...(toolsEnabled ? { tools: TOOL_DEFS } : {}),
+        stream: true,
+        temperature: cfg.temperature,
+      }),
+    });
+  } catch (e) {
+    throw new Error(`DeepSeek API 调用失败：${redactApiKey(e?.message || e, cfg.apiKey)}`);
+  }
   if (!resp.ok) {
     let msg = `HTTP ${resp.status}`;
     try { msg = (await resp.json()).error?.message || msg; } catch { /* ignore */ }
-    throw new Error(`DeepSeek API 调用失败：${msg}`);
+    throw new Error(`DeepSeek API 调用失败：${redactApiKey(msg, cfg.apiKey)}`);
   }
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
