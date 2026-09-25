@@ -5,6 +5,7 @@ import {
   createClientRequest,
   createCommandExecuteArgs,
   createFollowOpen,
+  createFollowWebSocketUrl,
   createDshRpc,
   openFollowSnapshot,
   parseFollowSnapshot,
@@ -141,6 +142,15 @@ test('parses snapshot records without deprecated history APIs', () => {
     records: [{ id: 'event_1' }],
     cursor: 4,
   });
+});
+
+test('builds the follow WebSocket URL from the official desktop transport origin', () => {
+  assert.equal(createFollowWebSocketUrl({
+    location: { protocol: 'dsh-app:', host: 'app' },
+    streamBaseUrl: 'http://127.0.0.1:19387',
+  }), 'ws://127.0.0.1:19387/api/remote.mux');
+  assert.equal(createFollowWebSocketUrl({ streamBaseUrl: 'https://127.0.0.1:19387/' }), 'wss://127.0.0.1:19387/api/remote.mux');
+  assert.equal(createFollowWebSocketUrl({ streamBaseUrl: 'wss://127.0.0.1:19387' }), 'wss://127.0.0.1:19387/api/remote.mux');
 });
 
 test('preserves follow records and ignores unrelated stream frames', async () => {

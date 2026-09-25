@@ -4,6 +4,16 @@
 
 ## 安装
 
+如果 `dsh-qa` 已通过 DSH 插件安装，可直接引用当前 profile 的已安装包，无需源码目录：
+
+```sh
+PROFILE=desktop
+DSH_HOME="${DSH_HOME:-$HOME/.dsh}"
+npx @deepseek-ai/dsh plugin --profile "$PROFILE" add "link:$DSH_HOME/profiles/$PROFILE/node_modules/dsh-qa/preset/quality-control"
+```
+
+如果使用源码 checkout，再执行仓库脚本：
+
 ```sh
 scripts/install-quality-control-preset.sh
 # 预览：

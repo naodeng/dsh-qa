@@ -147,8 +147,27 @@ test('host smoke pins the exact Harness 0.1.7 release targeted by the bundle mig
 });
 
 test('DSH follow opens the Harness Remote stream WebSocket', () => {
-  assert.match(app, /new WebSocket\(`\$\{scheme\}\/\/\$\{location\.host\}\/api\/remote\.mux`\)/);
+  assert.match(app, /createFollowWebSocketUrl\(\{ location, streamBaseUrl \}\)/);
+  assert.match(app, /new WebSocket\(socketUrl\)/);
+  assert.match(rpcContract, /new URL\('\/api\/remote\.mux', baseUrl\)/);
   assert.equal(app.includes('`${scheme}//${location.host}/api`'), false, 'follow still uses the retired WebSocket path');
+});
+
+test('settings exposes optional quality-control preset installation guidance', () => {
+  assert.match(app, /id="st-quality-control"/);
+  assert.match(app, /id="st-qc-install"/);
+  assert.match(app, /openPresetInstallGuide/);
+  assert.match(app, /npx @deepseek-ai\/dsh/);
+  assert.match(app, /node_modules\/dsh-qa\/preset\/quality-control/);
+});
+
+test('settings exposes system, light and dark theme controls', () => {
+  assert.match(app, /dsh-qa-theme/);
+  assert.match(app, /data-theme-option="system"/);
+  assert.match(app, /data-theme-option="light"/);
+  assert.match(app, /data-theme-option="dark"/);
+  assert.match(app, /applyTheme/);
+  assert.match(readText('public/index.html'), /name="color-scheme" content="light dark"/);
 });
 
 test('DSH skill catalog uses the Harness session request envelope', () => {

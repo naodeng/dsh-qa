@@ -11,6 +11,22 @@ export function createCommandExecuteArgs(agentId, line, submittedAttachments = [
   return { agentId, line, submittedAttachments };
 }
 
+export function createFollowWebSocketUrl({
+  location = globalThis.location,
+  streamBaseUrl,
+} = {}) {
+  const baseUrl = streamBaseUrl
+    || (location && ['http:', 'https:'].includes(location.protocol)
+      ? `${location.protocol}//${location.host}`
+      : '');
+  if (!baseUrl) throw new Error('DSH 官方客户端未提供 WebSocket 服务地址');
+  const url = new URL('/api/remote.mux', baseUrl);
+  if (url.protocol === 'http:') url.protocol = 'ws:';
+  else if (url.protocol === 'https:') url.protocol = 'wss:';
+  else if (!['ws:', 'wss:'].includes(url.protocol)) throw new Error('DSH 官方客户端提供了无效的 WebSocket 服务地址');
+  return url.href;
+}
+
 export function createDshRpc(fetchImpl, {
   embedded = true,
   rpcIdFactory = () => globalThis.crypto?.randomUUID?.() || `dshqa-${Date.now()}-${Math.random().toString(16).slice(2)}`,

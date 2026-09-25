@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+## 0.6.1 - 2026-09-25
+
+## 中文
+
+### 修复
+
+- 修复 DeepSeek Harness 官方桌面客户端 `dsh-app://app` 环境下，DSH 会话 follow WebSocket 使用错误主机导致连接失败的问题。
+- 根据官方客户端提供的传输地址构造 `ws/wss://.../api/remote.mux`，并保留独立 Web UI 的 HTTP/HTTPS 运行模式兼容。
+
+### 改进
+
+- 设置弹窗新增明亮、暗黑和跟随系统三种外观主题，默认跟随系统并持久保存选择。
+- 设置弹窗展示 `qa` 与可选 `quality-control` 预设；可复制当前 DSH profile 对应的安装命令，安装后重启 Harness 即可使用。
+
+### 验证
+
+- `QA_E2E_PORT=8919 npm test`：216 个单元/API 测试和 38 个 Chromium E2E 测试通过。
+- `git diff --check`：通过。
+
+## English
+
+### Fixes
+
+- Fix DSH session follow WebSocket failures in the official DeepSeek Harness desktop client's `dsh-app://app` environment by resolving the official transport origin instead of the iframe location host.
+- Preserve HTTP/HTTPS WebSocket compatibility for the standalone Web UI.
+
+### Improvements
+
+- Add Light, Dark, and System appearance choices to Settings, defaulting to System and persisting the selection locally.
+- Show the `qa` and optional `quality-control` presets in Settings, with a copyable install command for the active DSH profile and a restart reminder.
+
+### Verification
+
+- `QA_E2E_PORT=8919 npm test`: 216 unit/API tests and 38 Chromium E2E tests passed.
+- `git diff --check`: passed.
+
 ## 0.6.0 - 2026-09-24
 
 ## 中文

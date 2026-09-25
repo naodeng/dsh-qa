@@ -1,4 +1,4 @@
-import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './dsh-rpc-contract.js';
+import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openFollowSnapshot } from './dsh-rpc-contract.js';
 
 // 质量工作台前端：测试首页、DSH 测试模式、项目看板、日历排期
 (() => {
@@ -47,8 +47,10 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
   const LAYOUT_RANGES = { rail: [150, 280], cases: [180, 360], context: [220, 420] };
   const RELEASE_PAGE_SIZE = 5;
   const RELEASE_SEEN_KEY = 'dsh-qa-release-seen';
+  const THEME_KEY = 'dsh-qa-theme';
+  const THEME_VALUES = ['system', 'light', 'dark'];
   const DEFAULT_APP_INFO = {
-    currentVersion: '0.6.0', latestVersion: '0.6.0', isOutdated: false,
+    currentVersion: '0.6.1', latestVersion: '0.6.1', isOutdated: false,
     dshVersion: 'dsh-v0.1.7-rc.1',
     repositoryUrl: 'https://github.com/naodeng/dsh-qa',
     websiteZhUrl: 'https://inaodeng.com/zh-cn/dsh-qa/',
@@ -125,6 +127,23 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
     const date = new Date(`${iso.slice(0, 10)}T00:00:00`);
     return date.toLocaleDateString(currentLang() === 'en' ? 'en-US' : 'zh-CN', { year: 'numeric', month: 'short', day: 'numeric' });
   }
+  function readThemePreference() {
+    try {
+      const saved = localStorage.getItem(THEME_KEY);
+      return THEME_VALUES.includes(saved) ? saved : 'system';
+    } catch { return 'system'; }
+  }
+  function applyTheme(preference = readThemePreference()) {
+    const theme = THEME_VALUES.includes(preference) ? preference : 'system';
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme === 'system' ? 'light dark' : theme;
+    return theme;
+  }
+  function setThemePreference(preference) {
+    const theme = applyTheme(preference);
+    try { localStorage.setItem(THEME_KEY, theme); } catch { /* ignore */ }
+    return theme;
+  }
   function updateVersionIndicator() {
     const info = state.appInfo || DEFAULT_APP_INFO;
     const currentVersion = info.currentVersion || DEFAULT_APP_INFO.currentVersion;
@@ -174,9 +193,20 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
   }
   async function dshFollowSnapshot(sessionId, maxMessages = 30) {
     if (!state.dshEmbedded) throw new Error('请从 DSH 侧边栏打开“质量工作台”');
-    const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const streamId = globalThis.crypto?.randomUUID?.() || `dshqa-stream-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    return await openFollowSnapshot(new WebSocket(`${scheme}//${location.host}/api/remote.mux`), { streamId, sessionId, maxMessages });
+    const scopes = [];
+    for (const relation of ['self', 'parent', 'opener', 'top']) {
+      try { scopes.push(globalThis[relation === 'self' ? 'window' : relation]); } catch { /* cross-origin window */ }
+    }
+    let streamBaseUrl;
+    for (const scope of scopes.filter((item, index) => item && scopes.indexOf(item) === index)) {
+      try {
+        streamBaseUrl = scope.__DSH_TRANSPORT__?.streamBaseUrl;
+        if (streamBaseUrl) break;
+      } catch { /* cross-origin window */ }
+    }
+    const socketUrl = createFollowWebSocketUrl({ location, streamBaseUrl });
+    return await openFollowSnapshot(new WebSocket(socketUrl), { streamId, sessionId, maxMessages });
   }
   async function dshHistory(sessionId, maxMessages) {
     const snapshot = await dshFollowSnapshot(sessionId, maxMessages);
@@ -1664,13 +1694,51 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
     if (state.activeProjectId === p.id) state.dsh = { projectId: null, sessionId: '', skills: [], commands: [], models: null, qaPreset, busy: false, turnToken: state.dsh.turnToken + 1 };
     return created.sessionId;
   }
+  function openPresetInstallGuide() {
+    const profile = state.dshEmbedded ? 'desktop' : 'web';
+    const command = [
+      `PROFILE=${profile}`,
+      'DSH_HOME="${DSH_HOME:-$HOME/.dsh}"',
+      'npx @deepseek-ai/dsh plugin --profile "$PROFILE" add "link:$DSH_HOME/profiles/$PROFILE/node_modules/dsh-qa/preset/quality-control"',
+    ].join('\n');
+    const modal = modalShell(t('settings.presetGuideTitle'), t('settings.presetGuideSub'), `
+      <p class="settings-guide-copy">${esc(t('settings.presetGuideBody'))}</p>
+      <pre class="preset-install-command" id="preset-install-command">${esc(command)}</pre>
+      <p class="field-note">${esc(t('settings.presetGuideRestart'))}</p>
+      <div class="modal-foot"><button class="btn" id="preset-copy" type="button">${esc(t('settings.presetCopy'))}</button><button class="btn primary" id="preset-install-close" type="button">${esc(t('settings.done'))}</button></div>`, true);
+    modal.id = 'preset-install-modal';
+    $('#preset-copy', modal).addEventListener('click', async () => {
+      try {
+        if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
+        await navigator.clipboard.writeText(command);
+        toast(t('settings.presetCopied'), 'ok');
+      } catch { toast(t('settings.presetCopyFailed'), 'err'); }
+    });
+    $('#preset-install-close', modal).addEventListener('click', closeModal);
+  }
   function openSettings() {
     const info = state.appInfo || DEFAULT_APP_INFO;
     const outdated = Boolean(info.isOutdated) || compareVersions(info.currentVersion, info.latestVersion) < 0;
     const websiteUrl = currentLang() === 'en' ? info.websiteEnUrl : info.websiteZhUrl;
+    const theme = readThemePreference();
     const modal = modalShell(t('settings.title'), t('settings.sub'), `
       <section class="settings-section settings-language" aria-labelledby="settings-language-title">
         <div class="settings-section-head"><div><h4 id="settings-language-title">${esc(t('settings.language'))}</h4><p>${esc(t('settings.languageTip'))}</p></div><div class="language-picker" role="group" aria-label="${esc(t('settings.language'))}"><button class="language-option ${currentLang() === 'zh' ? 'active' : ''}" data-settings-lang="zh" aria-pressed="${currentLang() === 'zh'}" type="button">中文</button><button class="language-option ${currentLang() === 'en' ? 'active' : ''}" data-settings-lang="en" aria-pressed="${currentLang() === 'en'}" type="button">English</button></div></div>
+      </section>
+      <section class="settings-section settings-appearance" aria-labelledby="settings-appearance-title">
+        <div class="settings-section-head"><div><h4 id="settings-appearance-title">${esc(t('settings.appearance'))}</h4><p>${esc(t('settings.appearanceTip'))}</p></div></div>
+        <div class="theme-options" role="radiogroup" aria-label="${esc(t('settings.appearance'))}">
+          <button class="theme-option ${theme === 'light' ? 'active' : ''}" id="st-theme-light" data-theme-option="light" role="radio" aria-checked="${theme === 'light'}" type="button"><span class="theme-option-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg></span><strong>${esc(t('settings.themeLight'))}</strong><small>${esc(t('settings.themeLightTip'))}</small></button>
+          <button class="theme-option ${theme === 'dark' ? 'active' : ''}" id="st-theme-dark" data-theme-option="dark" role="radio" aria-checked="${theme === 'dark'}" type="button"><span class="theme-option-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.5 14.3A8.5 8.5 0 0 1 9.7 3.5a8.5 8.5 0 1 0 10.8 10.8Z"/></svg></span><strong>${esc(t('settings.themeDark'))}</strong><small>${esc(t('settings.themeDarkTip'))}</small></button>
+          <button class="theme-option ${theme === 'system' ? 'active' : ''}" id="st-theme-system" data-theme-option="system" role="radio" aria-checked="${theme === 'system'}" type="button"><span class="theme-option-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><strong>${esc(t('settings.themeSystem'))}</strong><small>${esc(t('settings.themeSystemTip'))}</small></button>
+        </div>
+      </section>
+      <section class="settings-section" aria-labelledby="settings-presets-title">
+        <div class="settings-section-head"><div><h4 id="settings-presets-title">${esc(t('settings.presets'))}</h4><p>${esc(t('settings.presetsTip'))}</p></div></div>
+        <dl class="about-grid preset-grid">
+          <div class="about-item" id="st-qa-preset"><dt>${esc(t('settings.qaPreset'))}</dt><dd><code>qa</code><span class="about-status">${esc(t('settings.presetInstalled'))}</span></dd><p class="field-note">${esc(t('settings.qaPresetTip'))}</p></div>
+          <div class="about-item" id="st-quality-control"><dt>${esc(t('settings.qualityControlPreset'))}</dt><dd><code>quality-control</code><span class="about-status optional">${esc(t('settings.presetOptional'))}</span><button class="btn subtle sm" id="st-qc-install" type="button">${esc(t('settings.presetInstall'))}</button></dd><p class="field-note">${esc(t('settings.qualityControlPresetTip'))}</p></div>
+        </dl>
       </section>
       <section class="settings-section about-section" aria-labelledby="settings-about-title">
         <div class="settings-section-head"><div><h4 id="settings-about-title">${esc(t('settings.about'))}</h4><p>${esc(t('settings.aboutTip'))}</p></div></div>
@@ -1691,6 +1759,15 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
       applyLang();
       openSettings();
     }));
+    $$('[data-theme-option]', modal).forEach((button) => button.addEventListener('click', () => {
+      const next = setThemePreference(button.dataset.themeOption);
+      $$('[data-theme-option]', modal).forEach((option) => {
+        const active = option.dataset.themeOption === next;
+        option.classList.toggle('active', active);
+        option.setAttribute('aria-checked', String(active));
+      });
+    }));
+    $('#st-qc-install', modal).addEventListener('click', openPresetInstallGuide);
     $('#st-close', modal).addEventListener('click', closeModal);
   }
   function renderReleasePage(modal = $('#release-modal')) {
@@ -1980,6 +2057,7 @@ import { createCommandExecuteArgs, createDshRpc, openFollowSnapshot } from './ds
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshBoard(false); });
   }
   async function init() {
+    applyTheme();
     setLang(currentLang());
     $$('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
     applyStaticCopy();

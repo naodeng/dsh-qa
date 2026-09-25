@@ -75,15 +75,44 @@ test.describe('首页', () => {
     expect(assistantPanel.height).toBeLessThan(projectPanel.height - 40);
   });
 
-  test('设置弹窗移除主题和工作区宽度设置并保留基础可访问性属性', async ({ page }) => {
+  test('设置弹窗提供系统、明亮和暗黑主题并保留基础可访问性属性', async ({ page }) => {
     await page.goto('/');
     await page.locator('#btn-settings').click();
     await expect(page.locator('#settings-modal')).toBeVisible();
-    await expect(page.locator('#settings-modal [data-theme-option]')).toHaveCount(0);
+    await expect(page.locator('#settings-modal [data-theme-option]')).toHaveCount(3);
+    await expect(page.locator('#st-theme-system')).toHaveAttribute('aria-checked', 'true');
+    await page.locator('#st-theme-dark').click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect(page.locator('#st-theme-dark')).toHaveAttribute('aria-checked', 'true');
+    await expect.poll(() => page.locator('#main-content').evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(17, 25, 31)');
+    await page.locator('#st-close').click();
+    await page.locator('[data-view-jump="board"]').click();
+    await expect.poll(() => page.locator('#view-board .card').first().evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(24, 37, 44)');
+    await page.locator('[data-view="calendar"]').click();
+    await expect.poll(() => page.locator('#view-calendar .calendar-toolbar').evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(24, 37, 44)');
+    await page.locator('[data-view="dashboard"]').click();
+    await page.locator('#btn-settings').click();
+    await page.locator('#st-theme-light').click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await expect.poll(() => page.locator('#main-content').evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(233, 237, 237)');
+    await page.locator('#st-theme-system').click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'system');
     await expect(page.locator('#settings-modal [data-layout-preset]')).toHaveCount(0);
     await expect(page.locator('#service-status')).toHaveAttribute('role', 'status');
     await expect(page.locator('#service-status')).toHaveAttribute('aria-live', 'polite');
     await page.locator('#st-close').click();
+  });
+
+  test('设置页提供可选 quality-control preset 安装入口', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('#btn-settings').click();
+    await expect(page.locator('#st-quality-control')).toBeVisible();
+    await expect(page.locator('#st-quality-control')).toContainText('研发质量控制模式');
+    await page.locator('#st-qc-install').click();
+    await expect(page.locator('#preset-install-modal')).toBeVisible();
+    await expect(page.locator('#preset-install-modal')).toContainText('quality-control');
+    await expect(page.locator('#preset-install-command')).toContainText('npx @deepseek-ai/dsh');
+    await expect(page.locator('#preset-install-command')).toContainText('node_modules/dsh-qa/preset/quality-control');
   });
 
   test('设置按钮在浅色背景下保持高对比度', async ({ page }) => {
@@ -98,7 +127,7 @@ test.describe('首页', () => {
 
   test('共享弹窗支持对话框语义、Escape 关闭和触发按钮焦点恢复', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('body')).not.toHaveAttribute('data-theme', /.+/);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'system');
     await expect(page.locator('#rail-resizer')).toHaveAttribute('role', 'separator');
     await expect(page.locator('#case-resizer')).toHaveAttribute('role', 'separator');
 
@@ -114,7 +143,7 @@ test.describe('首页', () => {
 
   test('设置弹窗承载语言和关于信息，版本历史支持倒序分页', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('#app-version')).toContainText('v0.6.0');
+    await expect(page.locator('#app-version')).toContainText('v0.6.1');
     await expect(page.locator('.avatar')).toHaveCount(0);
     await expect(page.locator('.theme-toggle')).toHaveCount(0);
     await expect(page.locator('#btn-lang')).toHaveCount(0);
@@ -133,13 +162,13 @@ test.describe('首页', () => {
     await page.locator('#st-close').click();
     await page.locator('#app-version').click();
     await expect(page.locator('#release-modal')).toBeVisible();
-    await expect(page.locator('#release-list .release-row').first()).toContainText('v0.6.0');
-    await expect(page.locator('#release-list .release-row').first()).toContainText('Native QA Execution');
+    await expect(page.locator('#release-list .release-row').first()).toContainText('v0.6.1');
+    await expect(page.locator('#release-list .release-row').first()).toContainText('WebSocket');
     await expect(page.locator('#release-list .release-row')).toHaveCount(5);
     await expect(page.locator('#release-next')).toBeEnabled();
     await page.locator('#release-next').click();
     await expect(page.locator('#release-page-label')).toContainText('2');
-    await expect(page.locator('#release-list .release-row').first()).not.toContainText('v0.6.0');
+    await expect(page.locator('#release-list .release-row').first()).not.toContainText('v0.6.1');
   });
 
   test('切回中文后服务状态和首页操作按钮同步恢复中文', async ({ page }) => {
