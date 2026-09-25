@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+## 0.6.2 - 2026-09-25
+
+## 中文
+
+### 修复
+
+- 修正官方 Electron 客户端中的 `quality-control` 安装指引：不再生成会被拒绝的 `--profile desktop` CLI 命令，改为引导用户通过 DSH「插件」页安装本地 bundle。
+- 两个 preset 安装脚本现在会提前拒绝 Electron 独占的 `desktop` profile，并固定 Web 示例使用兼容的 Harness `0.1.7-rc.1` CLI。
+- 修正 Web 安装示例未导出自定义 `DSH_HOME` 的问题，确保路径和 DSH CLI 使用同一个 profile。
+
+### 验证
+
+- `QA_E2E_PORT=18999 npm test`：218 个单元/API 测试和 39 个 Chromium E2E 测试通过。
+- `npm pack --dry-run`、`preset/quality-control` bundle dry-run、脚本语法检查和 `git diff --check`：通过。
+
+## English
+
+### Fixes
+
+- Fix the `quality-control` installation guide inside the official Electron client: it no longer emits the rejected `--profile desktop` CLI command and instead directs users to install the local bundle from DSH's Plugins page.
+- Make both preset installers reject Electron's exclusive `desktop` profile before invoking the CLI, and pin Web examples to the compatible Harness `0.1.7-rc.1` CLI.
+- Export a custom `DSH_HOME` in the Web installation examples so the displayed bundle path and the DSH CLI use the same profile.
+
+### Verification
+
+- `QA_E2E_PORT=18999 npm test`: 218 unit/API tests and 39 Chromium E2E tests passed.
+- `npm pack --dry-run`, the `preset/quality-control` bundle dry-run, shell syntax checks, and `git diff --check`: passed.
+
 ## 0.6.1 - 2026-09-25
 
 ## 中文

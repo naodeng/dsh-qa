@@ -53,6 +53,12 @@ if [[ -z "$PROFILE" || -z "$DSH_BIN" ]]; then
   exit 2
 fi
 
+PROFILE_LOWER="$(printf '%s' "$PROFILE" | tr '[:upper:]' '[:lower:]')"
+if [[ "$PROFILE_LOWER" == "desktop" ]]; then
+  echo "✗ desktop profile 由官方 Electron 客户端管理，不能通过 CLI 修改；请在 DSH 客户端的插件页安装。独立 Web 请使用 --profile web。" >&2
+  exit 2
+fi
+
 echo "来源 bundle: ${BUNDLE_SPEC}"
 echo "目标 profile: ${PROFILE}"
 echo "----------------------------------------"

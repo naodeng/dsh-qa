@@ -50,7 +50,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
   const THEME_KEY = 'dsh-qa-theme';
   const THEME_VALUES = ['system', 'light', 'dark'];
   const DEFAULT_APP_INFO = {
-    currentVersion: '0.6.1', latestVersion: '0.6.1', isOutdated: false,
+    currentVersion: '0.6.2', latestVersion: '0.6.2', isOutdated: false,
     dshVersion: 'dsh-v0.1.7-rc.1',
     repositoryUrl: 'https://github.com/naodeng/dsh-qa',
     websiteZhUrl: 'https://inaodeng.com/zh-cn/dsh-qa/',
@@ -1695,19 +1695,35 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
     return created.sessionId;
   }
   function openPresetInstallGuide() {
-    const profile = state.dshEmbedded ? 'desktop' : 'web';
+    const isDesktop = state.dshEmbedded;
     const command = [
-      `PROFILE=${profile}`,
-      'DSH_HOME="${DSH_HOME:-$HOME/.dsh}"',
-      'npx @deepseek-ai/dsh plugin --profile "$PROFILE" add "link:$DSH_HOME/profiles/$PROFILE/node_modules/dsh-qa/preset/quality-control"',
+      'PROFILE=web',
+      'export DSH_HOME="${DSH_HOME:-$HOME/.dsh}"',
+      'npx --yes @deepseek-ai/dsh@0.1.7-rc.1 plugin --profile "$PROFILE" add "link:$DSH_HOME/profiles/$PROFILE/node_modules/dsh-qa/preset/quality-control"',
     ].join('\n');
-    const modal = modalShell(t('settings.presetGuideTitle'), t('settings.presetGuideSub'), `
-      <p class="settings-guide-copy">${esc(t('settings.presetGuideBody'))}</p>
-      <pre class="preset-install-command" id="preset-install-command">${esc(command)}</pre>
-      <p class="field-note">${esc(t('settings.presetGuideRestart'))}</p>
-      <div class="modal-foot"><button class="btn" id="preset-copy" type="button">${esc(t('settings.presetCopy'))}</button><button class="btn primary" id="preset-install-close" type="button">${esc(t('settings.done'))}</button></div>`, true);
+    const guide = isDesktop ? `
+      <div data-preset-install-mode="desktop">
+        <p class="settings-guide-copy">${esc(t('settings.presetGuideDesktopBody'))}</p>
+        <ol class="preset-install-steps">
+          <li>${esc(t('settings.presetGuideDesktopStep1'))}</li>
+          <li>${esc(t('settings.presetGuideDesktopStep2'))}</li>
+          <li>${esc(t('settings.presetGuideDesktopStep3'))}</li>
+        </ol>
+        <p class="field-note">${esc(t('settings.presetGuideDesktopPathTip'))}</p>
+        <pre class="preset-install-command" id="preset-install-path">${esc(t('settings.presetGuideDesktopPath'))}</pre>
+      </div>` : `
+      <div data-preset-install-mode="web">
+        <p class="settings-guide-copy">${esc(t('settings.presetGuideBody'))}</p>
+        <pre class="preset-install-command" id="preset-install-command">${esc(command)}</pre>
+        <p class="field-note">${esc(t('settings.presetGuideRestart'))}</p>
+      </div>`;
+    const copy = isDesktop ? '' : `<button class="btn" id="preset-copy" type="button">${esc(t('settings.presetCopy'))}</button>`;
+    const modal = modalShell(t('settings.presetGuideTitle'), isDesktop ? t('settings.presetGuideDesktopSub') : t('settings.presetGuideSub'), `
+      ${guide}
+      <div class="modal-foot">${copy}<button class="btn primary" id="preset-install-close" type="button">${esc(t('settings.done'))}</button></div>`, true);
     modal.id = 'preset-install-modal';
-    $('#preset-copy', modal).addEventListener('click', async () => {
+    modal.dataset.presetInstallMode = isDesktop ? 'desktop' : 'web';
+    if (!isDesktop) $('#preset-copy', modal).addEventListener('click', async () => {
       try {
         if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
         await navigator.clipboard.writeText(command);

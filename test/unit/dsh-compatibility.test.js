@@ -96,6 +96,7 @@ test('published package shape exposes bundle patches and removes legacy preset s
 
 test('quality-control is an independent Harness 0.1.7 bundle', () => {
   assert.equal(qualityControlManifest.name, 'dsh-qa-quality-control');
+  assert.equal(qualityControlManifest.version, packageManifest.version, 'quality-control bundle must share the release version');
   assert.deepEqual(qualityControlManifest.dsh?.bundle?.patch, './cordis.patch.yml');
   assert.match(qualityControlPreset, /- id: preset-quality-control\n\s+name: '@deepseek-ai\/dsh-agent-preset'/);
   assert.match(qualityControlPreset, /config:\n\s+id: quality-control[\s\S]*?order: 6[\s\S]*?plugins:/);
@@ -157,8 +158,31 @@ test('settings exposes optional quality-control preset installation guidance', (
   assert.match(app, /id="st-quality-control"/);
   assert.match(app, /id="st-qc-install"/);
   assert.match(app, /openPresetInstallGuide/);
-  assert.match(app, /npx @deepseek-ai\/dsh/);
+  assert.match(app, /npx --yes @deepseek-ai\/dsh/);
+  assert.match(app, /export DSH_HOME=/);
   assert.match(app, /node_modules\/dsh-qa\/preset\/quality-control/);
+});
+
+test('settings separates Electron desktop installation from the CLI web command', () => {
+  assert.match(app, /settings\.presetGuideDesktopBody/);
+  assert.match(app, /data-preset-install-mode/);
+  assert.match(app, /settings\.presetGuideDesktopStep/);
+  assert.doesNotMatch(app, /const profile = state\.dshEmbedded \? 'desktop' : 'web'/);
+});
+
+test('preset installers reject the Electron-managed desktop profile', () => {
+  for (const script of [
+    'scripts/install-qa-preset.sh',
+    'scripts/install-quality-control-preset.sh',
+  ]) {
+    const result = spawnSync('bash', [path.join(root, script), '--profile', 'desktop', '--dry-run'], {
+      cwd: root,
+      env: { ...process.env, DSH_BIN: 'true' },
+      encoding: 'utf8',
+    });
+    assert.notEqual(result.status, 0, `${script} must reject the Electron-managed desktop profile`);
+    assert.match(`${result.stdout}\n${result.stderr}`, /desktop|Electron|桌面/i);
+  }
 });
 
 test('settings exposes system, light and dark theme controls', () => {

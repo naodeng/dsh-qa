@@ -29,6 +29,7 @@ test.describe('首页', () => {
 
   test('首页可以创建项目和迭代', async ({ page }) => {
     await page.goto('/');
+    await expect(page.locator('#metric-cards')).toBeVisible();
     await page.getByRole('button', { name: /新建项目/ }).first().click();
     await page.locator('#nc-title').fill('首页 E2E 项目');
     await page.locator('#nc-ok').click();
@@ -110,9 +111,33 @@ test.describe('首页', () => {
     await expect(page.locator('#st-quality-control')).toContainText('研发质量控制模式');
     await page.locator('#st-qc-install').click();
     await expect(page.locator('#preset-install-modal')).toBeVisible();
+    await expect(page.locator('#preset-install-modal')).toHaveAttribute('data-preset-install-mode', 'web');
     await expect(page.locator('#preset-install-modal')).toContainText('quality-control');
-    await expect(page.locator('#preset-install-command')).toContainText('npx @deepseek-ai/dsh');
+    await expect(page.locator('#preset-install-command')).toContainText('npx --yes @deepseek-ai/dsh');
+    await expect(page.locator('#preset-install-command')).toContainText('@0.1.7-rc.1');
+    await expect(page.locator('#preset-install-command')).toContainText('export DSH_HOME=');
     await expect(page.locator('#preset-install-command')).toContainText('node_modules/dsh-qa/preset/quality-control');
+  });
+
+  test('嵌入 DSH 时设置页提供桌面插件安装指引', async ({ page }) => {
+    const embeddedPrefix = '/api/dsh-qa/workbench';
+    await page.route('**/*', async (route) => {
+      const requestUrl = new URL(route.request().url());
+      if (requestUrl.pathname !== embeddedPrefix && !requestUrl.pathname.startsWith(`${embeddedPrefix}/`)) {
+        await route.continue();
+        return;
+      }
+      requestUrl.pathname = requestUrl.pathname.slice(embeddedPrefix.length) || '/';
+      await route.continue({ url: requestUrl.toString() });
+    });
+    await page.goto(`${embeddedPrefix}/`);
+    await page.locator('#btn-settings').click();
+    await page.locator('#st-qc-install').click();
+    await expect(page.locator('#preset-install-modal')).toHaveAttribute('data-preset-install-mode', 'desktop');
+    await expect(page.locator('#preset-install-modal')).toContainText('插件');
+    await expect(page.locator('#preset-install-path')).toContainText('profiles/desktop/node_modules/dsh-qa/preset/quality-control');
+    await expect(page.locator('#preset-install-command')).toHaveCount(0);
+    await expect(page.locator('#preset-copy')).toHaveCount(0);
   });
 
   test('设置按钮在浅色背景下保持高对比度', async ({ page }) => {
@@ -143,7 +168,7 @@ test.describe('首页', () => {
 
   test('设置弹窗承载语言和关于信息，版本历史支持倒序分页', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('#app-version')).toContainText('v0.6.1');
+    await expect(page.locator('#app-version')).toContainText('v0.6.2');
     await expect(page.locator('.avatar')).toHaveCount(0);
     await expect(page.locator('.theme-toggle')).toHaveCount(0);
     await expect(page.locator('#btn-lang')).toHaveCount(0);
@@ -162,13 +187,13 @@ test.describe('首页', () => {
     await page.locator('#st-close').click();
     await page.locator('#app-version').click();
     await expect(page.locator('#release-modal')).toBeVisible();
-    await expect(page.locator('#release-list .release-row').first()).toContainText('v0.6.1');
-    await expect(page.locator('#release-list .release-row').first()).toContainText('WebSocket');
+    await expect(page.locator('#release-list .release-row').first()).toContainText('v0.6.2');
+    await expect(page.locator('#release-list .release-row').first()).toContainText('quality-control');
     await expect(page.locator('#release-list .release-row')).toHaveCount(5);
     await expect(page.locator('#release-next')).toBeEnabled();
     await page.locator('#release-next').click();
     await expect(page.locator('#release-page-label')).toContainText('2');
-    await expect(page.locator('#release-list .release-row').first()).not.toContainText('v0.6.1');
+    await expect(page.locator('#release-list .release-row').first()).not.toContainText('v0.6.2');
   });
 
   test('切回中文后服务状态和首页操作按钮同步恢复中文', async ({ page }) => {

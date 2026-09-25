@@ -4,13 +4,21 @@
 
 ## 安装
 
-如果 `dsh-qa` 已通过 DSH 插件安装，可直接引用当前 profile 的已安装包，无需源码目录：
+如果 `dsh-qa` 已通过 DSH 插件安装，独立 Web UI 可直接引用 `web` profile 的已安装包，无需源码目录：
 
 ```sh
-PROFILE=desktop
-DSH_HOME="${DSH_HOME:-$HOME/.dsh}"
-npx @deepseek-ai/dsh plugin --profile "$PROFILE" add "link:$DSH_HOME/profiles/$PROFILE/node_modules/dsh-qa/preset/quality-control"
+PROFILE=web
+export DSH_HOME="${DSH_HOME:-$HOME/.dsh}"
+npx --yes @deepseek-ai/dsh@0.1.7-rc.1 plugin --profile "$PROFILE" add "link:$DSH_HOME/profiles/$PROFILE/node_modules/dsh-qa/preset/quality-control"
 ```
+
+官方 Electron 桌面客户端的 `desktop` profile 由客户端独占管理，不能使用 CLI 修改。请在 DSH 主应用的「插件」页点击「添加插件」，将下面命令输出的绝对路径粘贴为本地插件目录，然后安装并启用：
+
+```sh
+printf '%s\n' "${DSH_HOME:-$HOME}/profiles/desktop/node_modules/dsh-qa/preset/quality-control"
+```
+
+安装完成后按客户端提示重启 DSH。
 
 如果使用源码 checkout，再执行仓库脚本：
 
