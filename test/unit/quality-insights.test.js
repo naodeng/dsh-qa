@@ -3,7 +3,12 @@ import assert from 'node:assert/strict';
 import {
   buildQualitySnapshot,
   analyzeQualityFacts,
+  ignoreInsight,
+  mergeQualityInsightDecisions,
+  QualityInsightError,
+  resolveInsight,
 } from '../../server/quality/insights/engine.js';
+import { appendQualityInsightAudit } from '../../server/quality/insights/audit.js';
 import {
   makeEvidenceBundle,
   makeGate,
@@ -18,6 +23,24 @@ function analyze(project) {
 
 function insightsOf(result, kind) {
   return result.insights.filter((insight) => insight.kind === kind);
+}
+
+function decisionProject() {
+  return makeProject({
+    id: 'project_decision',
+    requirements: [{ id: 'req_decision', description: '', acceptance: '', links: [] }],
+    qualityInsightDecisions: [],
+  });
+}
+
+function currentDecisionInsight(project) {
+  return insightsOf(analyze(project), 'requirement_gap')[0];
+}
+
+function primaryProjectState(project) {
+  const copy = structuredClone(project);
+  delete copy.qualityInsightDecisions;
+  return copy;
 }
 
 function emptySnapshot(overrides = {}) {
@@ -245,4 +268,144 @@ test('keeps unrelated input out of an insight scope and changes scope for relate
   assert.equal(firstGap.id, unrelatedGap.id);
   assert.notEqual(firstGap.scopeDigest, relatedGap.scopeDigest);
   assert.notEqual(firstGap.id, relatedGap.id);
+});
+
+test('overlays a matching decision without changing the current analysis digest', () => {
+  const project = decisionProject();
+  const analysis = analyze(project);
+  const insight = currentDecisionInsight(project);
+  const decision = {
+    id: 'decision_overlay',
+    insightId: insight.id,
+    inputDigest: analysis.inputDigest,
+    scopeDigest: insight.scopeDigest,
+    status: 'resolved',
+    revision: 1,
+    actorLabel: 'QA',
+    reason: '',
+    createdAt: '2026-09-27T00:00:00.000Z',
+    updatedAt: '2026-09-27T00:00:00.000Z',
+  };
+
+  const merged = mergeQualityInsightDecisions(analysis, [decision]);
+  const mergedInsight = merged.insights.find((item) => item.id === insight.id);
+
+  assert.equal(merged.inputDigest, analysis.inputDigest);
+  assert.equal(mergedInsight.status, 'resolved');
+  assert.equal(mergedInsight.revision, 1);
+  assert.equal(mergedInsight.id, insight.id);
+});
+
+test('resolve stores a revision-one decision and leaves primary quality facts unchanged', () => {
+  const project = decisionProject();
+  const before = primaryProjectState(project);
+  const insight = currentDecisionInsight(project);
+
+  const decision = resolveInsight(project, insight.id, {
+    expectedRevision: 0,
+    scopeDigest: insight.scopeDigest,
+    actorLabel: '张测试',
+  });
+
+  assert.equal(decision.insightId, insight.id);
+  assert.equal(decision.status, 'resolved');
+  assert.equal(decision.revision, 1);
+  assert.equal(decision.inputDigest, insight.inputDigest);
+  assert.equal(decision.scopeDigest, insight.scopeDigest);
+  assert.equal(decision.actorLabel, '张测试');
+  assert.equal(typeof decision.createdAt, 'string');
+  assert.deepEqual(primaryProjectState(project), before);
+  assert.equal(project.qualityInsightDecisions.length, 1);
+});
+
+test('ignore requires a reason and cannot be applied twice', () => {
+  const project = decisionProject();
+  const insight = currentDecisionInsight(project);
+  const decision = ignoreInsight(project, insight.id, {
+    expectedRevision: 0,
+    scopeDigest: insight.scopeDigest,
+    actorLabel: 'QA',
+    reason: '当前范围明确不覆盖',
+  });
+
+  assert.equal(decision.status, 'ignored');
+  assert.equal(decision.reason, '当前范围明确不覆盖');
+  assert.throws(
+    () => ignoreInsight(project, insight.id, { expectedRevision: 0, scopeDigest: insight.scopeDigest, actorLabel: 'QA', reason: '再次忽略' }),
+    (error) => error instanceof QualityInsightError && error.code === 'QUALITY_INSIGHT_ALREADY_DECIDED',
+  );
+});
+
+test('rejects stale scope, stale revision, invalid actor/reason, and missing insights', () => {
+  const staleScopeProject = decisionProject();
+  const staleScopeInsight = currentDecisionInsight(staleScopeProject);
+  assert.throws(
+    () => resolveInsight(staleScopeProject, staleScopeInsight.id, { expectedRevision: 0, scopeDigest: 'stale-scope', actorLabel: 'QA' }),
+    (error) => error instanceof QualityInsightError && error.code === 'QUALITY_INSIGHT_STALE',
+  );
+
+  const staleRevisionProject = decisionProject();
+  const staleRevisionInsight = currentDecisionInsight(staleRevisionProject);
+  assert.throws(
+    () => resolveInsight(staleRevisionProject, staleRevisionInsight.id, { expectedRevision: 1, scopeDigest: staleRevisionInsight.scopeDigest, actorLabel: 'QA' }),
+    (error) => error instanceof QualityInsightError && error.code === 'QUALITY_REVISION_CONFLICT',
+  );
+
+  const invalidProject = decisionProject();
+  const invalidInsight = currentDecisionInsight(invalidProject);
+  assert.throws(
+    () => resolveInsight(invalidProject, invalidInsight.id, { expectedRevision: 0, scopeDigest: invalidInsight.scopeDigest, actorLabel: ' ' }),
+    (error) => error instanceof QualityInsightError && error.code === 'QUALITY_INSIGHT_ACTOR_INVALID',
+  );
+  assert.throws(
+    () => ignoreInsight(invalidProject, invalidInsight.id, { expectedRevision: 0, scopeDigest: invalidInsight.scopeDigest, actorLabel: 'QA', reason: ' ' }),
+    (error) => error instanceof QualityInsightError && error.code === 'QUALITY_INSIGHT_REASON_INVALID',
+  );
+  assert.throws(
+    () => resolveInsight(invalidProject, 'missing-insight', { expectedRevision: 0, scopeDigest: 'none', actorLabel: 'QA' }),
+    (error) => error instanceof QualityInsightError && error.code === 'QUALITY_INSIGHT_NOT_FOUND',
+  );
+});
+
+test('keeps a decision through unrelated changes but invalidates it for related facts', () => {
+  const project = decisionProject();
+  const original = currentDecisionInsight(project);
+  resolveInsight(project, original.id, { expectedRevision: 0, scopeDigest: original.scopeDigest, actorLabel: 'QA' });
+
+  project.defects.push({ id: 'closed-unrelated', status: 'closed' });
+  const unrelated = currentDecisionInsight(project);
+  const merged = mergeQualityInsightDecisions(analyze(project), project.qualityInsightDecisions);
+  assert.equal(unrelated.id, original.id);
+  assert.equal(unrelated.scopeDigest, original.scopeDigest);
+  assert.equal(merged.insights.find((item) => item.id === original.id).status, 'resolved');
+
+  project.requirements[0].description = '补充需求描述';
+  const related = currentDecisionInsight(project);
+  assert.notEqual(related.id, original.id);
+  assert.notEqual(related.scopeDigest, original.scopeDigest);
+  assert.equal(mergeQualityInsightDecisions(analyze(project), project.qualityInsightDecisions).insights.some((item) => item.id === related.id && item.status !== 'open'), false);
+});
+
+test('creates a redacted quality insight audit record', () => {
+  const project = decisionProject();
+  const audit = appendQualityInsightAudit(project, {
+    entityId: 'insight_audit',
+    action: 'resolve',
+    actorLabel: 'QA',
+    fromRevision: 0,
+    toRevision: 1,
+    result: 'success',
+    errorCode: '',
+    reason: '',
+    inputDigest: 'input-digest',
+    scopeDigest: 'scope-digest',
+    snapshot: { shouldNotPersist: true },
+    rawLog: 'should-not-persist',
+  });
+
+  assert.equal(audit.entityType, 'quality-insight');
+  assert.equal(audit.source, 'http');
+  assert.equal('snapshot' in audit, false);
+  assert.equal('rawLog' in audit, false);
+  assert.deepEqual(project.qualityAudit.at(-1), audit);
 });

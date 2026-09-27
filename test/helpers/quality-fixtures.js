@@ -10,6 +10,7 @@ export const makeProject = (overrides = {}) => ({
   testcases: [],
   qualityTasks: [],
   qualityAudit: [],
+  qualityInsightDecisions: [],
   testPlans: [],
   testruns: [],
   executionProfiles: [],

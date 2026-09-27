@@ -50,6 +50,7 @@ function normalizeProject(p) {
   p.members ||= [];
   p.qualityTasks ||= [];
   p.qualityAudit ||= [];
+  p.qualityInsightDecisions = Array.isArray(p.qualityInsightDecisions) ? p.qualityInsightDecisions : [];
   p.testruns ||= [];
   p.testPlans ||= [];
   p.executionProfiles ||= [];
@@ -116,6 +117,7 @@ export function createProject(fields = {}) {
     materials: [],
     qualityTasks: [],
     qualityAudit: [],
+    qualityInsightDecisions: [],
     testruns: [],
     testPlans: [],
     executionProfiles: [],

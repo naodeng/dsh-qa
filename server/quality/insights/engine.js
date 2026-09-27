@@ -1,7 +1,16 @@
 import crypto from 'node:crypto';
+import { now, uid } from '../../store.js';
 import { collectInsightCandidates, RULE_VERSION } from './rules.js';
 
 export { RULE_VERSION };
+
+export class QualityInsightError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'QualityInsightError';
+    this.code = code;
+  }
+}
 
 const SEVERITY_ORDER = { high: 0, medium: 1, low: 2 };
 const PROVENANCE_KEYS = ['sourceDigests', 'commit', 'testPlanVersion', 'regressionSetVersion', 'profileId', 'profileVersion', 'hostExecutionId', 'hostResultDigest'];
@@ -277,4 +286,63 @@ export function analyzeQualityFacts(snapshot = {}) {
   }
   insights.sort(insightSort);
   return { insights, inputDigest, generatedAt: new Date().toISOString(), ruleVersion: RULE_VERSION };
+}
+
+export function mergeQualityInsightDecisions(analysis, decisions = []) {
+  const decisionByInsightId = new Map((Array.isArray(decisions) ? decisions : []).map((decision) => [decision.insightId, decision]));
+  return {
+    ...analysis,
+    insights: analysis.insights.map((insight) => {
+      const decision = decisionByInsightId.get(insight.id);
+      return decision ? { ...insight, status: decision.status, revision: decision.revision } : insight;
+    }),
+  };
+}
+
+function currentInsight(project, insightId) {
+  const analysis = analyzeQualityFacts(buildQualitySnapshot(project));
+  const insight = analysis.insights.find((item) => item.id === insightId);
+  if (!insight) throw new QualityInsightError('QUALITY_INSIGHT_NOT_FOUND', '当前快照中不存在该 Insight');
+  return insight;
+}
+
+function validateDecision(project, insightId, options, status) {
+  const insight = currentInsight(project, insightId);
+  if (options?.scopeDigest !== insight.scopeDigest) throw new QualityInsightError('QUALITY_INSIGHT_STALE', 'Insight 事实范围已变化，请重新加载');
+  if (options?.expectedRevision !== insight.revision) throw new QualityInsightError('QUALITY_REVISION_CONFLICT', 'Insight 版本已变化，请重新加载');
+  if (!String(options?.actorLabel || '').trim()) throw new QualityInsightError('QUALITY_INSIGHT_ACTOR_INVALID', '操作者不能为空');
+  if (status === 'ignored' && !String(options?.reason || '').trim()) throw new QualityInsightError('QUALITY_INSIGHT_REASON_INVALID', '忽略理由不能为空');
+  project.qualityInsightDecisions = Array.isArray(project.qualityInsightDecisions) ? project.qualityInsightDecisions : [];
+  if (project.qualityInsightDecisions.some((decision) => decision.insightId === insightId)) {
+    throw new QualityInsightError('QUALITY_INSIGHT_ALREADY_DECIDED', '该 Insight 已经有人工决定');
+  }
+  return insight;
+}
+
+function saveDecision(project, insight, options, status) {
+  const timestamp = now();
+  const decision = {
+    id: uid('quality-insight-decision'),
+    insightId: insight.id,
+    inputDigest: insight.inputDigest,
+    scopeDigest: insight.scopeDigest,
+    status,
+    revision: 1,
+    actorLabel: String(options.actorLabel).trim(),
+    reason: status === 'ignored' ? String(options.reason).trim() : '',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+  project.qualityInsightDecisions.push(decision);
+  return decision;
+}
+
+export function resolveInsight(project, insightId, options = {}) {
+  const insight = validateDecision(project, insightId, options, 'resolved');
+  return saveDecision(project, insight, options, 'resolved');
+}
+
+export function ignoreInsight(project, insightId, options = {}) {
+  const insight = validateDecision(project, insightId, options, 'ignored');
+  return saveDecision(project, insight, options, 'ignored');
 }

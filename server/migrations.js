@@ -1,6 +1,6 @@
 import { normalizeGate } from './quality/gate.js';
 
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 function clone(value) {
   return structuredClone(value);
@@ -42,6 +42,11 @@ export function migrateDb(rawDb) {
     if (version === 3) {
       for (const project of db.projects) project.hostExecutions = Array.isArray(project.hostExecutions) ? project.hostExecutions : [];
       version = 4;
+      db.schemaVersion = version;
+    }
+    if (version === 4) {
+      for (const project of db.projects) project.qualityInsightDecisions = Array.isArray(project.qualityInsightDecisions) ? project.qualityInsightDecisions : [];
+      version = 5;
       db.schemaVersion = version;
     }
   }

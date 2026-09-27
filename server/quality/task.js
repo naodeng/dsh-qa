@@ -4,6 +4,7 @@ export function normalizeQualityProject(project) {
   if (!project || typeof project !== 'object' || Array.isArray(project)) throw new TypeError('项目必须是对象');
   project.qualityTasks ||= [];
   project.qualityAudit ||= [];
+  project.qualityInsightDecisions = Array.isArray(project.qualityInsightDecisions) ? project.qualityInsightDecisions : [];
   return project;
 }
 
