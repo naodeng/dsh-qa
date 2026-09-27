@@ -396,7 +396,15 @@ test('rejects stale scope, stale revision, invalid actor/reason, and missing ins
     (error) => error instanceof QualityInsightError && error.code === 'QUALITY_INSIGHT_ACTOR_INVALID',
   );
   assert.throws(
+    () => resolveInsight(invalidProject, invalidInsight.id, { expectedRevision: 0, scopeDigest: invalidInsight.scopeDigest, actorLabel: {} }),
+    (error) => error instanceof QualityInsightError && error.code === 'QUALITY_INSIGHT_ACTOR_INVALID',
+  );
+  assert.throws(
     () => ignoreInsight(invalidProject, invalidInsight.id, { expectedRevision: 0, scopeDigest: invalidInsight.scopeDigest, actorLabel: 'QA', reason: ' ' }),
+    (error) => error instanceof QualityInsightError && error.code === 'QUALITY_INSIGHT_REASON_INVALID',
+  );
+  assert.throws(
+    () => ignoreInsight(invalidProject, invalidInsight.id, { expectedRevision: 0, scopeDigest: invalidInsight.scopeDigest, actorLabel: 'QA', reason: {} }),
     (error) => error instanceof QualityInsightError && error.code === 'QUALITY_INSIGHT_REASON_INVALID',
   );
   assert.throws(

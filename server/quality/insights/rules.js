@@ -77,14 +77,14 @@ function runScope(run, relatedEvidence) {
   };
 }
 
-function normalizedGateEvidenceRefs(snapshot, gate, check) {
+function normalizedGateEvidenceRefs(snapshot, check) {
   const refs = sorted(check.evidenceRefs);
   const evidenceById = new Map(snapshot.evidenceBundles.map((bundle) => [bundle.id, bundle]));
   const missingRefs = refs.filter((ref) => {
     const bundle = evidenceById.get(ref);
     return !bundle || bundle.state !== 'ready' || bundle.integrity !== 'verified';
   });
-  return { refs, missingRefs, evidenceById };
+  return { refs, missingRefs };
 }
 
 function gateEvidenceScope(snapshot, gate, check, refs) {
@@ -158,7 +158,7 @@ function evidenceCandidates(snapshot) {
 
   for (const gate of snapshot.gates.filter((item) => item.kind === 'computed')) {
     for (const check of gate.checks) {
-      const { refs, missingRefs } = normalizedGateEvidenceRefs(snapshot, gate, check);
+      const { refs, missingRefs } = normalizedGateEvidenceRefs(snapshot, check);
       if (!missingRefs.length) continue;
       candidates.push(candidate(
         'evidence_gap',

@@ -371,9 +371,9 @@ export async function handleQualityRoutes({ req, res, url, body, store, hostAdap
       : ['expectedRevision', 'scopeDigest', 'actorLabel'];
     if (!onlyFields(request, fields)) return fail(res, 400, '包含不允许的字段');
     if (!Number.isInteger(request.expectedRevision) || request.expectedRevision < 0) return fail(res, 400, 'expectedRevision 无效');
-    if (!String(request.scopeDigest || '').trim()) return fail(res, 400, 'scopeDigest 不能为空');
-    if (!String(request.actorLabel || '').trim()) return fail(res, 400, '操作者不能为空');
-    if (parts[5] === 'ignore' && !String(request.reason || '').trim()) return fail(res, 400, '忽略理由不能为空');
+    if (typeof request.scopeDigest !== 'string' || !request.scopeDigest.trim()) return fail(res, 400, 'scopeDigest 不能为空');
+    if (typeof request.actorLabel !== 'string' || !request.actorLabel.trim()) return fail(res, 400, '操作者不能为空');
+    if (parts[5] === 'ignore' && (typeof request.reason !== 'string' || !request.reason.trim())) return fail(res, 400, '忽略理由不能为空');
 
     const currentView = qualityInsightView(project);
     const currentInsight = currentView.insights.find((item) => item.id === parts[4]);
@@ -385,7 +385,7 @@ export async function handleQualityRoutes({ req, res, url, body, store, hostAdap
       const audit = appendQualityInsightAudit(project, {
         entityId: parts[4],
         action,
-        actorLabel: String(request.actorLabel).trim(),
+        actorLabel: request.actorLabel.trim(),
         fromRevision: decision.revision - 1,
         toRevision: decision.revision,
         result: 'success',
@@ -415,12 +415,12 @@ export async function handleQualityRoutes({ req, res, url, body, store, hostAdap
         appendQualityInsightAudit(project, {
           entityId: parts[4],
           action,
-          actorLabel: String(request.actorLabel || '').trim(),
+          actorLabel: request.actorLabel.trim(),
           fromRevision: currentInsight.revision,
           toRevision: currentInsight.revision,
           result: 'rejected',
           errorCode: error.code,
-          reason: String(request.reason || '').trim(),
+          reason: typeof request.reason === 'string' ? request.reason.trim() : '',
           inputDigest: currentInsight.inputDigest,
           scopeDigest: currentInsight.scopeDigest,
         });

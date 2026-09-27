@@ -792,6 +792,20 @@ test('quality insights API is read-only on query and enforces audited decisions'
   assert.equal(staleScope.status, 409);
   assert.equal((await staleScope.json()).code, 'QUALITY_INSIGHT_STALE');
 
+  const invalidScope = await fetch(`${base}/api/projects/${projectId}/quality-insights/${insight.id}/resolve`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: 0, scopeDigest: {}, actorLabel: 'QA' }),
+  });
+  assert.equal(invalidScope.status, 400);
+
+  const invalidActor = await fetch(`${base}/api/projects/${projectId}/quality-insights/${insight.id}/resolve`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: 0, scopeDigest: insight.scopeDigest, actorLabel: {} }),
+  });
+  assert.equal(invalidActor.status, 400);
+
   const staleRevision = await fetch(`${base}/api/projects/${projectId}/quality-insights/${insight.id}/resolve`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -901,6 +915,13 @@ test('quality insights ignore API requires a reason and returns the merged ignor
     body: JSON.stringify({ expectedRevision: 0, scopeDigest: insight.scopeDigest, actorLabel: 'QA', reason: ' ' }),
   });
   assert.equal(missingReason.status, 400);
+
+  const invalidReason = await fetch(`${base}/api/projects/${projectId}/quality-insights/${insight.id}/ignore`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: 0, scopeDigest: insight.scopeDigest, actorLabel: 'QA', reason: {} }),
+  });
+  assert.equal(invalidReason.status, 400);
 
   const ignored = await fetch(`${base}/api/projects/${projectId}/quality-insights/${insight.id}/ignore`, {
     method: 'POST',
