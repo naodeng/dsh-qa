@@ -13,6 +13,7 @@ const { startQaBench, closeQaBench } = await import('../../server/index.js');
 const store = await import('../../server/store.js');
 const { ActionQueueSourceError } = await import('../../server/action-queue.js');
 let actionQueueUnavailable = false;
+const events = [];
 const hostAdapters = new Map([['browser-use:navigate', {
   id: 'test-only-http-browser-use-navigate',
   provider: 'browser-use',
@@ -30,6 +31,7 @@ const started = await startQaBench({
     if (actionQueueUnavailable) throw new ActionQueueSourceError('test source unavailable');
     return store.listProjects();
   },
+  onBroadcast: (type, payload) => events.push({ type, payload }),
   log: () => {},
 });
 const base = `http://127.0.0.1:${started.server.address().port}`;
@@ -733,4 +735,181 @@ test('skills API uninstalls a Skill from the DSH directory', async () => {
   const response = await fetch(`${base}/api/skills/test-case-writing`, { method: 'DELETE' });
   assert.equal(response.status, 200);
   assert.equal(fs.existsSync(skillDir), false);
+});
+
+test('quality insights API is read-only on query and enforces audited decisions', async () => {
+  const created = await (await fetch(`${base}/api/projects`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: 'Quality insights API 项目', createWorkspace: false }),
+  })).json();
+  const projectId = created.project.id;
+  const project = store.getProject(projectId);
+  project.requirements = [{ id: 'req_quality_insight_api', statement: '', acceptance: '', links: [] }];
+  project.gates = [{ id: 'gate_quality_insight_api', kind: 'approval', status: 'pending', title: '审批门禁' }];
+  store.flush();
+  events.length = 0;
+  const dataPath = path.join(dataDir, 'data.json');
+  const beforeQueryMtime = fs.statSync(dataPath).mtimeMs;
+
+  const query = await fetch(`${base}/api/projects/${projectId}/quality-insights`);
+  assert.equal(query.status, 200);
+  const queryPayload = await query.json();
+  assert.equal(queryPayload.ok, true);
+  assert.equal(queryPayload.ruleVersion, 'quality-insight-rules-v1');
+  assert.match(queryPayload.inputDigest, /^[a-f0-9]{64}$/);
+  assert.match(queryPayload.generatedAt, /^\d{4}-\d{2}-\d{2}T/);
+  const insight = queryPayload.insights.find((item) => item.kind === 'requirement_gap');
+  assert.ok(insight);
+  assert.equal(insight.status, 'open');
+  assert.equal(insight.revision, 0);
+  assert.deepEqual(store.getProject(projectId).qualityInsightDecisions, []);
+  assert.equal(fs.statSync(dataPath).mtimeMs, beforeQueryMtime);
+
+  const unknownField = await fetch(`${base}/api/projects/${projectId}/quality-insights/${insight.id}/resolve`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: 0, scopeDigest: insight.scopeDigest, actorLabel: 'QA', ignored: true }),
+  });
+  assert.equal(unknownField.status, 400);
+
+  const missingProject = await fetch(`${base}/api/projects/missing-quality-insight/quality-insights`);
+  assert.equal(missingProject.status, 404);
+
+  const missingInsight = await fetch(`${base}/api/projects/${projectId}/quality-insights/missing-insight/resolve`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: 0, scopeDigest: insight.scopeDigest, actorLabel: 'QA' }),
+  });
+  assert.equal(missingInsight.status, 404);
+  assert.equal((await missingInsight.json()).code, 'QUALITY_INSIGHT_NOT_FOUND');
+
+  const staleScope = await fetch(`${base}/api/projects/${projectId}/quality-insights/${insight.id}/resolve`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: 0, scopeDigest: 'stale-scope', actorLabel: 'QA' }),
+  });
+  assert.equal(staleScope.status, 409);
+  assert.equal((await staleScope.json()).code, 'QUALITY_INSIGHT_STALE');
+
+  const staleRevision = await fetch(`${base}/api/projects/${projectId}/quality-insights/${insight.id}/resolve`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: 1, scopeDigest: insight.scopeDigest, actorLabel: 'QA' }),
+  });
+  assert.equal(staleRevision.status, 409);
+  assert.equal((await staleRevision.json()).code, 'QUALITY_REVISION_CONFLICT');
+
+  const primaryBefore = structuredClone({
+    gates: project.gates,
+    evidenceBundles: project.evidenceBundles,
+    regressionSets: project.regressionSets,
+    defects: project.defects,
+  });
+  const resolved = await fetch(`${base}/api/projects/${projectId}/quality-insights/${insight.id}/resolve`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: 0, scopeDigest: insight.scopeDigest, actorLabel: '张测试' }),
+  });
+  assert.equal(resolved.status, 200);
+  const resolvedPayload = await resolved.json();
+  assert.equal(resolvedPayload.ok, true);
+  assert.equal(resolvedPayload.insight.status, 'resolved');
+  assert.equal(resolvedPayload.insight.revision, 1);
+  assert.equal(resolvedPayload.decision.status, 'resolved');
+  assert.deepEqual({
+    gates: store.getProject(projectId).gates,
+    evidenceBundles: store.getProject(projectId).evidenceBundles,
+    regressionSets: store.getProject(projectId).regressionSets,
+    defects: store.getProject(projectId).defects,
+  }, primaryBefore);
+
+  const insightEvent = events.filter((event) => event.type === 'quality.insight.updated').at(-1);
+  assert.deepEqual(insightEvent, {
+    type: 'quality.insight.updated',
+    payload: {
+      projectId,
+      insightId: insight.id,
+      status: 'resolved',
+      revision: 1,
+      inputDigest: resolvedPayload.insight.inputDigest,
+      scopeDigest: insight.scopeDigest,
+      updatedAt: resolvedPayload.decision.updatedAt,
+    },
+  });
+
+  const successAudit = store.getProject(projectId).qualityAudit.at(-1);
+  assert.deepEqual({
+    entityType: successAudit.entityType,
+    entityId: successAudit.entityId,
+    action: successAudit.action,
+    source: successAudit.source,
+    actorLabel: successAudit.actorLabel,
+    fromRevision: successAudit.fromRevision,
+    toRevision: successAudit.toRevision,
+    result: successAudit.result,
+    errorCode: successAudit.errorCode,
+    reason: successAudit.reason,
+    inputDigest: successAudit.inputDigest,
+    scopeDigest: successAudit.scopeDigest,
+  }, {
+    entityType: 'quality-insight',
+    entityId: insight.id,
+    action: 'resolve',
+    source: 'http',
+    actorLabel: '张测试',
+    fromRevision: 0,
+    toRevision: 1,
+    result: 'success',
+    errorCode: '',
+    reason: '',
+    inputDigest: resolvedPayload.insight.inputDigest,
+    scopeDigest: insight.scopeDigest,
+  });
+  assert.doesNotMatch(JSON.stringify(successAudit), /snapshot|rawLog|日志正文/);
+
+  const repeated = await fetch(`${base}/api/projects/${projectId}/quality-insights/${insight.id}/resolve`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: 0, scopeDigest: insight.scopeDigest, actorLabel: 'QA' }),
+  });
+  assert.equal(repeated.status, 409);
+  assert.equal((await repeated.json()).code, 'QUALITY_INSIGHT_ALREADY_DECIDED');
+  const rejectedAudit = store.getProject(projectId).qualityAudit.at(-1);
+  assert.equal(rejectedAudit.result, 'rejected');
+  assert.equal(rejectedAudit.errorCode, 'QUALITY_INSIGHT_ALREADY_DECIDED');
+  assert.doesNotMatch(JSON.stringify(rejectedAudit), /snapshot|rawLog|日志正文/);
+});
+
+test('quality insights ignore API requires a reason and returns the merged ignored state', async () => {
+  const created = await (await fetch(`${base}/api/projects`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: 'Quality insights ignore API 项目', createWorkspace: false }),
+  })).json();
+  const projectId = created.project.id;
+  const project = store.getProject(projectId);
+  project.requirements = [{ id: 'req_quality_ignore_api', statement: '', acceptance: '', links: [] }];
+  store.flush();
+  const queryPayload = await (await fetch(`${base}/api/projects/${projectId}/quality-insights`)).json();
+  const insight = queryPayload.insights.find((item) => item.kind === 'requirement_gap');
+  assert.ok(insight);
+
+  const missingReason = await fetch(`${base}/api/projects/${projectId}/quality-insights/${insight.id}/ignore`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: 0, scopeDigest: insight.scopeDigest, actorLabel: 'QA', reason: ' ' }),
+  });
+  assert.equal(missingReason.status, 400);
+
+  const ignored = await fetch(`${base}/api/projects/${projectId}/quality-insights/${insight.id}/ignore`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: 0, scopeDigest: insight.scopeDigest, actorLabel: 'QA', reason: '范围外风险' }),
+  });
+  assert.equal(ignored.status, 200);
+  const payload = await ignored.json();
+  assert.equal(payload.insight.status, 'ignored');
+  assert.equal(payload.decision.reason, '范围外风险');
+  assert.equal(store.getProject(projectId).qualityInsightDecisions.length, 1);
 });

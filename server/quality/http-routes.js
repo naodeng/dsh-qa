@@ -16,6 +16,15 @@ import { enqueueArtifactCleanup, runArtifactCleanup } from './evidence-retention
 import { applyGateExceptions, evaluateGate, evaluateQualityGate } from './gate.js';
 import { buildDeliveryReport } from './report.js';
 import { buildGateTrend } from './gate-trend.js';
+import {
+  analyzeQualityFacts,
+  buildQualitySnapshot,
+  ignoreInsight,
+  mergeQualityInsightDecisions,
+  QualityInsightError,
+  resolveInsight,
+} from './insights/engine.js';
+import { appendQualityInsightAudit } from './insights/audit.js';
 
 export function publicEvidence(bundle) {
   const provenance = bundle.provenance || {};
@@ -59,6 +68,21 @@ function revisionConflict(res, fail, message) {
 
 function onlyFields(body, fields) {
   return Object.keys(body || {}).every((field) => fields.includes(field));
+}
+
+function qualityInsightView(project) {
+  const analysis = analyzeQualityFacts(buildQualitySnapshot(project));
+  return mergeQualityInsightDecisions(analysis, project.qualityInsightDecisions || []);
+}
+
+function qualityInsightErrorStatus(code) {
+  if (code === 'QUALITY_INSIGHT_NOT_FOUND') return 404;
+  if (['QUALITY_INSIGHT_STALE', 'QUALITY_REVISION_CONFLICT', 'QUALITY_INSIGHT_ALREADY_DECIDED'].includes(code)) return 409;
+  return 400;
+}
+
+function qualityInsightFailure(res, fail, error) {
+  return fail(res, qualityInsightErrorStatus(error?.code), error?.message || 'Quality Insight 请求无效', error?.code);
 }
 
 const LOCAL_PROFILE_FIELDS = ['name', 'executor', 'cwdRelative', 'targetFiles', 'networkIntent', 'timeoutMs'];
@@ -330,6 +354,82 @@ export async function handleQualityRoutes({ req, res, url, body, store, hostAdap
     store.touch(project); store.persist(); emitProject(project.id);
     return true;
   };
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'quality-insights' && !parts[4] && m('GET')) {
+    const project = store.getProject(parts[2]);
+    if (!project) return fail(res, 404, '项目不存在');
+    const view = qualityInsightView(project);
+    return ok(res, view);
+  }
+
+  if (parts[1] === 'projects' && parts[2] && parts[3] === 'quality-insights' && parts[4] && ['resolve', 'ignore'].includes(parts[5]) && !parts[6] && m('POST')) {
+    const project = store.getProject(parts[2]);
+    if (!project) return fail(res, 404, '项目不存在');
+    const request = body && typeof body === 'object' ? body : {};
+    const fields = parts[5] === 'ignore'
+      ? ['expectedRevision', 'scopeDigest', 'actorLabel', 'reason']
+      : ['expectedRevision', 'scopeDigest', 'actorLabel'];
+    if (!onlyFields(request, fields)) return fail(res, 400, '包含不允许的字段');
+    if (!Number.isInteger(request.expectedRevision) || request.expectedRevision < 0) return fail(res, 400, 'expectedRevision 无效');
+    if (!String(request.scopeDigest || '').trim()) return fail(res, 400, 'scopeDigest 不能为空');
+    if (!String(request.actorLabel || '').trim()) return fail(res, 400, '操作者不能为空');
+    if (parts[5] === 'ignore' && !String(request.reason || '').trim()) return fail(res, 400, '忽略理由不能为空');
+
+    const currentView = qualityInsightView(project);
+    const currentInsight = currentView.insights.find((item) => item.id === parts[4]);
+    const action = parts[5];
+    try {
+      const decision = action === 'ignore'
+        ? ignoreInsight(project, parts[4], request)
+        : resolveInsight(project, parts[4], request);
+      const audit = appendQualityInsightAudit(project, {
+        entityId: parts[4],
+        action,
+        actorLabel: String(request.actorLabel).trim(),
+        fromRevision: decision.revision - 1,
+        toRevision: decision.revision,
+        result: 'success',
+        errorCode: '',
+        reason: decision.reason,
+        inputDigest: decision.inputDigest,
+        scopeDigest: decision.scopeDigest,
+      });
+      void audit;
+      store.touch(project);
+      store.persist();
+      const view = qualityInsightView(project);
+      const insight = view.insights.find((item) => item.id === parts[4]);
+      broadcast('quality.insight.updated', {
+        projectId: project.id,
+        insightId: parts[4],
+        status: decision.status,
+        revision: decision.revision,
+        inputDigest: insight.inputDigest,
+        scopeDigest: insight.scopeDigest,
+        updatedAt: decision.updatedAt,
+      });
+      emitProject(project.id);
+      return ok(res, { insight, decision });
+    } catch (error) {
+      if (error instanceof QualityInsightError && currentInsight) {
+        appendQualityInsightAudit(project, {
+          entityId: parts[4],
+          action,
+          actorLabel: String(request.actorLabel || '').trim(),
+          fromRevision: currentInsight.revision,
+          toRevision: currentInsight.revision,
+          result: 'rejected',
+          errorCode: error.code,
+          reason: String(request.reason || '').trim(),
+          inputDigest: currentInsight.inputDigest,
+          scopeDigest: currentInsight.scopeDigest,
+        });
+        store.touch(project);
+        store.persist();
+      }
+      return qualityInsightFailure(res, fail, error);
+    }
+  }
 
   if (parts[1] === 'projects' && parts[2] && parts[3] === 'quality-tasks' && !parts[4]) {
     const c = store.getProject(parts[2]);
