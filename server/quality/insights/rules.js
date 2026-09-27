@@ -49,10 +49,32 @@ function matchingEvidence(run, bundle) {
   if (bundle.testRunId !== run.id || bundle.state !== 'ready' || bundle.integrity !== 'verified') return false;
   if (run.resultTrust === 'imported-summary') return false;
   if (run.resultTrust === 'controlled-host') {
-    return bundle.provenance?.hostExecutionId === run.provenance?.hostExecutionId
-      && bundle.provenance?.hostResultDigest === run.provenance?.hostResultDigest;
+    const hostExecutionId = run.provenance?.hostExecutionId;
+    const hostResultDigest = run.provenance?.hostResultDigest;
+    return typeof hostExecutionId === 'string' && hostExecutionId.length > 0
+      && typeof hostResultDigest === 'string' && hostResultDigest.length > 0
+      && bundle.provenance?.hostExecutionId === hostExecutionId
+      && bundle.provenance?.hostResultDigest === hostResultDigest;
   }
   return run.resultTrust === 'controlled-local';
+}
+
+function runScope(run, relatedEvidence) {
+  const hostFields = run.resultTrust === 'controlled-host'
+    ? { hostExecutionId: run.provenance?.hostExecutionId ?? null, hostResultDigest: run.provenance?.hostResultDigest ?? null }
+    : {};
+  return {
+    run: { id: run.id, status: run.status, resultTrust: run.resultTrust, ...hostFields },
+    evidence: relatedEvidence.map((bundle) => ({
+      id: bundle.id,
+      testRunId: bundle.testRunId,
+      state: bundle.state,
+      integrity: bundle.integrity,
+      ...(run.resultTrust === 'controlled-host'
+        ? { hostExecutionId: bundle.provenance?.hostExecutionId ?? null, hostResultDigest: bundle.provenance?.hostResultDigest ?? null }
+        : {}),
+    })),
+  };
 }
 
 function normalizedGateEvidenceRefs(snapshot, gate, check) {
@@ -63,6 +85,18 @@ function normalizedGateEvidenceRefs(snapshot, gate, check) {
     return !bundle || bundle.state !== 'ready' || bundle.integrity !== 'verified';
   });
   return { refs, missingRefs, evidenceById };
+}
+
+function gateEvidenceScope(snapshot, gate, check, refs) {
+  const evidenceById = new Map(snapshot.evidenceBundles.map((bundle) => [bundle.id, bundle]));
+  return {
+    gateId: gate.id,
+    check: { key: check.key, evidenceRefs: refs },
+    evidence: refs.map((ref) => {
+      const bundle = evidenceById.get(ref);
+      return { id: ref, state: bundle?.state ?? null, integrity: bundle?.integrity ?? null };
+    }),
+  };
 }
 
 function currentRegressionSet(snapshot, qualityTaskId) {
@@ -117,7 +151,7 @@ function evidenceCandidates(snapshot) {
         { code: 'missing-verified-evidence', args: { runId: run.id, resultTrust: run.resultTrust } },
         relatedEvidence.map((bundle) => bundle.id),
         'high',
-        { run, evidence: relatedEvidence },
+        runScope(run, relatedEvidence),
       ));
     }
   }
@@ -132,7 +166,7 @@ function evidenceCandidates(snapshot) {
         { code: 'invalid-evidence-reference', args: { checkKey: check.key, missingRefs } },
         refs,
         'high',
-        { gateId: gate.id, check: { key: check.key, status: check.status, evidenceRefs: refs }, missingRefs },
+        gateEvidenceScope(snapshot, gate, check, refs),
       ));
     }
   }
@@ -145,14 +179,22 @@ function regressionCandidates(snapshot) {
   for (const task of snapshot.qualityTasks) {
     const activeRisks = task.risks.filter(activeRisk);
     const current = currentRegressionSet(snapshot, task.id);
+    const selectedSet = current && {
+      id: current.id,
+      qualityTaskId: current.qualityTaskId,
+      status: current.status,
+      version: current.version,
+      reasonRefs: current.reasonRefs,
+    };
     if (!current) {
+      const severity = activeRisks.some(highRisk) ? 'high' : 'medium';
       candidates.push(candidate(
         'regression_gap',
         { type: 'quality-task', id: task.id },
         { code: 'missing-regression-set', args: { qualityTaskId: task.id } },
         [],
-        activeRisks.some(highRisk) ? 'high' : 'medium',
-        { qualityTaskId: task.id, risks: activeRisks, defects: activeDefects, selectedSet: null },
+        severity,
+        { qualityTaskId: task.id, selectedSet: null, missingRiskRefs: [], missingDefectRefs: [], severity },
       ));
       continue;
     }
@@ -161,13 +203,14 @@ function regressionCandidates(snapshot) {
     const missingRiskRefs = sorted(activeRisks.filter((risk) => !reasonRefs.has(`risk:${risk.id}`)).map((risk) => `risk:${risk.id}`));
     const missingDefectRefs = sorted(activeDefects.filter((defect) => !reasonRefs.has(`defect:${defect.id}`)).map((defect) => `defect:${defect.id}`));
     if (!missingRiskRefs.length && !missingDefectRefs.length) continue;
+    const severity = activeRisks.some(highRisk) ? 'high' : 'medium';
     candidates.push(candidate(
       'regression_gap',
       { type: 'regression-set', id: current.id },
       { code: 'regression-coverage-gap', args: { qualityTaskId: task.id, setId: current.id, missingRiskRefs, missingDefectRefs } },
       [],
-      activeRisks.some(highRisk) ? 'high' : 'medium',
-      { qualityTaskId: task.id, risks: activeRisks, defects: activeDefects, selectedSet: current },
+      severity,
+      { qualityTaskId: task.id, selectedSet, missingRiskRefs, missingDefectRefs, severity },
     ));
   }
   return candidates;
@@ -183,7 +226,7 @@ function releaseCandidates(snapshot) {
       { code, args: { gateId: gate.id, verdict: gate.verdict } },
       [],
       gate.verdict === 'BLOCK' ? 'high' : 'medium',
-      { gateId: gate.id, kind: gate.kind, verdict: gate.verdict, checks: gate.checks },
+      { gateId: gate.id, verdict: gate.verdict },
     ));
   }
 
@@ -197,7 +240,7 @@ function releaseCandidates(snapshot) {
       { code: 'critical-risk-open', args: { qualityTaskId: task.id, riskIds } },
       [],
       'high',
-      { qualityTaskId: task.id, risks: activeCriticalRisks },
+      { qualityTaskId: task.id, riskIds },
     ));
   }
   return candidates;

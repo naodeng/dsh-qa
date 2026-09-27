@@ -871,7 +871,7 @@ test('quality insights API is read-only on query and enforces audited decisions'
   const repeated = await fetch(`${base}/api/projects/${projectId}/quality-insights/${insight.id}/resolve`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ expectedRevision: 0, scopeDigest: insight.scopeDigest, actorLabel: 'QA' }),
+    body: JSON.stringify({ expectedRevision: 1, scopeDigest: insight.scopeDigest, actorLabel: 'QA' }),
   });
   assert.equal(repeated.status, 409);
   assert.equal((await repeated.json()).code, 'QUALITY_INSIGHT_ALREADY_DECIDED');

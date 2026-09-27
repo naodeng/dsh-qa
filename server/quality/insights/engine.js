@@ -309,13 +309,13 @@ function currentInsight(project, insightId) {
 function validateDecision(project, insightId, options, status) {
   const insight = currentInsight(project, insightId);
   if (options?.scopeDigest !== insight.scopeDigest) throw new QualityInsightError('QUALITY_INSIGHT_STALE', 'Insight 事实范围已变化，请重新加载');
-  if (options?.expectedRevision !== insight.revision) throw new QualityInsightError('QUALITY_REVISION_CONFLICT', 'Insight 版本已变化，请重新加载');
-  if (!String(options?.actorLabel || '').trim()) throw new QualityInsightError('QUALITY_INSIGHT_ACTOR_INVALID', '操作者不能为空');
-  if (status === 'ignored' && !String(options?.reason || '').trim()) throw new QualityInsightError('QUALITY_INSIGHT_REASON_INVALID', '忽略理由不能为空');
   project.qualityInsightDecisions = Array.isArray(project.qualityInsightDecisions) ? project.qualityInsightDecisions : [];
   if (project.qualityInsightDecisions.some((decision) => decision.insightId === insightId)) {
     throw new QualityInsightError('QUALITY_INSIGHT_ALREADY_DECIDED', '该 Insight 已经有人工决定');
   }
+  if (options?.expectedRevision !== insight.revision) throw new QualityInsightError('QUALITY_REVISION_CONFLICT', 'Insight 版本已变化，请重新加载');
+  if (!String(options?.actorLabel || '').trim()) throw new QualityInsightError('QUALITY_INSIGHT_ACTOR_INVALID', '操作者不能为空');
+  if (status === 'ignored' && !String(options?.reason || '').trim()) throw new QualityInsightError('QUALITY_INSIGHT_REASON_INVALID', '忽略理由不能为空');
   return insight;
 }
 

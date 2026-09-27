@@ -109,6 +109,44 @@ test('reports evidence gaps for terminal runs and rejects imported or mismatched
   assert.equal(runTargets.find((item) => item.target.id === 'run_local').evidenceRefs.includes('evidence_local_unverified'), true);
 });
 
+test('requires complete Host provenance and scopes each rule to the facts it reads', () => {
+  const hostProject = makeProject({
+    testruns: [makeTestRun({ id: 'run_host_missing_provenance', status: 'passed', resultTrust: 'controlled-host', provenance: {} })],
+    evidenceBundles: [makeEvidenceBundle({ id: 'evidence_host_missing_provenance', testRunId: 'run_host_missing_provenance', state: 'ready', integrity: 'verified', provenance: {} })],
+  });
+  assert.equal(insightsOf(analyze(hostProject), 'evidence_gap').some((item) => item.target.id === 'run_host_missing_provenance'), true);
+
+  const localBase = makeProject({
+    testruns: [makeTestRun({ id: 'run_local_scope', status: 'passed', resultTrust: 'controlled-local', provenance: {} })],
+    evidenceBundles: [makeEvidenceBundle({ id: 'evidence_local_scope', testRunId: 'run_local_scope', state: 'ready', integrity: 'failed', provenance: { commit: 'first' } })],
+  });
+  const localChanged = structuredClone(localBase);
+  localChanged.evidenceBundles[0].provenance.commit = 'unrelated-change';
+  const localBefore = insightsOf(analyze(localBase), 'evidence_gap').find((item) => item.target.id === 'run_local_scope');
+  const localAfter = insightsOf(analyze(localChanged), 'evidence_gap').find((item) => item.target.id === 'run_local_scope');
+  assert.equal(localAfter.id, localBefore.id);
+  assert.equal(localAfter.scopeDigest, localBefore.scopeDigest);
+
+  const releaseBase = makeProject({
+    gates: [makeGate({ id: 'gate_scope_release', kind: 'computed', verdict: 'WARN', checks: [{ key: 'verdict', status: 'failed', evidenceRefs: ['missing-release-ref'] }] })],
+  });
+  const releaseChanged = structuredClone(releaseBase);
+  releaseChanged.gates[0].checks.push({ key: 'unrelated-check', status: 'passed', evidenceRefs: ['another-ref'] });
+  const releaseBefore = insightsOf(analyze(releaseBase), 'release_risk').find((item) => item.target.id === 'gate_scope_release');
+  const releaseAfter = insightsOf(analyze(releaseChanged), 'release_risk').find((item) => item.target.id === 'gate_scope_release');
+  assert.equal(releaseAfter.id, releaseBefore.id);
+  assert.equal(releaseAfter.scopeDigest, releaseBefore.scopeDigest);
+
+  const task = makeQualityTask({ id: 'task_missing_set_scope', risks: [] });
+  const regressionBase = makeProject({ qualityTasks: [task], defects: [] });
+  const regressionChanged = structuredClone(regressionBase);
+  regressionChanged.defects.push({ id: 'unrelated-open-defect', status: 'open' });
+  const regressionBefore = insightsOf(analyze(regressionBase), 'regression_gap').find((item) => item.target.id === task.id);
+  const regressionAfter = insightsOf(analyze(regressionChanged), 'regression_gap').find((item) => item.target.id === task.id);
+  assert.equal(regressionAfter.id, regressionBefore.id);
+  assert.equal(regressionAfter.scopeDigest, regressionBefore.scopeDigest);
+});
+
 test('preserves missing computed-gate evidence references and ignores approval gates', () => {
   const project = makeProject({
     gates: [
@@ -331,7 +369,7 @@ test('ignore requires a reason and cannot be applied twice', () => {
   assert.equal(decision.status, 'ignored');
   assert.equal(decision.reason, '当前范围明确不覆盖');
   assert.throws(
-    () => ignoreInsight(project, insight.id, { expectedRevision: 0, scopeDigest: insight.scopeDigest, actorLabel: 'QA', reason: '再次忽略' }),
+    () => ignoreInsight(project, insight.id, { expectedRevision: 1, scopeDigest: insight.scopeDigest, actorLabel: 'QA', reason: '再次忽略' }),
     (error) => error instanceof QualityInsightError && error.code === 'QUALITY_INSIGHT_ALREADY_DECIDED',
   );
 });
