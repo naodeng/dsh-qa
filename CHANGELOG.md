@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+## 0.7.1 - 2026-09-28
+
+## 中文
+
+### 修复
+
+- 修复工作台功能性文字过小的问题，将紧凑导航、状态、操作提示和详情元数据提升到可读字号，同时保留代码与终端内容的技术字号。
+- 提升 Focus Canvas 浅色主题的文字对比度，补充可复用的高对比度设计 token。
+- 修复项目协作侧栏标题的上下内边距，并将日历侧栏标题调整为连续的语义层级。
+- 将品牌、页面标题和版本标签统一到现有设计系统字体栈。
+
+### 验证
+
+- `npm test`：256 个单元/API 测试和 41 个 Chromium E2E 测试通过。
+- Impeccable detector：无阻塞性设计质量问题；保留已记录的应用 shell、现有 eyebrow 和主题阴影例外。
+- `git diff --check`：通过。
+
+## English
+
+### Fixes
+
+- Fix undersized functional copy across navigation, statuses, actions, and detail metadata while keeping technical code and terminal text at their intended scale.
+- Improve Focus Canvas light-theme text contrast and add reusable high-contrast design tokens.
+- Add vertical inset to project collaboration sidebar headers and restore a continuous semantic heading hierarchy in the calendar sidebar.
+- Align brand, page-heading, and version-label typography with the existing design-system font stack.
+
+### Verification
+
+- `npm test`: 256 unit/API tests and 41 Chromium E2E tests passed.
+- Impeccable detector: no blocking design-quality findings; documented app-shell, incumbent eyebrow, and theme-shadow exceptions remain scoped.
+- `git diff --check`: passed.
+
 ## 0.7.0 - 2026-09-28
 
 ## 中文

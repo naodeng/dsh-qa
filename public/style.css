@@ -39,7 +39,7 @@ html, body { width: 100%; height: 100%; }
 body {
   color: var(--ink);
   background: var(--bg);
-  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
@@ -108,9 +108,9 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .brand-mark { width: 40px; height: 40px; flex: none; border-radius: 11px; overflow: hidden; background: #fbfaf6; display: grid; place-items: center; }
 .brand-mark img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .brand-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; white-space: nowrap; }
-.brand-copy b { flex: none; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif; font-size: 16px; font-weight: 700; letter-spacing: -.015em; }
+.brand-copy b { flex: none; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 16px; font-weight: 700; letter-spacing: -.015em; }
 .brand-copy small { color: var(--faint); font-size: 11px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.app-version { min-height: 14px; padding: 0; border: 0; color: var(--faint); background: transparent; font: 600 10px/1.2 "SF Mono", Menlo, monospace; letter-spacing: .02em; }
+.app-version { min-height: 14px; padding: 0; border: 0; color: var(--faint); background: transparent; font: 600 11px/1.2 "SFMono-Regular", Menlo, Consolas, monospace; letter-spacing: .02em; }
 .app-version:hover { color: var(--blue); }
 .version-alert { margin-left: 2px; color: #ef5350; font-size: 14px; line-height: 0; vertical-align: 1px; }
 .global-search {
@@ -320,7 +320,7 @@ body.context-collapsed .splitter-context::after { content: "‹"; left: 0; borde
 
 /* assistant workspace */
 .case-sidebar { width: var(--case-sidebar-w); flex: none; display: flex; flex-direction: column; overflow: hidden; background: #f8fafb; border-right: 1px solid var(--line); min-height: 0; transition: opacity .15s ease; }
-.case-sidebar-head { height: 59px; padding: 0 13px 0 16px; display: flex; align-items: center; border-bottom: 1px solid var(--line); }
+.case-sidebar-head { height: 59px; padding: 8px 13px 8px 16px; display: flex; align-items: center; border-bottom: 1px solid var(--line); }
 .case-sidebar-head > div { flex: 1; display: grid; }
 .case-sidebar-head b { font-size: 13px; }
 .case-sidebar-head span { color: var(--faint); font-size: 9.5px; }
@@ -402,7 +402,7 @@ body.dsh-busy .model-reminder { color: var(--blue); background: var(--blue-soft)
 .send-btn:disabled { cursor: not-allowed; opacity: .45; }
 .send-btn.danger { background: var(--red); }
 .send-btn svg { width: 16px; height: 16px; }
-.composer-note { margin: 5px auto 0; max-width: 800px; color: #a2abb2; text-align: center; font-size: 8.5px; }
+.composer-note { margin: 5px auto 0; max-width: 800px; color: var(--muted); text-align: center; font-size: 8.5px; }
 .slash-suggestions { position: absolute; z-index: 20; left: max(18px, 5vw); right: max(18px, 5vw); bottom: calc(100% - 10px); max-width: 800px; max-height: 270px; margin: 0 auto; padding: 6px; overflow: auto; border: 1px solid #cdd9e0; border-radius: 11px; background: #fff; box-shadow: 0 14px 34px rgba(14,37,53,.16); }
 .slash-suggestion { width: 100%; padding: 8px 10px; display: grid; grid-template-columns: minmax(135px, .65fr) 1fr auto; align-items: center; gap: 10px; border: 0; border-radius: 7px; color: #314451; background: transparent; text-align: left; }
 .slash-suggestion:hover { background: #f0f6f8; }
@@ -410,7 +410,7 @@ body.dsh-busy .model-reminder { color: var(--blue); background: var(--blue-soft)
 .slash-suggestion span { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; font-size: 9px; }
 .slash-suggestion em { padding: 2px 5px; border-radius: 4px; color: var(--teal); background: var(--teal-soft); font-size: 8px; font-style: normal; }
 .context-panel { width: var(--context-w); flex: none; display: flex; flex-direction: column; overflow: hidden; background: #f8fafb; border-left: 1px solid var(--line); min-height: 0; transition: opacity .15s ease; }
-.context-head { height: 59px; padding: 0 14px; display: flex; align-items: center; border-bottom: 1px solid var(--line); }
+.context-head { height: 59px; padding: 8px 14px; display: flex; align-items: center; border-bottom: 1px solid var(--line); }
 .context-head > div { flex: 1; display: grid; }
 .context-head b { font-size: 12px; }
 .context-head span:not(.live-dot) { color: var(--faint); font-size: 9px; }
@@ -503,10 +503,10 @@ body.dsh-busy .model-reminder { color: var(--blue); background: var(--blue-soft)
 .day-event.danger { color: var(--red); border-color: var(--red); background: var(--red-soft); }
 .day-more { padding-left: 5px; color: var(--faint); font-size: 8px; }
 .full-calendar-wrap > aside { padding: 16px 14px; border-left: 1px solid var(--line); background: #fbfcfd; overflow: auto; }
-.full-calendar-wrap > aside h3 { font-size: 12px; }
+.full-calendar-wrap > aside h2 { font-size: 12px; }
 .selected-agenda-head { display: flex; align-items: center; justify-content: space-between; }
 .selected-agenda-head span { color: var(--teal); font-size: 9px; font-weight: 700; letter-spacing: .06em; }
-.selected-agenda-head h3 { margin-top: 2px; font-size: 14px !important; }
+.selected-agenda-head h2 { margin-top: 2px; font-size: 14px !important; }
 .square-add { width: 30px; height: 30px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--navy); background: #fff; font-size: 17px; }
 .square-add:hover { color: #fff; border-color: var(--navy); background: var(--navy); }
 .calendar-agenda { margin-top: 10px; display: grid; gap: 7px; }
@@ -736,13 +736,13 @@ code { padding: 1px 4px; border-radius: 4px; background: #f2f4f6; font-size: 9px
   --surface: #ffffff;
   --surface-soft: #f7f8f8;
   --ink: #17212b;
-  --muted: #697783;
-  --faint: #879399;
+  --muted: #52616d;
+  --faint: #5d6b75;
   --line: #d6dfe1;
   --line-soft: #e8eded;
-  --teal: #167b70;
+  --teal: #0b6b5f;
   --teal-soft: #eff8f5;
-  --teal-strong: #167b70;
+  --teal-strong: #0b6b5f;
   --amber-ink: #8f4c13;
   --amber-soft: #fff3e7;
   --danger: #b4232e;
@@ -824,7 +824,7 @@ body { color: var(--ink); background: var(--page); }
 .dashboard-page, .calendar-page, .board-page { padding: 32px 36px 42px; }
 .welcome-row, .page-head { margin-bottom: 24px; }
 .eyebrow { color: var(--teal) !important; }
-.welcome-row h1, .page-head h1 { color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif; font-weight: 700; letter-spacing: -.025em; }
+.welcome-row h1, .page-head h1 { color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; font-weight: 700; letter-spacing: -.025em; }
 .welcome-row p, .page-head p { color: var(--muted); }
 .btn { min-height: 34px; border-color: var(--line); border-radius: 7px; color: var(--ink); background: var(--surface); box-shadow: none; }
 .btn:hover { background: var(--surface-soft); border-color: var(--line-strong); }
@@ -1382,6 +1382,146 @@ html[data-theme="dark"] .detail-action-bar { background: rgba(24, 37, 44, .96); 
   .case-table-head, .case-overview-row { font-size: 9px; }
   .release-version { font-size: 12px; }
 }
+/* Keep functional copy legible at every breakpoint. Technical code blocks keep their own scale. */
+.app-version,
+.back-dsh-btn,
+.rail-section-head,
+.privacy-note b,
+.eyebrow,
+.nav-item em,
+.nav-count,
+.rail-case span,
+.privacy-note small,
+.metric-card small,
+.metric-card em,
+.panel-head p,
+.attention-meta,
+.attention-time,
+.attention-action,
+.action-queue-error,
+.host-run-controls select,
+.host-run-status,
+.li-meta-inline,
+.artifact-checks,
+.mini-calendar .weekday,
+.mini-day,
+.mini-agenda-item,
+.mini-agenda-item b,
+.case-table-head,
+.case-main span,
+.stage-pill,
+.risk-badge,
+.last-active,
+.ai-control-hero p,
+.control-row b,
+.model-note,
+.activity-copy b,
+.activity-copy span,
+.activity-time,
+.case-sidebar-head span,
+.case-filter button,
+.ci-title,
+.ci-meta,
+.chat-kicker,
+#chat-head-meta,
+.status-pill,
+.model-switch,
+.model-switch select,
+.model-reminder,
+.agent-channel-switch button,
+.capability-btn,
+.msg.toolbox,
+.msg.dsh::before,
+.msg.command::before,
+.composer-tools,
+.composer-tools button,
+.composer-note,
+.slash-suggestion span,
+.slash-suggestion em,
+.context-head span:not(.live-dot),
+.live-dot,
+.radar-stage small,
+.radar-stat span,
+.assistant-policy-card,
+.assistant-policy-card b,
+.context-section-title,
+.fi-label,
+.fi-meta,
+.col-head-copy small,
+.col-count,
+.ai-chip,
+.card-meta,
+.badge,
+.card-mat,
+.card-foot,
+.empty-col,
+.empty-tip,
+.calendar-legend,
+.full-calendar .weekday,
+.day-number,
+.day-event,
+.day-more,
+.selected-agenda-head span,
+.agenda-date,
+.agenda-card b,
+.agenda-card span,
+.agenda-card p,
+.agenda-remove,
+.selected-empty,
+.mini-agenda-add,
+.project-detail-head p:last-child,
+.drawer-meta,
+.tab,
+.tab-count,
+.sidebar-stage > div:first-child,
+.sidebar-stage b,
+.sidebar-stage small,
+.sidebar-facts span,
+.sidebar-facts b,
+.detail-section-head p,
+.detail-section-head span,
+.field > label,
+.field-note,
+.overview-metrics span,
+.detail-card-head > div > span,
+.ai-detail-card > p,
+.policy-facts span,
+.card-counter,
+.party-row b,
+.party-row div span,
+.folder-visual b,
+.folder-visual p,
+.timeline-row b,
+.timeline-row span,
+.tab-toolbar span,
+.record-section > h3,
+.record-section > h3 span,
+.li-sub,
+.li-meta,
+.switch-copy span,
+.modal-sub,
+.mode-option b,
+.mode-option span,
+.schedule-type-switch button,
+.capability-tabs button,
+.capability-search,
+.capability-row span,
+.capability-row em,
+.capability-footnote,
+.settings-section-head p,
+.language-option,
+.theme-option small,
+.about-item dt,
+.about-item dd,
+.about-status,
+.release-date,
+.release-summary,
+.release-link,
+.release-empty,
+.release-pagination {
+  font-size: 12px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }

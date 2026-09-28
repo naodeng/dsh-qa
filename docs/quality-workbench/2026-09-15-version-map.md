@@ -4,7 +4,7 @@
 
 ## 1. 当前发布基线
 
-当前 `master` 和最新 Git tag 基线是 `v0.7.0`。该版本交付确定性的 Quality Insights、审计式 `resolve` / `ignore` 决策、项目范围 DSH QA 工具和工作台交互修复，并在 DSH `v0.1.7-rc.2` 上完成用户本地基本功能验证；对应事实记录见 [CHANGELOG.md](../../CHANGELOG.md)、0.7 设计规格和实现计划。npm、Git tag、GitHub Release 与宿主兼容性仍作为独立交付事实记录。
+当前 `master` 和最新 Git tag 基线是 `v0.7.1`。该补丁版本在 0.7.0 的 Quality Insights 基础上修复工作台功能文字可读性、浅色主题对比度和页面语义层级；对应事实记录见 [CHANGELOG.md](../../CHANGELOG.md)、0.7 设计规格和实现计划。npm、Git tag、GitHub Release 与宿主兼容性仍作为独立交付事实记录。
 
 下面这些事实不能混为一谈：
 
@@ -24,6 +24,8 @@
 
 `0.7.0` 作为 AI Quality Intelligence 首个可验证切片发布，提供基于已保存质量事实的确定性 Insights、可审计人工决策和证据边界；它不替代 Gate、人工审批或外部 provider 的真实执行验收。
 
+`0.7.1` 作为工作台可读性与可访问性修订版发布，统一功能性文字的最小可读字号，修复 Focus Canvas 浅色主题对比度、协作侧栏内边距和日历语义标题；它不改变质量事实、执行边界或 DSH provider 验收边界。
+
 ## 2. 当前有效路线
 
 ```text
@@ -35,7 +37,7 @@ v0.4.1 Harness 0.1.6 Compatibility（历史基线）
         ↓
 0.6.0 Native QA Execution & Action Desk
         ↓
-0.7.0 AI Quality Intelligence
+0.7.1 Workbench readability and accessibility patch
         ↓
 1.0.0 AI-Native QA Workbench
         ↓
@@ -56,6 +58,7 @@ Post-1.0：Quality Obligation、Evidence Graph、Adapter、Policy、Multi-Agent�
 | `0.5.2` | Released | Bilingual settings and release history | 如何让项目元信息、版本提醒和迭代记录在工作台内可见且可追踪？ | 主题与工作区宽度预设、测试执行智能化、AI 自动结论 |
 | `0.6.0` | Released | Native QA Execution & Action Desk | 如何把 Execution Profile 接到 Browser Use、Computer Use 或 MCP，留下 TestRun/Evidence，并让用户立即看到需要处理的执行状态？ | 任意工具调用、无证据 PASS、AI 自动分析 |
 | `0.7.0` | Released | AI Quality Intelligence | 如何从 Evidence、Failure、Regression 和 Gate 事实给出可解释建议？ | AI 直接改 Gate 或替代人工审批 |
+| `0.7.1` | Released | Workbench readability and accessibility | 如何让质量工作台的功能文字、对比度和语义层级在不同屏幕上保持可读？ | 改变质量事实、执行边界或 provider 验收 |
 | `1.0.0` | Planned | AI-Native QA Workbench | 如何把 Panel、执行、智能分析和受控 Agent Loop 收束成可依赖主路径？ | 自动生产发布、无限权限自治 |
 
 ### 3.1 `0.4.1` 的验收边界

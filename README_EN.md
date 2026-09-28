@@ -3,14 +3,14 @@
 # dsh-qa · QA Workbench
 
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-0.7.0-informational)]()
+[![Version](https://img.shields.io/badge/version-0.7.1-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
 [![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.7--rc.2%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-rc.2)
 
 **dsh-qa** is a local QA workbench for DeepSeek Harness. It keeps requirements, test cases, risks, execution, evidence, and delivery decisions in one project space. Project and iteration conversations reuse native DSH sessions with **Test Mode** (preset id: `qa`); business data stays local and the runtime has no production dependencies.
 
-The published version is `v0.7.0`; this release adds deterministic Quality Insights, audited human decisions, and clearer Workbench interactions. Installing the `dsh-qa` main bundle provides both the `qa` and `quality-control` presets, so no separate preset-install command is needed. Real execution through any external provider still requires provider-specific acceptance.
+The published version is `v0.7.1`; this patch release builds on 0.7.0 with more legible functional copy, stronger light-theme contrast, and a cleaner semantic heading hierarchy. Installing the `dsh-qa` main bundle provides both the `qa` and `quality-control` presets, so no separate preset-install command is needed. Real execution through any external provider still requires provider-specific acceptance.
 
 ```
 Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
@@ -150,7 +150,7 @@ The standalone address lets you view and manage test projects, the kanban, and t
 
 ```
 lib/index.js      Host half (cordis plugin): starts the workbench in-process + /api/dsh-qa routes + system-prompt announcement
-lib/client.js     Browser half (0.7.0): official Panel/Slot sidebar + main keyed slot + Workbench iframe
+lib/client.js     Browser half (0.7.1): official Panel/Slot sidebar + main keyed slot + Workbench iframe
 lib/panel-contract.js  Panel/Slot semantic contract (runtime adapter stays in client.js)
 cordis.patch.yml  Profile bundle patch (inserts the plugin line)
 preset/qa/cordis.patch.yml  Declarative QA preset bundle

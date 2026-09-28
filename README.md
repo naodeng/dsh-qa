@@ -3,14 +3,14 @@
 # dsh-qa · 质量工作台
 
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-0.7.0-informational)]()
+[![Version](https://img.shields.io/badge/version-0.7.1-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
 [![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.7--rc.2%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-rc.2)
 
 **dsh-qa** 是 DeepSeek Harness 的本地 QA 工作台：在一个项目空间中管理需求、测试用例、风险、执行、证据和交付决策。项目与迭代的对话复用 DSH 原生会话，并自动使用「测试模式」（preset id: `qa`）；业务数据保留在本机，运行时没有生产依赖。
 
-当前发布版本是 `v0.7.0`；本版新增确定性的 Quality Insights、审计式人工决策和更清晰的工作台交互。安装 `dsh-qa` 主 bundle 会同时提供 `qa` 与 `quality-control` 两个 preset，无需再执行单独的 preset 安装命令。任意外部提供方的真实执行仍需按具体 provider 单独验收。
+当前发布版本是 `v0.7.1`；本版在 0.7.0 的 Quality Insights 和工作台交互基础上，补齐功能性文字可读性、浅色主题对比度和页面语义层级。安装 `dsh-qa` 主 bundle 会同时提供 `qa` 与 `quality-control` 两个 preset，无需再执行单独的 preset 安装命令。任意外部提供方的真实执行仍需按具体 provider 单独验收。
 
 ```
 测试首页 → DSH 测试对话 → 项目看板 → 日历排期
@@ -150,7 +150,7 @@ npm start          # 或双击 start.command
 
 ```
 lib/index.js      宿主半（cordis 插件）：进程内拉起工作台 + /api/dsh-qa 路由 + 系统提示播报
-lib/client.js     浏览器半（0.7.0）：官方 Panel/Slot 侧边栏与 main keyed slot + Workbench iframe
+lib/client.js     浏览器半（0.7.1）：官方 Panel/Slot 侧边栏与 main keyed slot + Workbench iframe
 lib/panel-contract.js  Panel/Slot 语义契约（运行时适配层只在 client.js）
 cordis.patch.yml  profile bundle 补丁（插入插件行）
 preset/qa/cordis.patch.yml  声明式 QA preset bundle

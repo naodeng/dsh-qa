@@ -51,14 +51,14 @@ test('app info exposes the installed version, compatibility, links, and descendi
   assert.equal(payload.websiteEnUrl, 'https://inaodeng.com/en/dsh-qa/');
   assert.ok(Array.isArray(payload.releases));
   assert.ok(payload.releases.length >= 3);
-  assert.equal(payload.releases[0].version, '0.7.0');
+  assert.equal(payload.releases[0].version, '0.7.1');
   assert.match(payload.releases[0].date, /^2026-09-28$/);
   assert.match(payload.releases[0].publishedAt, /^2026-09-28T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   assert.equal(typeof payload.releases[0].summaryZh, 'string');
   assert.equal(typeof payload.releases[0].summaryEn, 'string');
-  assert.match(payload.releases[0].summaryZh, /质量|洞察|弹窗/);
-  assert.match(payload.releases[0].summaryEn, /quality|insight|dialog/i);
-  assert.match(payload.releases[0].detailUrl, /github\.com\/naodeng\/dsh-qa\/releases\/tag\/v0\.7\.0$/);
+  assert.match(payload.releases[0].summaryZh, /可读|对比|语义/);
+  assert.match(payload.releases[0].summaryEn, /undersized|contrast|semantic/i);
+  assert.match(payload.releases[0].detailUrl, /github\.com\/naodeng\/dsh-qa\/releases\/tag\/v0\.7\.1$/);
   for (let index = 1; index < payload.releases.length; index += 1) {
     assert.ok(
       Date.parse(payload.releases[index - 1].publishedAt) >= Date.parse(payload.releases[index].publishedAt),
