@@ -529,7 +529,7 @@ body.dsh-busy .model-reminder { color: var(--blue); background: var(--blue-soft)
 /* drawer, lists and forms */
 .backdrop { position: fixed; inset: 0; z-index: 70; background: rgba(11, 25, 35, .48); backdrop-filter: blur(3px); }
 .drawer { position: fixed; z-index: 71; top: 28px; right: 28px; bottom: 28px; width: min(1160px, calc(100vw - 56px)); display: flex; flex-direction: column; overflow: hidden; border: 1px solid rgba(255,255,255,.7); border-radius: 17px; background: #f4f6f8; box-shadow: 0 30px 90px rgba(8,25,37,.28); animation: drawer-in .2s ease; }
-.project-detail-page { height: calc(100vh - 28px); margin: 14px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: #f4f6f8; box-shadow: 0 12px 36px rgba(8,25,37,.08); }
+.project-detail-page { height: calc(100% - 28px); margin: 14px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: #f4f6f8; box-shadow: 0 12px 36px rgba(8,25,37,.08); }
 .project-detail-head { min-height: 84px; padding: 14px 20px; display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 18px; border-bottom: 1px solid var(--line); background: #fff; }
 .project-detail-head h1 { font: 650 22px/1.3 "Songti SC", serif; }
 .project-detail-head p:last-child { margin-top: 4px; color: var(--faint); font-size: 10px; }
@@ -656,6 +656,9 @@ code { padding: 1px 4px; border-radius: 4px; background: #f2f4f6; font-size: 9px
 .modal#release-modal { width: 620px; }
 .modal h3 { margin-bottom: 4px; font-size: 16px; }
 .modal-sub { margin-bottom: 15px; color: var(--muted); font-size: 10.5px; }
+.confirm-message { margin: 4px 0 0; color: var(--ink); font-size: 12px; line-height: 1.7; white-space: normal; }
+.input-dialog-field { margin-top: 14px; }
+.input-dialog-field input { width: 100%; box-sizing: border-box; }
 .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
 .modal-grid .span-2 { grid-column: 1 / -1; }
 .mode-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }

@@ -2,6 +2,62 @@
 
 ## Unreleased
 
+## 0.7.0 - 2026-09-28
+
+## 中文
+
+### 新功能
+
+- 新增基于需求、测试运行、证据、故障分析、回归集和质量门禁事实的确定性 Quality Insights，输出可追踪的质量缺口与风险提示。
+- 新增 Quality Insight 的审计式 `resolve` / `ignore` 决策 API，保留 revision、scope digest、操作者和理由，不直接修改质量门禁事实。
+- 新增项目范围的 DSH 原生 QA 工具注册与质量事实刷新链路，支持更稳定的测试工作台协作。
+
+### 修复
+
+- 修复历史非测试模式 DSH 会话绑定时的兼容处理，保留原会话并为项目创建新的测试模式会话。
+- 修复项目详情在实时更新后不刷新、页面无法滚动到底部保存，以及旧版 `server/deepseek.js` 遗留路径问题。
+- 修复 Harness 旧版 source wrapper 与当前消息来源契约不兼容的问题。
+
+### 改进
+
+- 将工作台中的浏览器原生确认和输入框统一替换为可访问的工作台弹窗，补充取消、确认、Esc 关闭、焦点恢复和更易理解的操作说明。
+- QA preset 增加严格 JSON 工具参数约束，要求转义字符串中的特殊字符，减少模型工具调用产生非法 JSON 的情况。
+- 更新 Harness `0.1.7-rc.2` 兼容信息和发布版本展示。
+
+### 验证
+
+- `npm test`：256 个单元/API 测试和 41 个 Chromium E2E 测试通过。
+- `git diff --check`：通过。
+- `npm pack --dry-run`：通过。
+- 用户本地验证 DeepSeek Harness `0.1.7-rc.2`：基本功能通过。
+
+## English
+
+### Features
+
+- Add deterministic Quality Insights over saved requirements, test runs, evidence, failure analyses, regression sets, and quality-gate facts, with traceable quality-gap and risk findings.
+- Add audited `resolve` / `ignore` Quality Insight decision APIs that retain revision, scope digest, actor, and reason without changing authoritative gate facts.
+- Add project-scoped native DSH QA tool registration and quality-fact refresh flows for more reliable Workbench collaboration.
+
+### Fixes
+
+- Preserve historical non-test-mode DSH sessions while creating a fresh Test Mode session when a project needs a compatible binding.
+- Fix stale project-detail views after live updates, inability to scroll to the bottom save action, and the retired `server/deepseek.js` path.
+- Fix compatibility handling for legacy Harness source wrappers against the current message-source contract.
+
+### Improvements
+
+- Replace browser-native confirmation and input dialogs with accessible Workbench dialogs offering cancel, confirm, Escape dismissal, focus restoration, and human-readable explanations.
+- Add strict JSON tool-argument guidance to the QA preset, including escaping requirements for special characters, to reduce malformed model tool calls.
+- Update Harness `0.1.7-rc.2` compatibility metadata and release-version display.
+
+### Verification
+
+- `npm test`: 256 unit/API tests and 41 Chromium E2E tests passed.
+- `git diff --check`: passed.
+- `npm pack --dry-run`: passed.
+- User-local DeepSeek Harness `0.1.7-rc.2` verification: basic functionality passed.
+
 ## 0.6.3 - 2026-09-25
 
 ## 中文

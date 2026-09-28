@@ -21,6 +21,12 @@ async function createHostFixture(page, title) {
   return { project, task, profile };
 }
 
+async function confirmWorkbenchAction(page, label = '开始执行') {
+  const modal = page.locator('#modal-root .modal');
+  await expect(modal).toBeVisible();
+  await modal.getByRole('button', { name: label, exact: true }).click();
+}
+
 test('多质量任务的 Host 卡片和操作都绑定当前质量任务', async ({ page }) => {
   const fixture = await createHostFixture(page, `Host 多任务绑定项目-${Date.now()}`);
   const secondTaskResponse = await page.request.post(`/api/projects/${fixture.project.id}/quality-tasks`, { data: { title: 'Host second task' } });
@@ -50,7 +56,6 @@ test('多质量任务的 Host 卡片和操作都绑定当前质量任务', async
   await expect(secondCard).toContainText('Host second task');
   await expect(firstCard.locator('[data-host-retry]')).toBeVisible();
 
-  page.on('dialog', (dialog) => dialog.accept());
   const secondPreviewPath = `/api/projects/${fixture.project.id}/quality-tasks/${secondTask.id}/host-executions/preview`;
   const secondStartPath = `/api/projects/${fixture.project.id}/quality-tasks/${secondTask.id}/host-executions`;
   const previewResponsePromise = page.waitForResponse((response) => response.request().method() === 'POST'
@@ -60,6 +65,7 @@ test('多质量任务的 Host 卡片和操作都绑定当前质量任务', async
     && response.status() === 202);
   await secondCard.locator('[data-host-target]').fill('https://example.test/second-task');
   await secondCard.locator('[data-host-preview]').click();
+  await confirmWorkbenchAction(page);
   const [previewResponse, startResponse] = await Promise.all([previewResponsePromise, startResponsePromise]);
   expect(previewResponse.status()).toBe(200);
   const preview = await previewResponse.json();
@@ -139,7 +145,6 @@ test('项目详情支持 Host 配置、预览确认和受控 not_run 结果', as
   await expect(page.locator('#host-execution-card')).toContainText('browser host from UI');
   await expect(page.locator('#host-execution-card')).toContainText('预览并执行');
 
-  page.on('dialog', (dialog) => dialog.accept());
   const previewResponsePromise = page.waitForResponse((response) => response.request().method() === 'POST'
     && response.url().includes(`/api/projects/${project.id}/quality-tasks/`)
     && response.url().endsWith('/host-executions/preview'));
@@ -148,6 +153,7 @@ test('项目详情支持 Host 配置、预览确认和受控 not_run 结果', as
     && response.url().endsWith('/host-executions')
     && response.status() === 202);
   await page.locator('[data-host-preview]').click();
+  await confirmWorkbenchAction(page);
   const [previewResponse, startResponse] = await Promise.all([previewResponsePromise, startResponsePromise]);
   expect(previewResponse.status()).toBe(200);
   const preview = await previewResponse.json();

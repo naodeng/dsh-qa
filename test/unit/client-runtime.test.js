@@ -206,6 +206,19 @@ test('raw client main renderer closes opened popouts on unmount', () => {
   assert.equal(openedPopups[0].closed, true);
 });
 
+test('embedded Workbench iframe keeps native modal permission unnecessary', () => {
+  const { runtime } = loadClientRuntime();
+  const { ctx, registrations } = createContext();
+
+  runtime.registerDshQaPanel(ctx, runtime.createDshQaPanelDefinition({ icon: 'qa-icon' }));
+  const mainRegistration = registrations.find((entry) => entry.options?.name === 'main');
+  const tree = mainRegistration.component();
+  const iframe = findRenderedElement(tree, (node) => node.type === 'iframe');
+
+  assert.ok(iframe, 'main renderer did not expose the Workbench iframe');
+  assert.doesNotMatch(iframe.props.sandbox, /(?:^|\s)allow-modals(?:\s|$)/);
+});
+
 test('raw client keeps managed popouts closeable when noopener would hide the handle', () => {
   const { runtime, effectCleanups, openedPopups } = loadClientRuntime({ nullForNoopener: true });
   const { ctx, registrations } = createContext();
@@ -233,7 +246,7 @@ test('raw client reports a Panel registration failure without leaving a registra
     'inject:sidebar.panellist',
     'registration:sidebar.panellist',
   ]);
-  assert.match(alerts[0], /Harness Panel/);
+  assert.equal(alerts.length, 0, 'Panel registration failures must not open a browser URL alert');
 });
 
 test('raw client and semantic contract keep the default Panel identity aligned', () => {

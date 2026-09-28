@@ -3,14 +3,14 @@
 # dsh-qa · QA Workbench
 
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-0.6.3-informational)]()
+[![Version](https://img.shields.io/badge/version-0.7.0-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
-[![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.7--rc.1%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-rc.1)
+[![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.7--rc.2%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-rc.2)
 
 **dsh-qa** is a local QA workbench for DeepSeek Harness. It keeps requirements, test cases, risks, execution, evidence, and delivery decisions in one project space. Project and iteration conversations reuse native DSH sessions with **Test Mode** (preset id: `qa`); business data stays local and the runtime has no production dependencies.
 
-The published version is `v0.6.3`; installing the `dsh-qa` main bundle now provides both the `qa` and `quality-control` presets, so no separate preset-install command is needed. Real execution through any external provider still requires provider-specific acceptance.
+The published version is `v0.7.0`; this release adds deterministic Quality Insights, audited human decisions, and clearer Workbench interactions. Installing the `dsh-qa` main bundle provides both the `qa` and `quality-control` presets, so no separate preset-install command is needed. Real execution through any external provider still requires provider-specific acceptance.
 
 ```
 Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
@@ -82,13 +82,13 @@ Manage the plugin with the **same method used to start DSH**. `dsh web` is an al
 
 ```bash
 # Install the dsh-qa plugin
-npx --yes @deepseek-ai/dsh@0.1.7-rc.1 plugin --profile web add dsh-qa
+npx --yes @deepseek-ai/dsh@0.1.7-rc.2 plugin --profile web add dsh-qa
 
 # Update to the tested compatible Harness version
-npx --yes @deepseek-ai/dsh@0.1.7-rc.1 plugin --profile web update dsh-qa
+npx --yes @deepseek-ai/dsh@0.1.7-rc.2 plugin --profile web update dsh-qa
 
 # Start or restart the Web UI after installation or update
-npx --yes @deepseek-ai/dsh@0.1.7-rc.1 web
+npx --yes @deepseek-ai/dsh@0.1.7-rc.2 web
 ```
 
 ### Option 2: Start from a DeepSeek Harness source checkout
@@ -150,7 +150,7 @@ The standalone address lets you view and manage test projects, the kanban, and t
 
 ```
 lib/index.js      Host half (cordis plugin): starts the workbench in-process + /api/dsh-qa routes + system-prompt announcement
-lib/client.js     Browser half (0.6.3): official Panel/Slot sidebar + main keyed slot + Workbench iframe
+lib/client.js     Browser half (0.7.0): official Panel/Slot sidebar + main keyed slot + Workbench iframe
 lib/panel-contract.js  Panel/Slot semantic contract (runtime adapter stays in client.js)
 cordis.patch.yml  Profile bundle patch (inserts the plugin line)
 preset/qa/cordis.patch.yml  Declarative QA preset bundle
@@ -227,7 +227,7 @@ After installing, restart `dsh web` and type `/` in the workbench chat to see th
 - Run: `npm start` for standalone; `npm run dev` for watch mode
 - Test: `npm test` runs unit/API tests (node:test) plus Chromium end-to-end tests (Playwright); `npm run test:unit` / `npm run test:e2e` run each separately
 - If the default test port is occupied: `QA_E2E_PORT=8900 npm test`; the default remains `8899`
-- Harness host smoke: `DSH_WEB_URL='<full URL printed by dsh web, including ?token=...>' DSH_HOST_VERSION=dsh-v0.1.7-rc.1 npm run test:host-smoke`; the configuration also keeps `dsh-v0.1.7-alpha.1` as a supported compatibility entry; Playwright exchanges the launch token for its browser-session cookie before testing. Run only the Panel lifecycle with `npm run test:host-smoke -- test/e2e/dsh-panel-lifecycle.spec.js`; these commands are not part of standard `npm test`
+- Harness host smoke: `DSH_WEB_URL='<full URL printed by dsh web, including ?token=...>' DSH_HOST_VERSION=dsh-v0.1.7-rc.2 npm run test:host-smoke`; the configuration also keeps `dsh-v0.1.7-rc.1` and `dsh-v0.1.7-alpha.1` as supported compatibility entries; Playwright exchanges the launch token for its browser-session cookie before testing. Run only the Panel lifecycle with `npm run test:host-smoke -- test/e2e/dsh-panel-lifecycle.spec.js`; these commands are not part of standard `npm test`
 - Publish: after `npm publish`, install with `dsh plugin --profile web add dsh-qa`; models and keys are managed by the user's DSH configuration
 - Issues and PRs welcome (Conventional Commits)
 

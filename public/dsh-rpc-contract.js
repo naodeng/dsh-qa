@@ -11,6 +11,17 @@ export function createCommandExecuteArgs(agentId, line, submittedAttachments = [
   return { agentId, line, submittedAttachments };
 }
 
+export function planDshSessionBinding({ linked, qaPresetId }) {
+  if (!linked) return { action: 'create' };
+  if (linked.agentPreset === qaPresetId) return { action: 'reuse' };
+  if (linked.blank !== false) return { action: 'switch-preset' };
+  return {
+    action: 'create',
+    reason: 'incompatible-history',
+    previousSessionId: linked.sessionId,
+  };
+}
+
 export function createFollowWebSocketUrl({
   location = globalThis.location,
   streamBaseUrl,

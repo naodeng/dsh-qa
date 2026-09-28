@@ -1,4 +1,4 @@
-import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openFollowSnapshot } from './dsh-rpc-contract.js';
+import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openFollowSnapshot, planDshSessionBinding } from './dsh-rpc-contract.js';
 
 // 质量工作台前端：测试首页、DSH 测试模式、项目看板、日历排期
 (() => {
@@ -50,8 +50,8 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
   const THEME_KEY = 'dsh-qa-theme';
   const THEME_VALUES = ['system', 'light', 'dark'];
   const DEFAULT_APP_INFO = {
-    currentVersion: '0.6.3', latestVersion: '0.6.3', isOutdated: false,
-    dshVersion: 'dsh-v0.1.7-rc.1',
+    currentVersion: '0.7.0', latestVersion: '0.7.0', isOutdated: false,
+    dshVersion: 'dsh-v0.1.7-rc.2',
     repositoryUrl: 'https://github.com/naodeng/dsh-qa',
     websiteZhUrl: 'https://inaodeng.com/zh-cn/dsh-qa/',
     websiteEnUrl: 'https://inaodeng.com/en/dsh-qa/',
@@ -356,7 +356,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
     finally { state.installingSkill = ''; renderSkills(); }
   }
   async function uninstallSkill(name) {
-    if (!confirm(t('skills.confirmUninstall'))) return;
+    if (!await confirmAction(currentLang() === 'en' ? 'This removes the skill from the DSH profile. Existing project data will not be changed. Continue?' : '这会从 DSH 配置中卸载该技能，不会修改项目数据。要继续吗？', { title: currentLang() === 'en' ? 'Uninstall skill' : '卸载技能', confirmLabel: currentLang() === 'en' ? 'Uninstall' : '卸载', danger: true })) return;
     state.uninstallingSkill = name; renderSkills();
     try { await api(`api/skills/${encodeURIComponent(name)}`, { method: 'DELETE' }); toast(t('skills.uninstallDone'), 'ok'); await loadSkillCatalog(); }
     catch (error) { toast(error.message, 'err'); }
@@ -635,7 +635,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
     $$('.selected-card', $('#calendar-selected')).forEach((el) => el.addEventListener('click', () => openProject(el.dataset.projectId)));
     $$('.agenda-remove', $('#calendar-selected')).forEach((button) => button.addEventListener('click', async (event) => {
       event.stopPropagation();
-      if (!confirm('确定删除这项日程或里程碑？')) return;
+      if (!await confirmAction('这只会删除当前排期中的日程或里程碑，不会删除项目文件和 DSH 对话。确定继续吗？', { title: '删除排期项', confirmLabel: '删除', danger: true })) return;
       try { await api(`api/projects/${button.dataset.projectId}/schedule/${button.dataset.entryId}`, { method: 'DELETE' }); await refreshBoard(false); toast('日程已删除', 'ok'); } catch (error) { toast(error.message, 'err'); }
     }));
     $('#empty-add-schedule', $('#calendar-selected'))?.addEventListener('click', () => openScheduleModal(state.selectedDate));
@@ -835,21 +835,28 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
     let sessionId = p.dshSessionId || '';
     let models;
     let needsNewSession = !sessionId;
+    let replacedIncompatibleSession = false;
     if (sessionId) {
-      try {
-        const sessions = await dshRpc('session/list', { _request: {} });
-        const linked = (sessions.items || []).find((item) => item.sessionId === sessionId);
+      const sessions = await dshRpc('session/list', { _request: {} });
+      const linked = (sessions.items || []).find((item) => item.sessionId === sessionId);
+      if (!linked) {
+        throw new Error('本项目已绑定的 DSH 会话暂时无法确认，原会话已保留；为避免历史丢失，未自动新建会话。请检查 DSH 状态后重试，或在项目详情中点击“新建 DSH 对话”。');
+      }
+      const binding = planDshSessionBinding({ linked, qaPresetId: qaPreset.id });
+      if (binding.action === 'create') {
+        // Do not mutate a historical session. The new QA session is created
+        // below and the project pointer is updated only after creation works.
+        sessionId = '';
+        needsNewSession = true;
+        replacedIncompatibleSession = binding.reason === 'incompatible-history';
+      } else {
         models = await dshRpc('session/modelCatalog', {});
-        if (linked?.agentPreset !== qaPreset.id) {
-          if (linked?.blank !== false) {
-            await dshRpc('agentPresets/select', { agentId: sessionId, agentPreset: qaPreset.id });
-            models = await dshRpc('session/modelCatalog', {});
-            toast(`本项目已切换为 DSH ${qaPreset.name}`, 'ok');
-          } else {
-            needsNewSession = true;
-          }
+        if (binding.action === 'switch-preset') {
+          await dshRpc('agentPresets/select', { agentId: sessionId, agentPreset: qaPreset.id });
+          models = await dshRpc('session/modelCatalog', {});
+          toast(`本项目已切换为 DSH ${qaPreset.name}`, 'ok');
         }
-      } catch { needsNewSession = true; }
+      }
     }
     if (needsNewSession) {
       const created = await dshRpc('session/create', { request: { cwd: p.workspacePath, agentPreset: qaPreset.id } });
@@ -858,6 +865,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
       await api(`api/projects/${projectId}`, { method: 'PATCH', body: { dshSessionId: sessionId } });
       p.dshSessionId = sessionId;
       models = await dshRpc('session/modelCatalog', {});
+      if (replacedIncompatibleSession) toast(`原 DSH 会话已保留，已新建并绑定 DSH ${qaPreset.name} 会话`, 'ok');
     }
     const [skillResult, commandResult] = await Promise.all([
       dshRpc('skills/list', { request: { sessionId } }),
@@ -1168,6 +1176,11 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
     if (state.view === 'project-detail' && state.detailProject?.id === id) return refreshProjectDetail(id);
     return refreshDrawer(id);
   }
+  function refreshOpenProject(id) {
+    if (!id) return;
+    if (state.drawerProject?.id === id) refreshDrawer(id).catch(() => {});
+    if (state.detailProject?.id === id) refreshProjectDetail(id).catch(() => {});
+  }
   function renderQualityTasks(body, p) {
     const q = (zh, en) => currentLang() === 'en' ? en : zh;
     const tasks = p.qualityTasks || [];
@@ -1237,7 +1250,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
         if (action === 'start') {
           const preview = await api(`api/projects/${p.id}/quality-tasks/${task.id}/host-executions/preview`, { method: 'POST', body: request });
           const availability = preview.preview.adapterAvailable ? q('适配器可用', 'Adapter available') : q('适配器不可用，将记录为未执行', 'Adapter unavailable; it will be recorded as not run');
-          if (!confirm(`${q('执行预览', 'Execution preview')}：${availability}\n${q('确认开始 Host 执行吗？', 'The preview is ready. Start the Host execution?')}`)) return;
+          if (!await confirmAction(`${q('执行预览结果：', 'Execution preview: ')}${availability}\n${q('即将按当前配置启动 Host 执行，并记录执行结果。要继续吗？', 'The Host execution will start with the current configuration and record its result. Continue?')}`, { title: q('确认开始执行', 'Confirm execution'), confirmLabel: q('开始执行', 'Start execution') })) return;
           await api(`api/projects/${p.id}/quality-tasks/${task.id}/host-executions`, { method: 'POST', body: request });
         } else if (action === 'retry') {
           await api(`api/projects/${p.id}/host-executions/${execution.id}/retry`, { method: 'POST', body: { expectedRevision: execution.revision, qualityTaskRevision: task.version } });
@@ -1284,9 +1297,9 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
           const gate = (latest.project.gates || []).filter((item) => item.kind === 'computed').at(-1);
           const check = gate?.checks?.find((item) => item.status === 'failed' && item.waivable);
           if (!gate || !check) return toast(q('当前没有可豁免的门禁检查项', 'No waivable gate check is available'), 'err');
-          const actorLabel = prompt(q('责任人', 'Owner'));
-          const reason = prompt(q('例外理由', 'Exception reason'));
-          const expiresAt = prompt(q('到期时间（ISO 格式）', 'Expiry time (ISO format)'));
+          const actorLabel = await inputAction(q('请填写这条门禁例外的责任人。', 'Who owns this gate exception?'), { title: q('添加门禁例外', 'Add gate exception'), label: q('责任人', 'Owner') });
+          const reason = await inputAction(q('请说明为什么需要暂时豁免这项检查。', 'Why should this check be temporarily waived?'), { title: q('添加门禁例外', 'Add gate exception'), label: q('例外理由', 'Reason') });
+          const expiresAt = await inputAction(q('请填写例外失效时间（ISO 格式，例如 2026-10-01T00:00:00Z）。', 'When should this exception expire? Use ISO format, for example 2026-10-01T00:00:00Z.'), { title: q('设置例外有效期', 'Set exception expiry'), label: q('失效时间', 'Expires at'), placeholder: '2026-10-01T00:00:00Z' });
           if (!actorLabel?.trim() || !reason?.trim() || !expiresAt?.trim()) return;
           await api(`api/projects/${p.id}/gates/${gate.id}/exceptions`, { method: 'POST', body: { expectedRevision: gate.revision, checkKey: check.key, actorLabel: actorLabel.trim(), reason: reason.trim(), expiresAt: expiresAt.trim() } });
           toast(q('门禁例外已记录', 'Gate exception recorded'), 'ok');
@@ -1300,27 +1313,27 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
       actions.innerHTML = `<button class="btn sm" id="reg-add" type="button">＋ ${q('新建回归集', 'New regression set')}</button><button class="btn sm" id="reg-calc" type="button">${q('计算回归集', 'Calculate regression set')}</button><button class="btn sm" id="analysis-add" type="button">＋ ${q('新建故障分析', 'New failure analysis')}</button><button class="btn sm" id="cleanup-add" type="button">${q('清理过期证据', 'Clean expired evidence')}</button>`;
       assetHead.append(actions);
       $('#reg-add', actions).addEventListener('click', async () => {
-        const name = prompt('回归集名称');
+        const name = await inputAction('给这组回归用例起一个容易识别的名称。', { title: '新建回归集', label: '回归集名称', placeholder: '如：登录核心流程回归' });
         if (!name?.trim()) return;
         try { await api(`api/projects/${p.id}/regression-sets`, { method: 'POST', body: { name: name.trim(), testCaseIds: p.testcases.map((item) => item.id) } }); toast('回归集已创建', 'ok'); await refreshAfterMutation(p.id); } catch (error) { toast(error.message, 'err'); }
       });
       $('#reg-calc', actions).addEventListener('click', async () => {
         const task = tasks[0];
         if (!task) return toast(q('请先创建质量任务', 'Create a quality task first'), 'err');
-        const inputDigest = prompt(q('变更摘要（可选）', 'Change digest (optional)')) || '';
-        const name = prompt(q('回归集名称（可选）', 'Regression set name (optional)')) || '';
+        const inputDigest = await inputAction(q('可选：填写本次变更摘要，帮助后续识别回归范围。', 'Optional: describe the change to help identify the regression scope.'), { title: q('计算回归集', 'Calculate regression set'), label: q('变更摘要（可选）', 'Change digest (optional)') }) || '';
+        const name = await inputAction(q('可选：为计算出的回归集命名。', 'Optional: name the calculated regression set.'), { title: q('命名回归集', 'Name regression set'), label: q('回归集名称（可选）', 'Regression set name (optional)') }) || '';
         try { await api(`api/projects/${p.id}/quality-tasks/${task.id}/regression-sets`, { method: 'POST', body: { name: name.trim(), inputDigest: inputDigest.trim() } }); toast(q('计算回归集已保存', 'Calculated regression set saved'), 'ok'); await refreshAfterMutation(p.id); } catch (error) { toast(error.message, 'err'); }
       });
       $('#cleanup-add', actions).addEventListener('click', async () => {
-        if (!confirm('确认创建过期证据清理任务？默认保留最近 30 天。')) return;
+        if (!await confirmAction('将创建一个清理任务，默认只清理超过 30 天的过期证据。当前项目的有效证据不会被删除。要继续吗？', { title: '创建证据清理任务', confirmLabel: '创建任务' })) return;
         try { await api(`api/projects/${p.id}/artifact-cleanup`, { method: 'POST', body: {} }); toast('清理任务已创建', 'ok'); } catch (error) { toast(error.message, 'err'); }
       });
       $('#analysis-add', actions).addEventListener('click', async () => {
         const failedRun = [...(p.testruns || [])].reverse().find((run) => run.status === 'failed' && run.resultTrust === 'controlled-local');
         if (!failedRun) { toast('暂无可分析的受控失败运行', 'err'); return; }
-        const summary = prompt('故障摘要');
+        const summary = await inputAction('请概括这次失败运行中观察到的故障现象。', { title: '新建故障分析', label: '故障摘要', placeholder: '如：登录提交后页面一直停留在加载状态' });
         if (!summary?.trim()) return;
-        const rootCause = prompt('根因（可选）') || '';
+        const rootCause = await inputAction('如果已有初步判断，可以补充根因；不确定时留空即可。', { title: '补充故障分析', label: '根因（可选）' }) || '';
         try { await api(`api/projects/${p.id}/test-runs/${failedRun.id}/failure-analysis`, { method: 'POST', body: { category: 'product', summary: summary.trim(), rootCause } }); toast('故障分析已创建', 'ok'); await refreshAfterMutation(p.id); } catch (error) { toast(error.message, 'err'); }
       });
     }
@@ -1329,8 +1342,8 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
       const button = document.createElement('button');
       button.className = 'btn sm'; button.type = 'button'; button.textContent = q('确认并创建缺陷', 'Confirm and create defect');
       button.addEventListener('click', async () => {
-        const actor = prompt('确认人');
-        if (!actor?.trim() || !confirm('确认将该故障分析升级为缺陷？')) return;
+        const actor = await inputAction('请填写负责确认这条故障分析的人员。', { title: '登记缺陷', label: '确认人' });
+        if (!actor?.trim() || !await confirmAction('系统会根据这条故障分析登记一条待处理缺陷，后续仍需人工跟进。要继续吗？', { title: '确认登记缺陷', confirmLabel: '登记缺陷' })) return;
         try { await api(`api/projects/${p.id}/failure-analyses/${analysis.id}/promote-defect`, { method: 'POST', body: { expectedRevision: analysis.version, actorLabel: actor.trim(), confirmed: true } }); toast('已登记为待处理缺陷', 'ok'); await refreshAfterMutation(p.id); } catch (error) { toast(error.message, 'err'); }
       });
       analysisList?.append(button);
@@ -1342,9 +1355,9 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
       const button = document.createElement('button');
       button.className = 'btn sm'; button.type = 'button'; button.textContent = q('排除回归项', 'Exclude regression case');
       button.addEventListener('click', async () => {
-        const reason = prompt(q('请填写排除理由', 'Enter an exclusion reason'));
+        const reason = await inputAction(q('请说明为什么暂时排除此回归项。', 'Explain why this regression case is being excluded.'), { title: q('排除回归项', 'Exclude regression case'), label: q('排除理由', 'Reason') });
         if (!reason?.trim()) { toast(q('请填写排除理由', 'Enter an exclusion reason'), 'err'); return; }
-        const actor = prompt(q('操作者', 'Actor'));
+        const actor = await inputAction(q('请填写执行这次排除操作的人员。', 'Who is performing this exclusion?'), { title: q('记录操作者', 'Record operator'), label: q('操作者', 'Operator') });
         if (!actor?.trim()) return;
         try { await api(`api/projects/${p.id}/regression-sets/${set.id}/exclude`, { method: 'POST', body: { expectedRevision: set.version, testCaseId: available, actor: actor.trim(), reason: reason.trim() } }); toast(q('回归项已排除', 'Regression case excluded'), 'ok'); await refreshAfterMutation(p.id); } catch (error) { toast(error.message, 'err'); }
       });
@@ -1353,7 +1366,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
         const recalculate = document.createElement('button');
         recalculate.className = 'btn sm'; recalculate.type = 'button'; recalculate.textContent = q('重新计算', 'Recalculate');
         recalculate.addEventListener('click', async () => {
-          const inputDigest = prompt(q('新的变更摘要（可选）', 'New change digest (optional)'), set.inputDigest || '') || '';
+          const inputDigest = await inputAction(q('可选：更新本次回归计算使用的变更摘要。', 'Optional: update the change summary used for this regression calculation.'), { title: q('重新计算回归集', 'Recalculate regression set'), label: q('新的变更摘要（可选）', 'New change digest (optional)'), value: set.inputDigest || '' }) || '';
           try { await api(`api/projects/${p.id}/regression-sets/${set.id}/recalculate`, { method: 'POST', body: { expectedRevision: set.version, inputDigest: inputDigest.trim() } }); toast(q('回归集已重新计算', 'Regression set recalculated'), 'ok'); await refreshAfterMutation(p.id); } catch (error) { toast(error.message, 'err'); }
         });
         regressionList?.append(recalculate);
@@ -1365,8 +1378,8 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
       const compare = document.createElement('button');
       compare.className = 'btn sm'; compare.type = 'button'; compare.textContent = '对比测试运行';
       compare.addEventListener('click', async () => {
-        const before = prompt('基线运行 ID', runs.at(-2).id);
-        const after = prompt('当前运行 ID', runs.at(-1).id);
+        const before = await inputAction('选择用于对照的较早一次测试运行。', { title: '对比测试运行', label: '基线运行 ID', value: runs.at(-2).id });
+        const after = await inputAction('选择要比较的较新一次测试运行。', { title: '对比测试运行', label: '当前运行 ID', value: runs.at(-1).id });
         if (!before || !after) return;
         try { const result = await api(`api/projects/${p.id}/test-runs/${encodeURIComponent(after)}/compare`, { method: 'POST', body: { otherRunId: before } }); toast(`对比完成：${result.comparison.changedCases.length} 个用例发生变化`, 'ok'); } catch (error) { toast(error.message, 'err'); }
       });
@@ -1403,8 +1416,8 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
     $('#ov-add-schedule', body).addEventListener('click', () => openScheduleModal(localDate(new Date()), p.id));
     $('#ov-policy', body).addEventListener('click', () => openAssistantPolicy(p));
     $('#ov-workspace', body).addEventListener('click', () => openWorkspace(p.id));
-    $('#ov-new-chat', body).addEventListener('click', async () => { if (!confirm('确认给本项目新建一个 DSH 测试模式对话？原会话仍保留在 DSH 历史中。')) return; try { await createFreshDshSession(p); closeDrawer(); await openProject(p.id); toast('已新建并绑定 DSH 测试模式对话', 'ok'); } catch (error) { toast(error.message, 'err'); } });
-    $('#ov-delete', body).addEventListener('click', async () => { if (!confirm(`确定删除项目记录“${p.title}”？本地项目文件夹会保留。`)) return; await api(`api/projects/${p.id}`, { method: 'DELETE' }); toast('项目记录已删除，文件夹仍保留', 'ok'); closeDrawer(); });
+    $('#ov-new-chat', body).addEventListener('click', async () => { if (!await confirmAction('将为当前项目新建一个独立的 DSH 测试模式对话。原对话不会删除，仍可在 DSH 历史中查看。要继续吗？', { title: '新建 DSH 对话', confirmLabel: '新建对话' })) return; try { await createFreshDshSession(p); closeDrawer(); await openProject(p.id); toast('已新建并绑定 DSH 测试模式对话', 'ok'); } catch (error) { toast(error.message, 'err'); } });
+    $('#ov-delete', body).addEventListener('click', async () => { if (!await confirmAction(`只删除工作台中的项目记录“${p.title}”，本地项目文件夹会保留。删除后项目记录不能直接恢复，确定继续吗？`, { title: '删除项目记录', confirmLabel: '删除记录', danger: true })) return; await api(`api/projects/${p.id}`, { method: 'DELETE' }); toast('项目记录已删除，文件夹仍保留', 'ok'); closeDrawer(); });
   }
   function renderRequirements(body, p) {
     body.innerHTML = `<div class="list">${p.requirements.map((r) => `<div class="list-item"><div class="li-title">${esc(r.title)} <span class="badge">${REQ_KIND_CN[r.kind] || r.kind}</span></div><div class="li-sub">${esc(r.statement)}</div>${r.acceptance ? `<div class="li-meta">验收：${esc(r.acceptance)}</div>` : ''}${r.links?.map((link) => `<div class="li-sub">覆盖用例：${esc(p.testcases.find((t) => t.id === link.testcaseId)?.title || '未知')} · ${esc(link.purpose)}</div>`).join('') || ''}</div>`).join('') || emptyHtml('暂无需求或测试范围。')}</div>`;
@@ -1434,7 +1447,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
   function renderMinutes(body, p) { body.innerHTML = `<div class="list">${[...p.minutes].reverse().map((m) => `<div class="list-item"><div class="li-title">${esc(m.title)}</div><div class="li-sub">${esc(m.content)}</div><div class="li-meta">${fmtDateFull(m.at)}</div></div>`).join('') || emptyHtml('暂无会议或讨论纪要。')}</div>`; }
   function renderGates(body, p) {
     body.innerHTML = `<div class="list">${p.gates.map((gate) => { const badge = gate.status === 'pending' ? '<span class="badge gate">待负责人审批</span>' : gate.status === 'approved' ? '<span class="badge doc">已通过</span>' : '<span class="badge danger">已驳回</span>'; return `<div class="list-item" data-gate-id="${gate.id}"><div class="li-title">${esc(gate.title)} ${badge} <span class="badge">${GATE_CN[gate.type] || gate.type}</span></div><div class="li-sub">${esc(gate.summary || '')}</div>${gate.status === 'pending' ? '<div class="li-actions"><button class="btn sm primary" data-decision="approve" type="button">通过</button><button class="btn sm danger" data-decision="reject" type="button">驳回</button></div>' : ''}</div>`; }).join('') || emptyHtml('暂无待审批门禁。')}</div>`;
-    $$('[data-decision]', body).forEach((button) => button.addEventListener('click', async () => { if (button.dataset.decision === 'approve' && !confirm('确认通过该门禁？')) return; const item = button.closest('.list-item'); try { await api(`api/projects/${p.id}/gates/${item.dataset.gateId}/decide`, { method: 'POST', body: { decision: button.dataset.decision } }); toast('门禁已处理', 'ok'); } catch (e) { toast(e.message, 'err'); } }));
+    $$('[data-decision]', body).forEach((button) => button.addEventListener('click', async () => { if (button.dataset.decision === 'approve' && !await confirmAction('通过后，这条门禁会记录为人工审批通过，并允许流程继续。确定通过吗？', { title: '通过质量门禁', confirmLabel: '确认通过' })) return; const item = button.closest('.list-item'); try { await api(`api/projects/${p.id}/gates/${item.dataset.gateId}/decide`, { method: 'POST', body: { decision: button.dataset.decision } }); toast('门禁已处理', 'ok'); } catch (e) { toast(e.message, 'err'); } }));
   }
 
   function openQualityTaskModal(project) {
@@ -1491,14 +1504,81 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
   // ---------- modals and workspaces ----------
   let modalTrigger = null;
   let modalSequence = 0;
+  let modalDismiss = null;
   function closeModal() {
     const activeModal = $('#modal-root .modal');
-    if (!activeModal) return;
+    if (!activeModal) {
+      modalDismiss = null;
+      return;
+    }
+    const dismiss = modalDismiss;
+    modalDismiss = null;
     const restoreTarget = modalTrigger;
     $('#modal-root').innerHTML = '';
     document.body.classList.remove('modal-open');
     modalTrigger = null;
     if (restoreTarget?.isConnected && !restoreTarget.closest('.modal')) restoreTarget.focus();
+    dismiss?.();
+  }
+  function confirmAction(message, options = {}) {
+    return new Promise((resolve) => {
+      let settled = false;
+      const isEnglish = currentLang() === 'en';
+      const title = options.title || (isEnglish ? 'Confirm action' : '确认操作');
+      const confirmLabel = options.confirmLabel || (isEnglish ? 'Continue' : '继续');
+      const confirmClass = options.danger ? 'btn danger' : 'btn primary';
+      const settle = (value) => {
+        if (settled) return;
+        settled = true;
+        modalDismiss = null;
+        closeModal();
+        resolve(value);
+      };
+      const modal = modalShell(
+        esc(title),
+        '',
+        `<p class="confirm-message">${esc(message).replace(/\r?\n/g, '<br/>')}</p><div class="modal-foot"><button class="btn" data-confirm-cancel type="button">${esc(isEnglish ? 'Cancel' : '取消')}</button><button class="${confirmClass}" data-confirm-ok type="button">${esc(confirmLabel)}</button></div>`,
+      );
+      modalDismiss = () => {
+        if (settled) return;
+        settled = true;
+        resolve(false);
+      };
+      $('[data-confirm-cancel]', modal).addEventListener('click', () => settle(false));
+      $('[data-confirm-ok]', modal).addEventListener('click', () => settle(true));
+    });
+  }
+  function inputAction(message, options = {}) {
+    return new Promise((resolve) => {
+      let settled = false;
+      const isEnglish = currentLang() === 'en';
+      const title = options.title || (isEnglish ? 'Provide information' : '补充信息');
+      const labelText = options.label || (isEnglish ? 'Value' : '内容');
+      const inputId = `modal-input-${modalSequence + 1}`;
+      const settle = (value) => {
+        if (settled) return;
+        settled = true;
+        modalDismiss = null;
+        closeModal();
+        resolve(value);
+      };
+      const modal = modalShell(
+        esc(title),
+        '',
+        `<p class="confirm-message">${esc(message).replace(/\r?\n/g, '<br/>')}</p><div class="field input-dialog-field"><label for="${inputId}">${esc(labelText)}</label><input id="${inputId}" value="${esc(options.value || '')}" placeholder="${esc(options.placeholder || '')}"${options.type ? ` type="${esc(options.type)}"` : ''}/></div><div class="modal-foot"><button class="btn" data-input-cancel type="button">${esc(isEnglish ? 'Cancel' : '取消')}</button><button class="btn primary" data-input-ok type="button">${esc(options.confirmLabel || (isEnglish ? 'Save' : '确定'))}</button></div>`,
+      );
+      const field = $(`#${inputId}`, modal);
+      modalDismiss = () => {
+        if (settled) return;
+        settled = true;
+        resolve(null);
+      };
+      $('[data-input-cancel]', modal).addEventListener('click', () => settle(null));
+      $('[data-input-ok]', modal).addEventListener('click', () => settle(field.value));
+      field.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') { event.preventDefault(); settle(field.value); }
+      });
+    });
   }
   function modalShell(title, subtitle, body, wide = false) {
     if (!$('#modal-root .modal')) modalTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -1829,7 +1909,12 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
     state.sseReconnectTimer = null;
     const events = new EventSource('api/events');
     events.addEventListener('hello', () => { refreshBoard(false); });
-    events.addEventListener('project.updated', (event) => { updateCard(JSON.parse(event.data).project); scheduleRefresh(); });
+    events.addEventListener('project.updated', (event) => {
+      const update = JSON.parse(event.data);
+      updateCard(update.project);
+      refreshOpenProject(update.project?.id);
+      scheduleRefresh();
+    });
     events.addEventListener('project.created', (event) => { const card = JSON.parse(event.data).project; state.cards.set(card.id, card); renderRailCases(); renderCaseList(); scheduleRefresh(); });
     events.addEventListener('project.deleted', (event) => { removeCard(JSON.parse(event.data).projectId); scheduleRefresh(); });
     const qualityRefresh = (event) => {

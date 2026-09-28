@@ -23,6 +23,7 @@ const qualityControlPreset = readText('preset/quality-control/cordis.patch.yml')
 const qaInstaller = readText('scripts/install-qa-preset.sh');
 const qualityControlInstaller = readText('scripts/install-quality-control-preset.sh');
 const hostConfig = readText('test/playwright.host.config.js');
+const qaTools = readText('lib/tools.js');
 const source = `${app}\n${rpcContract}`;
 
 test('DSH integration uses current slash RPC namespaces instead of retired API Proxy methods', () => {
@@ -79,6 +80,50 @@ test('Harness 0.1.7 main bundle declares the QA and quality-control presets', ()
   assert.match(qaPreset, /- id: preset-qa\n\s+name: '@deepseek-ai\/dsh-agent-preset'/);
   assert.match(qaPreset, /config:\n\s+id: qa[\s\S]*?order: 5[\s\S]*?plugins:/);
   assert.doesNotMatch(qaPreset, /\.agent-presets/);
+});
+
+test('QA preset registers native project-scoped workbench tools', () => {
+  assert.equal(packageManifest.exports?.['./tools'], './lib/tools.js');
+  assert.match(qaPreset, /- id: tool-dsh-qa\n\s+name: 'dsh-qa\/tools'/);
+  assert.match(qaTools, /export const inject = \['tools'\]/);
+  assert.match(qaTools, /projectForCwd/);
+  assert.match(qaTools, /exec\.agent\?\.session\?\.header\?\.cwd/);
+  assert.match(qaTools, /run\(project\.id, definitionName, args\)/);
+});
+
+test('project detail refreshes open views after a domain tool mutation', () => {
+  assert.match(app, /const update = JSON\.parse\(event\.data\);\s+updateCard\(update\.project\);\s+refreshOpenProject\(update\.project\?\.id\);/);
+  assert.match(app, /function refreshOpenProject\(id\)/);
+});
+
+test('a historical non-QA session is preserved while the project gets a fresh QA session', () => {
+  assert.doesNotMatch(app, /catch \{ needsNewSession = true; \}/);
+  assert.match(app, /原会话已保留；为避免历史丢失，未自动新建会话/);
+  assert.match(app, /planDshSessionBinding\(\{ linked, qaPresetId: qaPreset\.id \}\)/);
+  assert.match(app, /replacedIncompatibleSession/);
+  assert.match(app, /原 DSH 会话已保留，已新建并绑定 DSH/);
+  assert.doesNotMatch(app, /原 DSH 会话已有历史且不是测试模式，原会话已保留；未自动新建会话/);
+});
+
+test('project detail uses the available app shell height so its action bar can scroll into view', () => {
+  const style = readText('public/style.css');
+  assert.match(style, /\.project-detail-page \{ height: calc\(100% - 28px\);/);
+  assert.doesNotMatch(style, /\.project-detail-page \{ height: calc\(100vh - 28px\);/);
+});
+
+test('workbench actions use in-app dialogs instead of browser URL prompts', () => {
+  assert.match(app, /function confirmAction\(message, options = \{\}\)/);
+  assert.match(app, /function inputAction\(message, options = \{\}\)/);
+  assert.doesNotMatch(app, /\b(?:alert|confirm|prompt)\s*\(/);
+  assert.match(app, /原对话不会删除，仍可在 DSH 历史中查看/);
+  assert.match(readText('public/style.css'), /\.confirm-message/);
+});
+
+test('QA preset instructs the model to keep tool arguments strict JSON', () => {
+  const preset = readText('preset/qa/cordis.patch.yml');
+  assert.match(preset, /When calling tools, emit only strict JSON arguments/);
+  assert.match(preset, /Escape every quote, backslash, and newline inside string/);
+  assert.match(preset, /Do not use Markdown fences, JSON5, comments, trailing commas/);
 });
 
 test('published package shape exposes bundle patches and removes legacy preset sources', () => {
@@ -161,6 +206,7 @@ test('preset installers dry-run without claiming installation completed', () => 
 test('host smoke pins the exact Harness 0.1.7 release targeted by the bundle migration', () => {
   assert.match(hostConfig, /dsh-v0\.1\.7-alpha\.1/);
   assert.match(hostConfig, /dsh-v0\.1\.7-rc\.1/);
+  assert.match(hostConfig, /dsh-v0\.1\.7-rc\.2/);
   assert.match(hostConfig, /supportedHostVersions/);
   assert.doesNotMatch(hostConfig, /dsh-v0\.1\.6-alpha\.1/);
 });

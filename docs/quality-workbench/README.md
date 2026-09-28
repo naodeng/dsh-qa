@@ -1,6 +1,6 @@
 # 质量工作台文档索引
 
-当前路线以 [版本语义与路线边界](./2026-09-15-version-map.md) 为准。当前发布基线是 `v0.6.0`；本版本交付 Native QA Execution 与 Action Desk，并完成 DSH `v0.1.7-rc.1` 的宿主兼容修复。外部 provider 的真实执行仍需单独验收。
+当前路线以 [版本语义与路线边界](./2026-09-15-version-map.md) 为准。当前发布基线是 `v0.7.0`；本版本交付确定性的 Quality Insights、审计式人工决策和更清晰的工作台交互，并在 DSH `v0.1.7-rc.2` 上完成用户本地基本功能验证。外部 provider 的真实执行仍需按具体 provider 单独验收。
 
 ## 已发布质量基线
 
@@ -47,4 +47,4 @@
 
 ## Post-1.0 Capability Roadmap
 
-[Post-1.0 Capability Roadmap](./post-1.0-capability-roadmap.md) 记录 `0.7`/`1.0` 之后的 Quality Obligation、Evidence Graph、Adapter、Policy、Multi-Agent 和 Autonomous QE 方向。`Quality Intelligence` 已前移到当前 `0.7.0`，不再作为 Post-1.0 的首个 Release 目标。
+[Post-1.0 Capability Roadmap](./post-1.0-capability-roadmap.md) 记录 `1.0` 之后的 Quality Obligation、Evidence Graph、Adapter、Policy、Multi-Agent 和 Autonomous QE 方向。`Quality Intelligence` 已前移并在当前 `0.7.0` 首个可验证切片中交付，不再作为 Post-1.0 的首个 Release 目标。

@@ -123,7 +123,7 @@ function normalizeRuns(runs) {
       return {
         id,
         status: String(run.status ?? ''),
-        resultTrust: String(run.resultTrust || (run.mode === 'imported' ? 'imported-summary' : 'controlled-local')),
+        resultTrust: String(run.resultTrust || (run.mode === 'local' ? 'controlled-local' : 'imported-summary')),
         evidenceRefs: sortedStrings(run.evidenceRefs),
         provenance: normalizeProvenance(run.provenance),
       };
@@ -306,7 +306,17 @@ function currentInsight(project, insightId) {
   return insight;
 }
 
+function validateDecisionOptions(options, status) {
+  const allowed = status === 'ignored'
+    ? ['expectedRevision', 'scopeDigest', 'actorLabel', 'reason']
+    : ['expectedRevision', 'scopeDigest', 'actorLabel'];
+  if (!options || typeof options !== 'object' || Array.isArray(options) || Object.keys(options).some((key) => !allowed.includes(key))) {
+    throw new TypeError('决策参数包含不允许的字段');
+  }
+}
+
 function validateDecision(project, insightId, options, status) {
+  validateDecisionOptions(options, status);
   const insight = currentInsight(project, insightId);
   if (typeof options?.scopeDigest !== 'string' || options.scopeDigest !== insight.scopeDigest) throw new QualityInsightError('QUALITY_INSIGHT_STALE', 'Insight 事实范围已变化，请重新加载');
   project.qualityInsightDecisions = Array.isArray(project.qualityInsightDecisions) ? project.qualityInsightDecisions : [];

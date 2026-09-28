@@ -157,7 +157,7 @@ function evidenceCandidates(snapshot) {
   }
 
   for (const gate of snapshot.gates.filter((item) => item.kind === 'computed')) {
-    for (const check of gate.checks) {
+    for (const check of gate.checks.filter((item) => item.key === 'verified-evidence')) {
       const { refs, missingRefs } = normalizedGateEvidenceRefs(snapshot, check);
       if (!missingRefs.length) continue;
       candidates.push(candidate(

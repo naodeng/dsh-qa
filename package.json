@@ -1,12 +1,13 @@
 {
   "name": "dsh-qa",
-  "version": "0.6.3",
+  "version": "0.7.0",
   "description": "dsh-qa QA Workbench: a local software testing workbench plugin for DeepSeek Harness. Project/iteration dual-mode, full-flow requirements / test cases / defects / milestones / reports, native QA preset, settings, release history, kanban and calendar.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",
     "./client": "./lib/client.js",
+    "./tools": "./lib/tools.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./preset/qa/cordis.patch.yml": "./preset/qa/cordis.patch.yml",
     "./preset/quality-control/cordis.patch.yml": "./preset/quality-control/cordis.patch.yml",

@@ -168,6 +168,36 @@ test('preserves missing computed-gate evidence references and ignores approval g
   assert.equal(releaseRisks.some((item) => item.target.id === 'gate_computed'), true);
 });
 
+test('does not treat TestRun references as computed-gate evidence bundle references', () => {
+  const run = makeTestRun({ id: 'run_gate_result', status: 'passed', resultTrust: 'controlled-local' });
+  const project = makeProject({
+    testruns: [run],
+    evidenceBundles: [makeEvidenceBundle({ id: 'evidence_gate_result', testRunId: run.id, state: 'ready', integrity: 'verified' })],
+    gates: [makeGate({
+      id: 'gate_complete',
+      kind: 'computed',
+      verdict: 'PASS',
+      checks: [
+        { key: 'critical-test-result', status: 'passed', evidenceRefs: [run.id] },
+        { key: 'verified-evidence', status: 'passed', evidenceRefs: ['evidence_gate_result'] },
+      ],
+    })],
+  });
+
+  assert.equal(insightsOf(analyze(project), 'evidence_gap').some((item) => item.target.id === 'gate_complete'), false);
+});
+
+test('treats a run without an explicit mode or trust level as imported evidence', () => {
+  const project = makeProject({
+    testruns: [{ id: 'run_legacy_unknown', status: 'passed' }],
+    evidenceBundles: [makeEvidenceBundle({ id: 'evidence_legacy_unknown', testRunId: 'run_legacy_unknown', state: 'ready', integrity: 'verified' })],
+  });
+
+  const gap = insightsOf(analyze(project), 'evidence_gap').find((item) => item.target.id === 'run_legacy_unknown');
+  assert.ok(gap);
+  assert.equal(gap.reason.args.resultTrust, 'imported-summary');
+});
+
 test('selects the current regression set and reports active risk and defect coverage gaps', () => {
   const task = makeQualityTask({
     id: 'task_regression',
@@ -410,6 +440,21 @@ test('rejects stale scope, stale revision, invalid actor/reason, and missing ins
   assert.throws(
     () => resolveInsight(invalidProject, 'missing-insight', { expectedRevision: 0, scopeDigest: 'none', actorLabel: 'QA' }),
     (error) => error instanceof QualityInsightError && error.code === 'QUALITY_INSIGHT_NOT_FOUND',
+  );
+});
+
+test('rejects unknown fields in direct decision calls', () => {
+  const project = decisionProject();
+  const insight = currentDecisionInsight(project);
+
+  assert.throws(
+    () => resolveInsight(project, insight.id, {
+      expectedRevision: 0,
+      scopeDigest: insight.scopeDigest,
+      actorLabel: 'QA',
+      snapshot: { rawLog: 'should not be accepted' },
+    }),
+    (error) => error instanceof TypeError && /决策参数包含不允许的字段/.test(error.message),
   );
 });
 

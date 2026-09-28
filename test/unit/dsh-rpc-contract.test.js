@@ -8,6 +8,7 @@ import {
   createFollowWebSocketUrl,
   createDshRpc,
   openFollowSnapshot,
+  planDshSessionBinding,
   parseFollowSnapshot,
 } from '../../public/dsh-rpc-contract.js';
 
@@ -60,6 +61,26 @@ test('builds the strict commands/execute argument names', () => {
     line: '/permission auto',
     submittedAttachments: [],
   });
+});
+
+test('preserves a historical non-QA session and plans a fresh QA binding', () => {
+  assert.deepEqual(planDshSessionBinding({
+    linked: { sessionId: 'legacy-session', agentPreset: 'standard', blank: false },
+    qaPresetId: 'qa',
+  }), {
+    action: 'create',
+    reason: 'incompatible-history',
+    previousSessionId: 'legacy-session',
+  });
+  assert.deepEqual(planDshSessionBinding({
+    linked: { sessionId: 'blank-session', agentPreset: 'standard', blank: true },
+    qaPresetId: 'qa',
+  }), { action: 'switch-preset' });
+  assert.deepEqual(planDshSessionBinding({
+    linked: { sessionId: 'qa-session', agentPreset: 'qa', blank: false },
+    qaPresetId: 'qa',
+  }), { action: 'reuse' });
+  assert.deepEqual(planDshSessionBinding({ qaPresetId: 'qa' }), { action: 'create' });
 });
 
 test('sends model selection and cancellation through the current RPC client', async () => {

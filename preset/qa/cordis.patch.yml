@@ -49,6 +49,14 @@
                 "not executed or insufficient evidence", never pass, zero defects, or
                 release-ready.
 
+                When calling tools, emit only strict JSON arguments that conform to the
+                tool schema. Escape every quote, backslash, and newline inside string
+                values. Do not use Markdown fences, JSON5, comments, trailing commas,
+                or unescaped multiline text in tool arguments. Keep long test steps or
+                descriptions inside valid JSON strings; if a value is too complex,
+                simplify it or make a smaller valid tool call instead of emitting
+                malformed JSON.
+
                 Never fabricate requirements, business rules, APIs, fields, environments,
                 devices, test data, metrics, dates, versions, people, approvals, defect
                 counts, coverage, performance thresholds, compliance conclusions, root
@@ -287,3 +295,9 @@
             config:
               fetch: false
               searchTimeoutMs: 60000
+
+          # dsh-qa domain tools are scoped to the current project's workspace.
+          # The tool plugin deliberately receives no projectId from the model; it
+          # resolves the project from the native DSH session cwd.
+          - id: tool-dsh-qa
+            name: 'dsh-qa/tools'

@@ -1,5 +1,12 @@
 import { test, expect } from '@playwright/test';
 
+async function answerWorkbenchInput(page, value) {
+  const modal = page.locator('#modal-root .modal');
+  await expect(modal).toBeVisible();
+  await modal.locator('input').fill(value);
+  await modal.getByRole('button', { name: '确定', exact: true }).click();
+}
+
 test('质量证据与回归工作台提供空状态、创建流程和双语界面', async ({ page }) => {
   const marker = Date.now();
   const projectTitle = `证据回归项目-${marker}`;
@@ -19,14 +26,12 @@ test('质量证据与回归工作台提供空状态、创建流程和双语界�
   await page.getByLabel('任务名称').fill('计算回归任务');
   await page.getByRole('button', { name: '创建任务' }).click();
   await expect(page.getByText('计算回归任务')).toBeVisible();
-  const calculatedAnswers = ['sha256:change-1', '计算回归'];
-  const calculatedDialog = (dialog) => dialog.accept(calculatedAnswers.shift() || '');
-  page.on('dialog', calculatedDialog);
   await page.getByRole('button', { name: '计算回归集' }).click();
-  page.off('dialog', calculatedDialog);
+  await answerWorkbenchInput(page, 'sha256:change-1');
+  await answerWorkbenchInput(page, '计算回归');
   await expect(page.getByText(/计算回归 · calculated · 0\/0 个用例/)).toBeVisible();
-  page.once('dialog', (dialog) => dialog.accept('核心回归'));
   await page.getByRole('button', { name: '新建回归集' }).click();
+  await answerWorkbenchInput(page, '核心回归');
   await expect(page.getByText(/核心回归 · manual · 0\/0 个用例/)).toBeVisible();
 
   await page.locator('#btn-settings').click();

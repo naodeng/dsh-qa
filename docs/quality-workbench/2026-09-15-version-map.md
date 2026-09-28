@@ -4,7 +4,7 @@
 
 ## 1. 当前发布基线
 
-当前 `master` 和最新 Git tag 基线是 `v0.6.0`。该版本交付 Native QA Execution、Host Execution 证据边界和 Action Desk，并修复 DSH `v0.1.7-rc.1` 的可选宿主上下文兼容问题；对应事实记录见 [2026-09-22-harness-0.1.7-impact-assessment.md](./2026-09-22-harness-0.1.7-impact-assessment.md)、[CHANGELOG.md](../../CHANGELOG.md) 和 0.6 设计规格。npm、Git tag 和 GitHub Release 仍作为独立交付事实记录。
+当前 `master` 和最新 Git tag 基线是 `v0.7.0`。该版本交付确定性的 Quality Insights、审计式 `resolve` / `ignore` 决策、项目范围 DSH QA 工具和工作台交互修复，并在 DSH `v0.1.7-rc.2` 上完成用户本地基本功能验证；对应事实记录见 [CHANGELOG.md](../../CHANGELOG.md)、0.7 设计规格和实现计划。npm、Git tag、GitHub Release 与宿主兼容性仍作为独立交付事实记录。
 
 下面这些事实不能混为一谈：
 
@@ -21,6 +21,8 @@
 `0.5.4` 作为 Harness 0.1.7 兼容性修订版，为 `quality-control` 的 `dsh-plan-mode` 补齐必需的非空 `section` 配置；独立 bundle 的真实宿主运行仍不在本次验证范围内。
 
 `0.6.0` 作为 Native QA Execution 与 Action Desk 发布版，提供受控 Host 执行、生命周期与证据持久化、canonical Action Queue 和首页行动台；具体外部 provider 的真实执行不由本次发布自动推定为通过。
+
+`0.7.0` 作为 AI Quality Intelligence 首个可验证切片发布，提供基于已保存质量事实的确定性 Insights、可审计人工决策和证据边界；它不替代 Gate、人工审批或外部 provider 的真实执行验收。
 
 ## 2. 当前有效路线
 
@@ -53,7 +55,7 @@ Post-1.0：Quality Obligation、Evidence Graph、Adapter、Policy、Multi-Agent�
 | `0.5.4` | Released | Harness 0.1.7 quality-control loading fix | 如何让独立 quality-control bundle 在 Harness 0.1.7 中稳定加载？ | quality-control 真实宿主运行、测试执行智能化、AI 自动结论 |
 | `0.5.2` | Released | Bilingual settings and release history | 如何让项目元信息、版本提醒和迭代记录在工作台内可见且可追踪？ | 主题与工作区宽度预设、测试执行智能化、AI 自动结论 |
 | `0.6.0` | Released | Native QA Execution & Action Desk | 如何把 Execution Profile 接到 Browser Use、Computer Use 或 MCP，留下 TestRun/Evidence，并让用户立即看到需要处理的执行状态？ | 任意工具调用、无证据 PASS、AI 自动分析 |
-| `0.7.0` | Planned | AI Quality Intelligence | 如何从 Evidence、Failure、Regression 和 Gate 事实给出可解释建议？ | AI 直接改 Gate 或替代人工审批 |
+| `0.7.0` | Released | AI Quality Intelligence | 如何从 Evidence、Failure、Regression 和 Gate 事实给出可解释建议？ | AI 直接改 Gate 或替代人工审批 |
 | `1.0.0` | Planned | AI-Native QA Workbench | 如何把 Panel、执行、智能分析和受控 Agent Loop 收束成可依赖主路径？ | 自动生产发布、无限权限自治 |
 
 ### 3.1 `0.4.1` 的验收边界

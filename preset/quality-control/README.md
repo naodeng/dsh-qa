@@ -15,7 +15,7 @@
 ```sh
 PROFILE=web
 export DSH_HOME="${DSH_HOME:-$HOME/.dsh}"
-npx --yes @deepseek-ai/dsh@0.1.7-rc.1 plugin --profile "$PROFILE" add "link:$DSH_HOME/profiles/$PROFILE/node_modules/dsh-qa/preset/quality-control"
+npx --yes @deepseek-ai/dsh@0.1.7-rc.2 plugin --profile "$PROFILE" add "link:$DSH_HOME/profiles/$PROFILE/node_modules/dsh-qa/preset/quality-control"
 ```
 
 官方 Electron 桌面客户端的 `desktop` profile 由客户端独占管理，不能使用 CLI 修改。请在 DSH 主应用的「插件」页点击「添加插件」，将下面命令输出的绝对路径粘贴为本地插件目录，然后安装并启用：
