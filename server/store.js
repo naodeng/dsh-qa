@@ -13,6 +13,12 @@ const DEFAULT_ASSISTANT = Object.freeze({
   reminders: 'all',
 });
 
+function normalizeDshSessionHistory(value) {
+  return Array.isArray(value)
+    ? [...new Set(value.filter((item) => typeof item === 'string' && item.trim()))]
+    : [];
+}
+
 export function uid(prefix = '') {
   return (prefix ? prefix + '_' : '') + Date.now().toString(36) + '_' + crypto.randomBytes(4).toString('hex');
 }
@@ -33,6 +39,7 @@ function normalizeProject(p) {
   delete p.aiModel;
   delete p.chatBackend;
   p.dshSessionId ||= '';
+  p.dshSessionHistory = normalizeDshSessionHistory(p.dshSessionHistory);
   p.assistant = { ...DEFAULT_ASSISTANT, ...(p.assistant || {}) };
   p.workspacePath ||= '';
   p.artifactRoot ||= path.join(DATA_DIR, 'artifacts', p.id);
@@ -97,6 +104,7 @@ export function createProject(fields = {}) {
     members: Array.isArray(fields.members) ? fields.members : [],
     summary: fields.summary || '',
     dshSessionId: '',
+    dshSessionHistory: [],
     assistant: {
       ...DEFAULT_ASSISTANT,
       ...(fields.assistant && typeof fields.assistant === 'object' ? fields.assistant : {}),
@@ -142,6 +150,7 @@ export function updateProject(id, patch) {
   for (const k of ['title', 'projectKey', 'product', 'owner', 'type', 'kind', 'parentId', 'summary', 'dshSessionId']) {
     if (k in patch) p[k] = patch[k];
   }
+  if (Array.isArray(patch.dshSessionHistory)) p.dshSessionHistory = normalizeDshSessionHistory(patch.dshSessionHistory);
   if (Array.isArray(patch.members)) p.members = patch.members;
   if (patch.assistant && typeof patch.assistant === 'object') {
     p.assistant = { ...DEFAULT_ASSISTANT, ...(p.assistant || {}), ...patch.assistant };

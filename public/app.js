@@ -1,4 +1,4 @@
-import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openFollowSnapshot, planDshSessionBinding } from './dsh-rpc-contract.js';
+import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findDshHistoricalSession, findDshHistoricalSessions, openFollowSnapshot, planDshSessionBinding } from './dsh-rpc-contract.js';
 
 // 质量工作台前端：测试首页、DSH 测试模式、项目看板、日历排期
 (() => {
@@ -65,7 +65,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
     dshEmbedded: location.pathname.startsWith('/api/dsh-qa/workbench'),
     layout: { ...DEFAULT_LAYOUT },
     appInfo: { ...DEFAULT_APP_INFO }, appInfoStatus: 'idle', appInfoRequest: null, releasePage: 1,
-    dsh: { projectId: null, sessionId: '', skills: [], commands: [], models: null, qaPreset: null, busy: false, turnToken: 0 },
+    dsh: { projectId: null, sessionId: '', historySessionIds: [], skills: [], commands: [], models: null, qaPreset: null, busy: false, turnToken: 0 },
     skillCatalog: { lang: '', categories: [], groups: [], skills: [] }, skillSearch: '', installingSkill: '', uninstallingSkill: '',
     calendarCursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), selectedDate: localDate(new Date()),
     refreshTimer: null, actionQueueRefreshTimer: null, sseReconnectTimer: null,
@@ -826,26 +826,50 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
     if (state.dsh.projectId === p.id && state.dsh.sessionId && state.dsh.models) return state.dsh.sessionId;
     const projectId = p.id;
     const qaPreset = await getQaPreset();
-    state.dsh = { projectId, sessionId: '', skills: [], commands: [], models: null, qaPreset, busy: false, turnToken: state.dsh.turnToken };
+    state.dsh = { projectId, sessionId: '', historySessionIds: [], skills: [], commands: [], models: null, qaPreset, busy: false, turnToken: state.dsh.turnToken };
     updateDshChrome();
     if (!p.workspacePath) {
       const workspace = await api(`api/projects/${projectId}/workspace`, { method: 'POST', body: {} });
       p.workspacePath = workspace.path;
     }
     let sessionId = p.dshSessionId || '';
+    let archivedSessionIds = Array.isArray(p.dshSessionHistory) ? [...p.dshSessionHistory] : [];
+    let sessionItems = [];
     let models;
     let needsNewSession = !sessionId;
     let replacedIncompatibleSession = false;
+    let sessionToArchive = '';
     if (sessionId) {
       const sessions = await dshRpc('session/list', { _request: {} });
-      const linked = (sessions.items || []).find((item) => item.sessionId === sessionId);
+      sessionItems = sessions.items || [];
+      let linked = (sessions.items || []).find((item) => item.sessionId === sessionId);
       if (!linked) {
         throw new Error('本项目已绑定的 DSH 会话暂时无法确认，原会话已保留；为避免历史丢失，未自动新建会话。请检查 DSH 状态后重试，或在项目详情中点击“新建 DSH 对话”。');
+      }
+      if (linked.blank === true && archivedSessionIds.length === 0) {
+        const recovered = findDshHistoricalSession({
+          items: sessions.items,
+          linkedSessionId: linked.sessionId,
+          workspacePath: p.workspacePath,
+          qaPresetId: qaPreset.id,
+        });
+        if (recovered) {
+          const abandonedSessionId = linked.sessionId;
+          const nextHistory = [...new Set([...archivedSessionIds, abandonedSessionId])];
+          await api(`api/projects/${projectId}`, { method: 'PATCH', body: { dshSessionId: recovered.sessionId, dshSessionHistory: nextHistory } });
+          sessionId = recovered.sessionId;
+          p.dshSessionId = recovered.sessionId;
+          p.dshSessionHistory = nextHistory;
+          archivedSessionIds = nextHistory;
+          linked = recovered;
+          toast('已恢复本项目原有 DSH 对话历史', 'ok');
+        }
       }
       const binding = planDshSessionBinding({ linked, qaPresetId: qaPreset.id });
       if (binding.action === 'create') {
         // Do not mutate a historical session. The new QA session is created
         // below and the project pointer is updated only after creation works.
+        sessionToArchive = binding.previousSessionId || sessionId;
         sessionId = '';
         needsNewSession = true;
         replacedIncompatibleSession = binding.reason === 'incompatible-history';
@@ -858,12 +882,29 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
         }
       }
     }
+    const historicalSessions = findDshHistoricalSessions({
+      items: sessionItems,
+      linkedSessionId: sessionId,
+      workspacePath: p.workspacePath,
+      qaPresetId: qaPreset.id,
+    });
+    const historySessionIds = [...new Set([
+      ...archivedSessionIds,
+      ...historicalSessions.map((item) => item.sessionId),
+    ])].filter((id) => id && id !== sessionId);
+    if (historySessionIds.some((id) => !archivedSessionIds.includes(id))) {
+      await api(`api/projects/${projectId}`, { method: 'PATCH', body: { dshSessionHistory: historySessionIds } });
+      p.dshSessionHistory = historySessionIds;
+      archivedSessionIds = historySessionIds;
+    }
     if (needsNewSession) {
       const created = await dshRpc('session/create', { request: { cwd: p.workspacePath, agentPreset: qaPreset.id } });
       sessionId = created.sessionId;
       await dshRpc('session/rename', { request: { sessionId, title: `质量｜${p.title}` } }).catch(() => {});
-      await api(`api/projects/${projectId}`, { method: 'PATCH', body: { dshSessionId: sessionId } });
+      if (sessionToArchive && !archivedSessionIds.includes(sessionToArchive)) archivedSessionIds = [...archivedSessionIds, sessionToArchive];
+      await api(`api/projects/${projectId}`, { method: 'PATCH', body: { dshSessionId: sessionId, dshSessionHistory: archivedSessionIds } });
       p.dshSessionId = sessionId;
+      p.dshSessionHistory = archivedSessionIds;
       models = await dshRpc('session/modelCatalog', {});
       if (replacedIncompatibleSession) toast(`原 DSH 会话已保留，已新建并绑定 DSH ${qaPreset.name} 会话`, 'ok');
     }
@@ -874,6 +915,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
     if (state.activeProjectId !== projectId) return sessionId;
     state.dsh.projectId = projectId;
     state.dsh.sessionId = sessionId;
+    state.dsh.historySessionIds = historySessionIds;
     state.dsh.models = models;
     state.dsh.skills = skillResult.skills || [];
     state.dsh.commands = commandResult || [];
@@ -962,8 +1004,18 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
   }
   async function renderDshHistory() {
     if (!state.dsh.sessionId) return renderDshEmpty('尚未绑定 DSH 会话。');
-    const history = await dshHistory(state.dsh.sessionId, 30);
-    const rows = dshRows(history.events || []);
+    const sessionIds = [...new Set([
+      ...(state.dsh.historySessionIds || []),
+      state.dsh.sessionId,
+    ])].filter(Boolean);
+    const histories = await Promise.all(sessionIds.map(async (sessionId) => {
+      try {
+        return await dshHistory(sessionId, 30);
+      } catch {
+        return { events: [] };
+      }
+    }));
+    const rows = histories.flatMap((history) => dshRows(history.events || []));
     if (!rows.length) return renderDshEmpty(`已绑定本项目文件夹。输入“/”可选择 ${state.dsh.skills.length} 个技能或 ${state.dsh.commands.length} 个命令。`);
     $('#chat-msgs').innerHTML = '';
     rows.forEach((row) => row.role === 'user' ? appendUserMsg(row.text, false) : appendAiMsg(row.text, false, row.kind));
@@ -1769,9 +1821,12 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
     const qaPreset = await getQaPreset();
     const created = await dshRpc('session/create', { request: { cwd: p.workspacePath, agentPreset: qaPreset.id } });
     await dshRpc('session/rename', { request: { sessionId: created.sessionId, title: `质量｜${p.title}` } }).catch(() => {});
-    await api(`api/projects/${p.id}`, { method: 'PATCH', body: { dshSessionId: created.sessionId } });
+    const archivedSessionIds = Array.isArray(p.dshSessionHistory) ? [...p.dshSessionHistory] : [];
+    if (p.dshSessionId && !archivedSessionIds.includes(p.dshSessionId)) archivedSessionIds.push(p.dshSessionId);
+    await api(`api/projects/${p.id}`, { method: 'PATCH', body: { dshSessionId: created.sessionId, dshSessionHistory: archivedSessionIds } });
     p.dshSessionId = created.sessionId;
-    if (state.activeProjectId === p.id) state.dsh = { projectId: null, sessionId: '', skills: [], commands: [], models: null, qaPreset, busy: false, turnToken: state.dsh.turnToken + 1 };
+    p.dshSessionHistory = archivedSessionIds;
+    if (state.activeProjectId === p.id) state.dsh = { projectId: null, sessionId: '', historySessionIds: [], skills: [], commands: [], models: null, qaPreset, busy: false, turnToken: state.dsh.turnToken + 1 };
     return created.sessionId;
   }
   function openSettings() {

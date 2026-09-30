@@ -14,12 +14,23 @@ test.after(() => { store.flush(); fs.rmSync(dataDir, { recursive: true, force: t
 test('project lifecycle records defaults, history, and feed materials', () => {
   store.loadStore();
   const project = store.createProject({ title: '支付回归', projectKey: 'PAY-1' });
+  assert.deepEqual(project.dshSessionHistory, []);
   assert.equal(project.status, 'intake');
   assert.equal(store.transitionProject(project, 'design', 'human'), true);
   store.addFeed({ type: 'case', projectId: project.id, projectTitle: project.title, label: '新增用例' });
   assert.equal(project.status, 'design');
   assert.equal(project.history.at(-1).to, 'design');
   assert.equal(project.materials[0].label, '新增用例');
+});
+
+test('normalizes archived DSH session history when a project is rebound', () => {
+  const project = store.createProject({ title: '会话恢复' });
+  const updated = store.updateProject(project.id, {
+    dshSessionId: 'current-session',
+    dshSessionHistory: ['old-session', 'old-session', '', 42],
+  });
+  assert.deepEqual(updated.dshSessionHistory, ['old-session']);
+  assert.equal(updated.dshSessionId, 'current-session');
 });
 
 test('workspace creation stays under data directory and creates standard folders', () => {
