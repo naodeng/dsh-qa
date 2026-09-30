@@ -7,10 +7,13 @@
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
 [![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.7--rc.2%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-rc.2)
+[![DeepSeek Harness 0.2](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.2.0--rc.2%20user--verified-1B8A78)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.0-rc.2)
 
 **dsh-qa** is a local QA workbench for DeepSeek Harness. It keeps requirements, test cases, risks, execution, evidence, and delivery decisions in one project space. Project and iteration conversations reuse native DSH sessions with **Test Mode** (preset id: `qa`); business data stays local and the runtime has no production dependencies.
 
 The published version is `v0.7.1`; this patch release builds on 0.7.0 with more legible functional copy, stronger light-theme contrast, and a cleaner semantic heading hierarchy. Installing the `dsh-qa` main bundle provides both the `qa` and `quality-control` presets, so no separate preset-install command is needed. Real execution through any external provider still requires provider-specific acceptance.
+
+Compatibility acceptance: plugin loading, Test Mode (`qa`), and existing-project DSH history rendering were verified in the official macOS client running DeepSeek Harness `v0.2.0-rc.2`. This is a user-host acceptance result and does not replace the complete Host Smoke compatibility matrix.
 
 ```
 Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
@@ -107,6 +110,10 @@ pnpm dsh web
 ```
 
 To pin GitHub or a local development checkout, replace `add dsh-qa` in either option with `add github:naodeng/dsh-qa` or `add link:/path/to/dsh-qa`. Restart the Web UI after installation or update because plugins load when the host starts. A **「质量工作台 / QA Workbench」** entry appears in the GUI sidebar; click to open the workbench in the conversation area or use the toolbar to open it in a tab.
+
+### Official macOS client
+
+The official macOS DSH client exclusively owns the `desktop` profile, so it must not be managed with `dsh plugin --profile desktop` from the CLI. Install or update `dsh-qa` through the client's Plugins manager; for a local development checkout, select the corresponding Git repository or local path. After installing or updating, fully quit DSH with `⌘Q` and reopen it so the plugin code is loaded again. The `v0.2.0-rc.2` acceptance above was performed through this client path.
 
 > **Models & API**: The workbench does not maintain a second set of API keys or model configs. Each test project binds a native DSH session whose working directory is the project folder, and automatically uses Test Mode (preset id: `qa`). Model list, model switching, skills, commands, tools, and permission policies all come from DSH; to add providers or models, configure them in DSH settings.
 >
