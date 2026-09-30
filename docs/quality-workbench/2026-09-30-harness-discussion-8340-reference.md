@@ -5,6 +5,8 @@
 > 参考讨论：[Discussion #8340](https://github.com/deepseek-ai/deepseek-harness/discussions/8340)
 > 证据边界：讨论是第三方迁移复盘，不替代 Harness 源码、Release 或真实宿主验证；本记录只把其中可被当前仓库证据支持的部分作为排查参考。
 
+本文中的 desktop profile、磁盘安装包和运行进程状态来自本次用户本地环境观察，不能仅凭仓库 checkout 复现。
+
 ## 结论
 
 Discussion #8340 最值得复用的不是某一条 API 修改，而是排查顺序：先确认实际运行的副本、依赖版本、profile lockfile 和已加载进程，再判断是否为 Harness 升级破坏。它与当前 dsh-qa 现场的 lockfile、磁盘包和数据 schema 错位高度吻合。

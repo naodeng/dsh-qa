@@ -834,21 +834,20 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findD
     }
     let sessionId = p.dshSessionId || '';
     let archivedSessionIds = Array.isArray(p.dshSessionHistory) ? [...p.dshSessionHistory] : [];
-    let sessionItems = [];
+    const sessions = await dshRpc('session/list', { _request: {} });
+    const sessionItems = sessions.items || [];
     let models;
     let needsNewSession = !sessionId;
     let replacedIncompatibleSession = false;
     let sessionToArchive = '';
     if (sessionId) {
-      const sessions = await dshRpc('session/list', { _request: {} });
-      sessionItems = sessions.items || [];
-      let linked = (sessions.items || []).find((item) => item.sessionId === sessionId);
+      let linked = sessionItems.find((item) => item.sessionId === sessionId);
       if (!linked) {
         throw new Error('本项目已绑定的 DSH 会话暂时无法确认，原会话已保留；为避免历史丢失，未自动新建会话。请检查 DSH 状态后重试，或在项目详情中点击“新建 DSH 对话”。');
       }
       if (linked.blank === true && archivedSessionIds.length === 0) {
         const recovered = findDshHistoricalSession({
-          items: sessions.items,
+          items: sessionItems,
           linkedSessionId: linked.sessionId,
           workspacePath: p.workspacePath,
           qaPresetId: qaPreset.id,
@@ -888,14 +887,12 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findD
       workspacePath: p.workspacePath,
       qaPresetId: qaPreset.id,
     });
-    const historySessionIds = [...new Set([
-      ...archivedSessionIds,
-      ...historicalSessions.map((item) => item.sessionId),
-    ])].filter((id) => id && id !== sessionId);
+    const historySessionIds = historicalSessions.map((item) => item.sessionId);
     if (historySessionIds.some((id) => !archivedSessionIds.includes(id))) {
-      await api(`api/projects/${projectId}`, { method: 'PATCH', body: { dshSessionHistory: historySessionIds } });
-      p.dshSessionHistory = historySessionIds;
-      archivedSessionIds = historySessionIds;
+      const nextArchivedSessionIds = [...new Set([...archivedSessionIds, ...historySessionIds])];
+      await api(`api/projects/${projectId}`, { method: 'PATCH', body: { dshSessionHistory: nextArchivedSessionIds } });
+      p.dshSessionHistory = nextArchivedSessionIds;
+      archivedSessionIds = nextArchivedSessionIds;
     }
     if (needsNewSession) {
       const created = await dshRpc('session/create', { request: { cwd: p.workspacePath, agentPreset: qaPreset.id } });

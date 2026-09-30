@@ -30,7 +30,7 @@ export function planDshSessionBinding({ linked, qaPresetId }) {
 
 function dshSessionActivityAt(session) {
   const lastPromptAt = session?.projections?.values?.sessionListMetadata?.lastPromptAt;
-  return Number(lastPromptAt) || Number(session?.updatedAt) || Number(session?.createdAt) || 0;
+  return Math.max(Number(lastPromptAt) || 0, Number(session?.updatedAt) || 0, Number(session?.createdAt) || 0);
 }
 
 export function findDshHistoricalSessions({

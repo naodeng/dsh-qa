@@ -114,7 +114,7 @@ test('finds the latest historical QA session for a blank migrated binding', () =
 test('lists every historical QA session for a project workspace in chronological order', () => {
   assert.equal(typeof dshContract.findDshHistoricalSessions, 'function');
   const items = [
-    { sessionId: 'newest', cwd: '/tmp/project', blank: false, updatedAt: 300, projections: { values: { agentPreset: 'qa' } } },
+    { sessionId: 'newest', cwd: '/tmp/project', blank: false, updatedAt: 300, projections: { values: { agentPreset: 'qa', sessionListMetadata: { lastPromptAt: 350 } } } },
     { sessionId: 'blank', cwd: '/tmp/project', blank: true, updatedAt: 400, projections: { values: { agentPreset: 'qa' } } },
     { sessionId: 'other-workspace', cwd: '/tmp/other', blank: false, updatedAt: 500, projections: { values: { agentPreset: 'qa' } } },
     { sessionId: 'oldest', cwd: '/tmp/project', blank: false, updatedAt: 100, projections: { values: { agentPreset: 'qa' } } },
@@ -126,6 +126,25 @@ test('lists every historical QA session for a project workspace in chronological
     workspacePath: '/tmp/project',
     qaPresetId: 'qa',
   }).map((item) => item.sessionId), ['oldest', 'newest']);
+});
+
+test('lists historical QA sessions without a currently linked session', () => {
+  assert.deepEqual(dshContract.findDshHistoricalSessions({
+    items: [{ sessionId: 'existing-history', cwd: '/tmp/project', blank: false, updatedAt: 100, projections: { values: { agentPreset: 'qa' } } }],
+    workspacePath: '/tmp/project',
+    qaPresetId: 'qa',
+  }).map((item) => item.sessionId), ['existing-history']);
+});
+
+test('orders historical sessions by the later summary or prompt timestamp', () => {
+  assert.deepEqual(dshContract.findDshHistoricalSessions({
+    items: [
+      { sessionId: 'summary-newer', cwd: '/tmp/project', blank: false, updatedAt: 300, projections: { values: { agentPreset: 'qa', sessionListMetadata: { lastPromptAt: 200 } } } },
+      { sessionId: 'prompt-newer', cwd: '/tmp/project', blank: false, updatedAt: 100, projections: { values: { agentPreset: 'qa', sessionListMetadata: { lastPromptAt: 400 } } } },
+    ],
+    workspacePath: '/tmp/project',
+    qaPresetId: 'qa',
+  }).map((item) => item.sessionId), ['summary-newer', 'prompt-newer']);
 });
 
 test('sends model selection and cancellation through the current RPC client', async () => {
