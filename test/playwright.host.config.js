@@ -7,6 +7,7 @@ const supportedHostVersions = new Set([
   'dsh-v0.1.7-alpha.1',
   'dsh-v0.1.7-rc.1',
   'dsh-v0.1.7-rc.2',
+  'dsh-v0.2.0-rc.2',
 ]);
 const expectedHostVersions = [...supportedHostVersions].join(' or ');
 

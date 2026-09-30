@@ -203,10 +203,11 @@ test('preset installers dry-run without claiming installation completed', () => 
   }
 });
 
-test('host smoke pins the exact Harness 0.1.7 release targeted by the bundle migration', () => {
+test('host smoke supports the exact Harness releases in the compatibility matrix', () => {
   assert.match(hostConfig, /dsh-v0\.1\.7-alpha\.1/);
   assert.match(hostConfig, /dsh-v0\.1\.7-rc\.1/);
   assert.match(hostConfig, /dsh-v0\.1\.7-rc\.2/);
+  assert.match(hostConfig, /dsh-v0\.2\.0-rc\.2/);
   assert.match(hostConfig, /supportedHostVersions/);
   assert.doesNotMatch(hostConfig, /dsh-v0\.1\.6-alpha\.1/);
 });

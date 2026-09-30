@@ -241,7 +241,7 @@ After installing, restart `dsh web` and type `/` in the workbench chat to see th
 - Run: `npm start` for standalone; `npm run dev` for watch mode
 - Test: `npm test` runs unit/API tests (node:test) plus Chromium end-to-end tests (Playwright); `npm run test:unit` / `npm run test:e2e` run each separately
 - If the default test port is occupied: `QA_E2E_PORT=8900 npm test`; the default remains `8899`
-- Harness host smoke: `DSH_WEB_URL='<full URL printed by dsh web, including ?token=...>' DSH_HOST_VERSION=dsh-v0.1.7-rc.2 npm run test:host-smoke`; the configuration also keeps `dsh-v0.1.7-rc.1` and `dsh-v0.1.7-alpha.1` as supported compatibility entries; Playwright exchanges the launch token for its browser-session cookie before testing. Run only the Panel lifecycle with `npm run test:host-smoke -- test/e2e/dsh-panel-lifecycle.spec.js`; these commands are not part of standard `npm test`
+- Harness host smoke: `DSH_WEB_URL='<full URL printed by dsh web, including ?token=...>' DSH_HOST_VERSION=dsh-v0.2.0-rc.2 npm run test:host-smoke`; the configuration also keeps `dsh-v0.1.7-rc.2`, `dsh-v0.1.7-rc.1`, and `dsh-v0.1.7-alpha.1` as supported compatibility entries; the version variable must exactly match the running Harness; Playwright exchanges the launch token for its browser-session cookie before testing. Run only the Panel lifecycle with `npm run test:host-smoke -- test/e2e/dsh-panel-lifecycle.spec.js`; these commands are not part of standard `npm test`
 - Publish: after `npm publish`, install with `dsh plugin --profile web add dsh-qa`; models and keys are managed by the user's DSH configuration
 - Issues and PRs welcome (Conventional Commits)
 

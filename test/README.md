@@ -42,8 +42,8 @@ npm test
 需要真实 Harness 宿主时，提供带认证的地址和固定版本：
 
 ```sh
-DSH_WEB_URL='http://127.0.0.1:3080/?key=...' \
-DSH_HOST_VERSION='dsh-v0.1.7-rc.2' \
+DSH_WEB_URL='http://127.0.0.1:3080/?token=...' \
+DSH_HOST_VERSION='dsh-v0.2.0-rc.2' \
 npm run test:host-smoke
 ```
 
