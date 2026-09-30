@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+## 0.7.2 - 2026-09-30
+
+## 中文
+
+### 修复
+
+- 恢复同一项目空间中历史 DSH 对话的发现、保留、排序与渲染，避免项目重新绑定或创建新会话后旧对话从工作台消失。
+- 更新内置版本元数据和桌面端设置文案，修复日历长项目名称在桌面右侧议程中的截断问题。
+
+### 改进
+
+- 支持 DeepSeek Harness `dsh-v0.2.0-rc.2` 的 `qa` Host Smoke，并同步官方 macOS 客户端安装与更新指引。
+- 安装命令不再固定指定 Harness CLI 版本，改为使用 npm 当前版本。
+
+### 验证
+
+- `npm test`：265 个单元/API 测试和 41 个 Chromium E2E 测试通过。
+- `dsh-v0.2.0-rc.2` `qa` Host Smoke：6 个测试通过。
+- `node --check public/app.js`、`npm pack --dry-run` 和 `git diff --check`：通过。
+
+## English
+
+### Fixes
+
+- Restore discovery, preservation, ordering, and rendering of historical DSH conversations within the same project workspace so old chats remain visible after rebinding or creating a fresh session.
+- Update built-in version metadata and desktop settings copy, and prevent long project names from being truncated in the desktop calendar agenda.
+
+### Improvements
+
+- Support the `qa` Host Smoke flow on DeepSeek Harness `dsh-v0.2.0-rc.2` and document installation and updates through the official macOS client.
+- Stop pinning the Harness CLI version in installation commands; use the current npm version instead.
+
+### Verification
+
+- `npm test`: 265 unit/API tests and 41 Chromium E2E tests passed.
+- `dsh-v0.2.0-rc.2` `qa` Host Smoke: 6 tests passed.
+- `node --check public/app.js`, `npm pack --dry-run`, and `git diff --check`: passed.
+
 ## 0.7.1 - 2026-09-28
 
 ## 中文

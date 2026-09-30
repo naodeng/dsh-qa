@@ -50,7 +50,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findD
   const THEME_KEY = 'dsh-qa-theme';
   const THEME_VALUES = ['system', 'light', 'dark'];
   const DEFAULT_APP_INFO = {
-    currentVersion: '0.7.1', latestVersion: '0.7.1', isOutdated: false,
+    currentVersion: '0.7.2', latestVersion: '0.7.2', isOutdated: false,
     dshVersion: 'dsh-v0.2.0-rc.2',
     repositoryUrl: 'https://github.com/naodeng/dsh-qa',
     websiteZhUrl: 'https://inaodeng.com/zh-cn/dsh-qa/',
