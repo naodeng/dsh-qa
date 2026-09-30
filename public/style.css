@@ -515,6 +515,7 @@ body.dsh-busy .model-reminder { color: var(--blue); background: var(--blue-soft)
 .agenda-date { color: var(--blue); font-size: 9px; font-weight: 650; }
 .agenda-card b { display: block; margin: 2px 0; font-size: 10.5px; }
 .agenda-card span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--faint); font-size: 9px; }
+.agenda-card > span:not(.agenda-date):not(.agenda-type) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; line-height: 1.4; white-space: normal; }
 .agenda-card p { margin-top: 5px; color: var(--muted); font-size: 9px; }
 .agenda-type { width: max-content; padding: 1px 5px; border-radius: 4px; color: var(--blue) !important; background: var(--blue-soft); font-weight: 650; }
 .agenda-type.deadline { color: var(--amber) !important; background: var(--amber-soft); }

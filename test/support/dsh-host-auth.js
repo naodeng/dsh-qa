@@ -1,4 +1,6 @@
 const AUTHENTICATED_URL_ERROR = 'DSH_WEB_URL must be the full authenticated URL printed by dsh web, including a non-empty token query parameter';
+const PREVIEW_NOTICE_TITLE = /预览版|preview/i;
+const PREVIEW_NOTICE_CONTINUE = /继续|continue/i;
 
 export function parseHostLaunchUrl(rawUrl) {
   const value = rawUrl?.trim();
@@ -21,10 +23,23 @@ export function parseHostLaunchUrl(rawUrl) {
   };
 }
 
+export async function dismissHarnessPreviewNotice(page) {
+  const dialog = page.getByRole('dialog').filter({ hasText: PREVIEW_NOTICE_TITLE });
+  try {
+    await dialog.waitFor({ state: 'visible', timeout: 5_000 });
+  } catch {
+    return false;
+  }
+  await dialog.getByRole('button', { name: PREVIEW_NOTICE_CONTINUE }).click();
+  await dialog.waitFor({ state: 'hidden', timeout: 5_000 });
+  return true;
+}
+
 export async function authenticateHostPage(page, launchUrl) {
   const response = await page.goto(launchUrl, { waitUntil: 'domcontentloaded' });
   if (!response || response.status() >= 400) {
     throw new Error('Harness Web authentication failed; use the full URL printed by dsh web, including token=...');
   }
   await page.goto('/');
+  await dismissHarnessPreviewNotice(page);
 }

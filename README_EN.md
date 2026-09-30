@@ -6,11 +6,14 @@
 [![Version](https://img.shields.io/badge/version-0.7.1-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
-[![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.7--rc.2%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-rc.2)
+[![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.2.0--rc.2%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.0-rc.2)
+[![DeepSeek Harness 0.2](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.2.0--rc.2%20official--macOS--verified-1B8A78)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.0-rc.2)
 
 **dsh-qa** is a local QA workbench for DeepSeek Harness. It keeps requirements, test cases, risks, execution, evidence, and delivery decisions in one project space. Project and iteration conversations reuse native DSH sessions with **Test Mode** (preset id: `qa`); business data stays local and the runtime has no production dependencies.
 
 The published version is `v0.7.1`; this patch release builds on 0.7.0 with more legible functional copy, stronger light-theme contrast, and a cleaner semantic heading hierarchy. Installing the `dsh-qa` main bundle provides both the `qa` and `quality-control` presets, so no separate preset-install command is needed. Real execution through any external provider still requires provider-specific acceptance.
+
+Compatibility acceptance: plugin loading, Test Mode (`qa`), and existing-project DSH history rendering were verified in the official macOS client running DeepSeek Harness `v0.2.0-rc.2`; the authenticated `qa` Host Smoke on the same version completed with `6 passed`. This covers the `qa` bundle and does not replace separate validation of the `quality-control` bundle.
 
 ```
 Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
@@ -82,13 +85,13 @@ Manage the plugin with the **same method used to start DSH**. `dsh web` is an al
 
 ```bash
 # Install the dsh-qa plugin
-npx --yes @deepseek-ai/dsh@0.1.7-rc.2 plugin --profile web add dsh-qa
+npx --yes @deepseek-ai/dsh plugin --profile web add dsh-qa
 
-# Update to the tested compatible Harness version
-npx --yes @deepseek-ai/dsh@0.1.7-rc.2 plugin --profile web update dsh-qa
+# Update the dsh-qa plugin
+npx --yes @deepseek-ai/dsh plugin --profile web update dsh-qa
 
 # Start or restart the Web UI after installation or update
-npx --yes @deepseek-ai/dsh@0.1.7-rc.2 web
+npx --yes @deepseek-ai/dsh web
 ```
 
 ### Option 2: Start from a DeepSeek Harness source checkout
@@ -107,6 +110,17 @@ pnpm dsh web
 ```
 
 To pin GitHub or a local development checkout, replace `add dsh-qa` in either option with `add github:naodeng/dsh-qa` or `add link:/path/to/dsh-qa`. Restart the Web UI after installation or update because plugins load when the host starts. A **「质量工作台 / QA Workbench」** entry appears in the GUI sidebar; click to open the workbench in the conversation area or use the toolbar to open it in a tab.
+
+### Official macOS client
+
+The official macOS DSH client exclusively owns the `desktop` profile, so it must not be managed with `dsh plugin --profile desktop` from the CLI. Install `dsh-qa` as follows:
+
+1. Open the client's **Plugins** page and choose the add-plugin or Git-repository entry point.
+2. Enter `https://github.com/naodeng/dsh-qa` and confirm the installation; for local development, select the local Git repository or path.
+3. After installing or updating, fully quit DSH with `⌘Q` and reopen it so the plugin code is loaded again.
+4. Open **QA Workbench / 质量工作台** from the sidebar.
+
+If the plugin manager reports `Already up to date` for an unchanged Git URL but does not load new code, remove the old `dsh-qa` entry from the Plugins page and add it again. This does not delete project data or conversation bindings under `~/.dsh/dsh-qa/`. The `v0.2.0-rc.2` acceptance above was performed through this client path.
 
 > **Models & API**: The workbench does not maintain a second set of API keys or model configs. Each test project binds a native DSH session whose working directory is the project folder, and automatically uses Test Mode (preset id: `qa`). Model list, model switching, skills, commands, tools, and permission policies all come from DSH; to add providers or models, configure them in DSH settings.
 >
@@ -227,7 +241,7 @@ After installing, restart `dsh web` and type `/` in the workbench chat to see th
 - Run: `npm start` for standalone; `npm run dev` for watch mode
 - Test: `npm test` runs unit/API tests (node:test) plus Chromium end-to-end tests (Playwright); `npm run test:unit` / `npm run test:e2e` run each separately
 - If the default test port is occupied: `QA_E2E_PORT=8900 npm test`; the default remains `8899`
-- Harness host smoke: `DSH_WEB_URL='<full URL printed by dsh web, including ?token=...>' DSH_HOST_VERSION=dsh-v0.1.7-rc.2 npm run test:host-smoke`; the configuration also keeps `dsh-v0.1.7-rc.1` and `dsh-v0.1.7-alpha.1` as supported compatibility entries; Playwright exchanges the launch token for its browser-session cookie before testing. Run only the Panel lifecycle with `npm run test:host-smoke -- test/e2e/dsh-panel-lifecycle.spec.js`; these commands are not part of standard `npm test`
+- Harness host smoke: `DSH_WEB_URL='<full URL printed by dsh web, including ?token=...>' DSH_HOST_VERSION=dsh-v0.2.0-rc.2 npm run test:host-smoke`; the configuration also keeps `dsh-v0.1.7-rc.2`, `dsh-v0.1.7-rc.1`, and `dsh-v0.1.7-alpha.1` as supported compatibility entries; the version variable must exactly match the running Harness; Playwright exchanges the launch token for its browser-session cookie before testing. Run only the Panel lifecycle with `npm run test:host-smoke -- test/e2e/dsh-panel-lifecycle.spec.js`; these commands are not part of standard `npm test`
 - Publish: after `npm publish`, install with `dsh plugin --profile web add dsh-qa`; models and keys are managed by the user's DSH configuration
 - Issues and PRs welcome (Conventional Commits)
 

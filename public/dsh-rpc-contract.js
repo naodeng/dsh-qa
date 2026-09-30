@@ -11,15 +11,61 @@ export function createCommandExecuteArgs(agentId, line, submittedAttachments = [
   return { agentId, line, submittedAttachments };
 }
 
+export function getDshSessionPreset(session) {
+  const projected = session?.projections?.values?.agentPreset;
+  if (typeof projected === 'string' && projected) return projected;
+  return typeof session?.agentPreset === 'string' ? session.agentPreset : '';
+}
+
 export function planDshSessionBinding({ linked, qaPresetId }) {
   if (!linked) return { action: 'create' };
-  if (linked.agentPreset === qaPresetId) return { action: 'reuse' };
+  if (getDshSessionPreset(linked) === qaPresetId) return { action: 'reuse' };
   if (linked.blank !== false) return { action: 'switch-preset' };
   return {
     action: 'create',
     reason: 'incompatible-history',
     previousSessionId: linked.sessionId,
   };
+}
+
+function dshSessionActivityAt(session) {
+  const lastPromptAt = session?.projections?.values?.sessionListMetadata?.lastPromptAt;
+  return Math.max(Number(lastPromptAt) || 0, Number(session?.updatedAt) || 0, Number(session?.createdAt) || 0);
+}
+
+export function findDshHistoricalSessions({
+  items = [],
+  linkedSessionId = '',
+  workspacePath = '',
+  qaPresetId = '',
+} = {}) {
+  if (!workspacePath || !qaPresetId) return [];
+  return [...items]
+    .filter((item) => item?.sessionId
+      && item.sessionId !== linkedSessionId
+      && item.blank === false
+      && item.cwd === workspacePath
+      && getDshSessionPreset(item) === qaPresetId)
+    .sort((left, right) => dshSessionActivityAt(left) - dshSessionActivityAt(right));
+}
+
+export function findDshHistoricalSession({
+  items = [],
+  linkedSessionId = '',
+  workspacePath = '',
+  qaPresetId = '',
+} = {}) {
+  return findDshHistoricalSessions({ items, linkedSessionId, workspacePath, qaPresetId }).at(-1) || null;
+}
+
+export function mergeDshHistorySessionIds({
+  archivedSessionIds = [],
+  discoveredSessionIds = [],
+  sessionToArchive = '',
+  currentSessionId = '',
+} = {}) {
+  return [...new Set([...archivedSessionIds, ...discoveredSessionIds, sessionToArchive])]
+    .filter((sessionId) => typeof sessionId === 'string' && sessionId && sessionId !== currentSessionId);
 }
 
 export function createFollowWebSocketUrl({

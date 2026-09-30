@@ -45,7 +45,7 @@ test('app info exposes the installed version, compatibility, links, and descendi
   assert.equal(payload.ok, true);
   assert.match(payload.currentVersion, /^\d+\.\d+\.\d+$/);
   assert.match(payload.latestVersion, /^\d+\.\d+\.\d+$/);
-  assert.equal(payload.dshVersion, 'dsh-v0.1.7-rc.2');
+  assert.equal(payload.dshVersion, 'dsh-v0.2.0-rc.2');
   assert.equal(payload.repositoryUrl, 'https://github.com/naodeng/dsh-qa');
   assert.equal(payload.websiteZhUrl, 'https://inaodeng.com/zh-cn/dsh-qa/');
   assert.equal(payload.websiteEnUrl, 'https://inaodeng.com/en/dsh-qa/');

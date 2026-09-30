@@ -1,4 +1,4 @@
-import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openFollowSnapshot, planDshSessionBinding } from './dsh-rpc-contract.js';
+import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findDshHistoricalSession, findDshHistoricalSessions, mergeDshHistorySessionIds, openFollowSnapshot, planDshSessionBinding } from './dsh-rpc-contract.js';
 
 // 质量工作台前端：测试首页、DSH 测试模式、项目看板、日历排期
 (() => {
@@ -51,7 +51,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
   const THEME_VALUES = ['system', 'light', 'dark'];
   const DEFAULT_APP_INFO = {
     currentVersion: '0.7.1', latestVersion: '0.7.1', isOutdated: false,
-    dshVersion: 'dsh-v0.1.7-rc.2',
+    dshVersion: 'dsh-v0.2.0-rc.2',
     repositoryUrl: 'https://github.com/naodeng/dsh-qa',
     websiteZhUrl: 'https://inaodeng.com/zh-cn/dsh-qa/',
     websiteEnUrl: 'https://inaodeng.com/en/dsh-qa/',
@@ -65,7 +65,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
     dshEmbedded: location.pathname.startsWith('/api/dsh-qa/workbench'),
     layout: { ...DEFAULT_LAYOUT },
     appInfo: { ...DEFAULT_APP_INFO }, appInfoStatus: 'idle', appInfoRequest: null, releasePage: 1,
-    dsh: { projectId: null, sessionId: '', skills: [], commands: [], models: null, qaPreset: null, busy: false, turnToken: 0 },
+    dsh: { projectId: null, sessionId: '', historySessionIds: [], skills: [], commands: [], models: null, qaPreset: null, busy: false, turnToken: 0 },
     skillCatalog: { lang: '', categories: [], groups: [], skills: [] }, skillSearch: '', installingSkill: '', uninstallingSkill: '',
     calendarCursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), selectedDate: localDate(new Date()),
     refreshTimer: null, actionQueueRefreshTimer: null, sseReconnectTimer: null,
@@ -538,7 +538,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
     const now = new Date();
     const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
     $('#today-label').textContent = currentLang() === 'en' ? now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' }) : `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 · 星期${weekdays[now.getDay()]}`;
-    $('.welcome-row h1').textContent = currentLang() === 'en' ? 'Good day — where shall we start?' : `${now.getHours() < 12 ? '上午' : now.getHours() < 18 ? '下午' : '晚上'}好，今天从哪里开始？`;
+    $('.welcome-row h1').textContent = currentLang() === 'en' ? 'Good day. Where shall we start?' : `${now.getHours() < 12 ? '上午' : now.getHours() < 18 ? '下午' : '晚上'}好，今天从哪里开始？`;
     renderMetrics();
     renderReminders();
     renderDashboardCases();
@@ -826,26 +826,49 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
     if (state.dsh.projectId === p.id && state.dsh.sessionId && state.dsh.models) return state.dsh.sessionId;
     const projectId = p.id;
     const qaPreset = await getQaPreset();
-    state.dsh = { projectId, sessionId: '', skills: [], commands: [], models: null, qaPreset, busy: false, turnToken: state.dsh.turnToken };
+    state.dsh = { projectId, sessionId: '', historySessionIds: [], skills: [], commands: [], models: null, qaPreset, busy: false, turnToken: state.dsh.turnToken };
     updateDshChrome();
     if (!p.workspacePath) {
       const workspace = await api(`api/projects/${projectId}/workspace`, { method: 'POST', body: {} });
       p.workspacePath = workspace.path;
     }
     let sessionId = p.dshSessionId || '';
+    let archivedSessionIds = Array.isArray(p.dshSessionHistory) ? [...p.dshSessionHistory] : [];
+    const sessions = await dshRpc('session/list', { _request: {} });
+    const sessionItems = sessions.items || [];
     let models;
     let needsNewSession = !sessionId;
     let replacedIncompatibleSession = false;
+    let sessionToArchive = '';
     if (sessionId) {
-      const sessions = await dshRpc('session/list', { _request: {} });
-      const linked = (sessions.items || []).find((item) => item.sessionId === sessionId);
+      let linked = sessionItems.find((item) => item.sessionId === sessionId);
       if (!linked) {
         throw new Error('本项目已绑定的 DSH 会话暂时无法确认，原会话已保留；为避免历史丢失，未自动新建会话。请检查 DSH 状态后重试，或在项目详情中点击“新建 DSH 对话”。');
+      }
+      if (linked.blank === true && archivedSessionIds.length === 0) {
+        const recovered = findDshHistoricalSession({
+          items: sessionItems,
+          linkedSessionId: linked.sessionId,
+          workspacePath: p.workspacePath,
+          qaPresetId: qaPreset.id,
+        });
+        if (recovered) {
+          const abandonedSessionId = linked.sessionId;
+          const nextHistory = [...new Set([...archivedSessionIds, abandonedSessionId])];
+          await api(`api/projects/${projectId}`, { method: 'PATCH', body: { dshSessionId: recovered.sessionId, dshSessionHistory: nextHistory } });
+          sessionId = recovered.sessionId;
+          p.dshSessionId = recovered.sessionId;
+          p.dshSessionHistory = nextHistory;
+          archivedSessionIds = nextHistory;
+          linked = recovered;
+          toast('已恢复本项目原有 DSH 对话历史', 'ok');
+        }
       }
       const binding = planDshSessionBinding({ linked, qaPresetId: qaPreset.id });
       if (binding.action === 'create') {
         // Do not mutate a historical session. The new QA session is created
         // below and the project pointer is updated only after creation works.
+        sessionToArchive = binding.previousSessionId || sessionId;
         sessionId = '';
         needsNewSession = true;
         replacedIncompatibleSession = binding.reason === 'incompatible-history';
@@ -858,12 +881,32 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
         }
       }
     }
+    const historicalSessions = findDshHistoricalSessions({
+      items: sessionItems,
+      linkedSessionId: sessionId,
+      workspacePath: p.workspacePath,
+      qaPresetId: qaPreset.id,
+    });
+    const historySessionIds = mergeDshHistorySessionIds({
+      archivedSessionIds,
+      discoveredSessionIds: historicalSessions.map((item) => item.sessionId),
+      sessionToArchive,
+      currentSessionId: sessionId,
+    });
+    if (historySessionIds.some((id) => !archivedSessionIds.includes(id))) {
+      const nextArchivedSessionIds = [...new Set([...archivedSessionIds, ...historySessionIds])];
+      await api(`api/projects/${projectId}`, { method: 'PATCH', body: { dshSessionHistory: nextArchivedSessionIds } });
+      p.dshSessionHistory = nextArchivedSessionIds;
+      archivedSessionIds = nextArchivedSessionIds;
+    }
     if (needsNewSession) {
       const created = await dshRpc('session/create', { request: { cwd: p.workspacePath, agentPreset: qaPreset.id } });
       sessionId = created.sessionId;
       await dshRpc('session/rename', { request: { sessionId, title: `质量｜${p.title}` } }).catch(() => {});
-      await api(`api/projects/${projectId}`, { method: 'PATCH', body: { dshSessionId: sessionId } });
+      if (sessionToArchive && !archivedSessionIds.includes(sessionToArchive)) archivedSessionIds = [...archivedSessionIds, sessionToArchive];
+      await api(`api/projects/${projectId}`, { method: 'PATCH', body: { dshSessionId: sessionId, dshSessionHistory: archivedSessionIds } });
       p.dshSessionId = sessionId;
+      p.dshSessionHistory = archivedSessionIds;
       models = await dshRpc('session/modelCatalog', {});
       if (replacedIncompatibleSession) toast(`原 DSH 会话已保留，已新建并绑定 DSH ${qaPreset.name} 会话`, 'ok');
     }
@@ -874,6 +917,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
     if (state.activeProjectId !== projectId) return sessionId;
     state.dsh.projectId = projectId;
     state.dsh.sessionId = sessionId;
+    state.dsh.historySessionIds = historySessionIds;
     state.dsh.models = models;
     state.dsh.skills = skillResult.skills || [];
     state.dsh.commands = commandResult || [];
@@ -962,8 +1006,19 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
   }
   async function renderDshHistory() {
     if (!state.dsh.sessionId) return renderDshEmpty('尚未绑定 DSH 会话。');
-    const history = await dshHistory(state.dsh.sessionId, 30);
-    const rows = dshRows(history.events || []);
+    const sessionIds = [...new Set([
+      ...(state.dsh.historySessionIds || []),
+      state.dsh.sessionId,
+    ])].filter(Boolean);
+    const histories = await Promise.all(sessionIds.map(async (sessionId) => {
+      try {
+        return await dshHistory(sessionId, 30);
+      } catch (error) {
+        if (sessionId === state.dsh.sessionId) throw error;
+        return { events: [] };
+      }
+    }));
+    const rows = histories.flatMap((history) => dshRows(history.events || []));
     if (!rows.length) return renderDshEmpty(`已绑定本项目文件夹。输入“/”可选择 ${state.dsh.skills.length} 个技能或 ${state.dsh.commands.length} 个命令。`);
     $('#chat-msgs').innerHTML = '';
     rows.forEach((row) => row.role === 'user' ? appendUserMsg(row.text, false) : appendAiMsg(row.text, false, row.kind));
@@ -1769,9 +1824,12 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
     const qaPreset = await getQaPreset();
     const created = await dshRpc('session/create', { request: { cwd: p.workspacePath, agentPreset: qaPreset.id } });
     await dshRpc('session/rename', { request: { sessionId: created.sessionId, title: `质量｜${p.title}` } }).catch(() => {});
-    await api(`api/projects/${p.id}`, { method: 'PATCH', body: { dshSessionId: created.sessionId } });
+    const archivedSessionIds = Array.isArray(p.dshSessionHistory) ? [...p.dshSessionHistory] : [];
+    if (p.dshSessionId && !archivedSessionIds.includes(p.dshSessionId)) archivedSessionIds.push(p.dshSessionId);
+    await api(`api/projects/${p.id}`, { method: 'PATCH', body: { dshSessionId: created.sessionId, dshSessionHistory: archivedSessionIds } });
     p.dshSessionId = created.sessionId;
-    if (state.activeProjectId === p.id) state.dsh = { projectId: null, sessionId: '', skills: [], commands: [], models: null, qaPreset, busy: false, turnToken: state.dsh.turnToken + 1 };
+    p.dshSessionHistory = archivedSessionIds;
+    if (state.activeProjectId === p.id) state.dsh = { projectId: null, sessionId: '', historySessionIds: [], skills: [], commands: [], models: null, qaPreset, busy: false, turnToken: state.dsh.turnToken + 1 };
     return created.sessionId;
   }
   function openSettings() {
@@ -1971,7 +2029,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, openF
       '#view-dashboard .attention-panel h2': ['需要你处理', 'Needs your attention'],
       '#view-dashboard .attention-panel p': ['按风险和截止时间排序的 QA 分诊队列', 'A QA triage queue sorted by risk and due date'],
       '#view-dashboard .case-overview-panel h2': ['在办项目', 'Active projects'],
-      '#view-dashboard .case-overview-panel p': ['按最近活动排序，点击进入 DSH 测试空间', 'Sorted by recent activity — click to open the DSH test space'],
+      '#view-dashboard .case-overview-panel p': ['按最近活动排序，点击进入 DSH 测试空间', 'Sorted by recent activity. Click to open the DSH test space.'],
       '#view-dashboard .ai-control-panel h2': ['DSH 全流程辅助', 'DSH Full Assistance'],
       '#view-dashboard .ai-control-panel p': ['需求、用例、缺陷、里程碑与报告提醒都由你决定是否启用。', 'You decide which requirements, cases, defects, milestones and report reminders are enabled.'],
       '#view-dashboard .activity-panel h2': ['最近动态', 'Recent activity'],

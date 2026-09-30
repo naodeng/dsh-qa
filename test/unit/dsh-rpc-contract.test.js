@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import * as dshContract from '../../public/dsh-rpc-contract.js';
 import {
   createClientRequest,
   createCommandExecuteArgs,
@@ -10,6 +11,8 @@ import {
   openFollowSnapshot,
   planDshSessionBinding,
   parseFollowSnapshot,
+  findDshHistoricalSession,
+  mergeDshHistorySessionIds,
 } from '../../public/dsh-rpc-contract.js';
 
 const fixture = JSON.parse(fs.readFileSync(new URL('../fixtures/dsh-0.1.6-follow-snapshot.json', import.meta.url), 'utf8'));
@@ -81,6 +84,84 @@ test('preserves a historical non-QA session and plans a fresh QA binding', () =>
     qaPresetId: 'qa',
   }), { action: 'reuse' });
   assert.deepEqual(planDshSessionBinding({ qaPresetId: 'qa' }), { action: 'create' });
+});
+
+test('reads the Harness 0.2 agent preset from session projections', () => {
+  assert.deepEqual(planDshSessionBinding({
+    linked: {
+      sessionId: 'project-session',
+      blank: false,
+      projections: { values: { agentPreset: 'qa' } },
+    },
+    qaPresetId: 'qa',
+  }), { action: 'reuse' });
+});
+
+test('finds the latest historical QA session for a blank migrated binding', () => {
+  const items = [
+    { sessionId: 'other-workspace', cwd: '/tmp/other', blank: false, updatedAt: 300, projections: { values: { agentPreset: 'qa' } } },
+    { sessionId: 'older-project-session', cwd: '/tmp/project', blank: false, updatedAt: 100, projections: { values: { agentPreset: 'qa' } } },
+    { sessionId: 'latest-project-session', cwd: '/tmp/project', blank: false, updatedAt: 200, projections: { values: { agentPreset: 'qa' } } },
+    { sessionId: 'standard-project-session', cwd: '/tmp/project', blank: false, updatedAt: 400, projections: { values: { agentPreset: 'standard' } } },
+  ];
+  assert.equal(findDshHistoricalSession({
+    items,
+    linkedSessionId: 'blank-project-session',
+    workspacePath: '/tmp/project',
+    qaPresetId: 'qa',
+  })?.sessionId, 'latest-project-session');
+});
+
+test('lists every historical QA session for a project workspace in chronological order', () => {
+  assert.equal(typeof dshContract.findDshHistoricalSessions, 'function');
+  const items = [
+    { sessionId: 'newest', cwd: '/tmp/project', blank: false, updatedAt: 300, projections: { values: { agentPreset: 'qa', sessionListMetadata: { lastPromptAt: 350 } } } },
+    { sessionId: 'blank', cwd: '/tmp/project', blank: true, updatedAt: 400, projections: { values: { agentPreset: 'qa' } } },
+    { sessionId: 'other-workspace', cwd: '/tmp/other', blank: false, updatedAt: 500, projections: { values: { agentPreset: 'qa' } } },
+    { sessionId: 'oldest', cwd: '/tmp/project', blank: false, updatedAt: 100, projections: { values: { agentPreset: 'qa' } } },
+    { sessionId: 'standard', cwd: '/tmp/project', blank: false, updatedAt: 600, projections: { values: { agentPreset: 'standard' } } },
+  ];
+  assert.deepEqual(dshContract.findDshHistoricalSessions({
+    items,
+    linkedSessionId: 'linked-session',
+    workspacePath: '/tmp/project',
+    qaPresetId: 'qa',
+  }).map((item) => item.sessionId), ['oldest', 'newest']);
+});
+
+test('lists historical QA sessions without a currently linked session', () => {
+  assert.deepEqual(dshContract.findDshHistoricalSessions({
+    items: [{ sessionId: 'existing-history', cwd: '/tmp/project', blank: false, updatedAt: 100, projections: { values: { agentPreset: 'qa' } } }],
+    workspacePath: '/tmp/project',
+    qaPresetId: 'qa',
+  }).map((item) => item.sessionId), ['existing-history']);
+});
+
+test('orders historical sessions by the later summary or prompt timestamp', () => {
+  assert.deepEqual(dshContract.findDshHistoricalSessions({
+    items: [
+      { sessionId: 'summary-newer', cwd: '/tmp/project', blank: false, updatedAt: 300, projections: { values: { agentPreset: 'qa', sessionListMetadata: { lastPromptAt: 200 } } } },
+      { sessionId: 'prompt-newer', cwd: '/tmp/project', blank: false, updatedAt: 100, projections: { values: { agentPreset: 'qa', sessionListMetadata: { lastPromptAt: 400 } } } },
+    ],
+    workspacePath: '/tmp/project',
+    qaPresetId: 'qa',
+  }).map((item) => item.sessionId), ['summary-newer', 'prompt-newer']);
+});
+
+test('keeps archived sessions, including a replaced non-QA session, in render order', () => {
+  assert.deepEqual(mergeDshHistorySessionIds({
+    archivedSessionIds: ['archived-standard'],
+    discoveredSessionIds: ['older-qa', 'archived-standard'],
+    sessionToArchive: 'replaced-standard',
+    currentSessionId: 'current-qa',
+  }), ['archived-standard', 'older-qa', 'replaced-standard']);
+});
+
+test('does not render the active session as historical history', () => {
+  assert.deepEqual(mergeDshHistorySessionIds({
+    archivedSessionIds: ['active-session', 'old-session'],
+    currentSessionId: 'active-session',
+  }), ['old-session']);
 });
 
 test('sends model selection and cancellation through the current RPC client', async () => {
