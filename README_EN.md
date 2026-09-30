@@ -85,13 +85,13 @@ Manage the plugin with the **same method used to start DSH**. `dsh web` is an al
 
 ```bash
 # Install the dsh-qa plugin
-npx --yes @deepseek-ai/dsh@0.1.7-rc.2 plugin --profile web add dsh-qa
+npx --yes @deepseek-ai/dsh plugin --profile web add dsh-qa
 
-# Update to the tested compatible Harness version
-npx --yes @deepseek-ai/dsh@0.1.7-rc.2 plugin --profile web update dsh-qa
+# Update the dsh-qa plugin
+npx --yes @deepseek-ai/dsh plugin --profile web update dsh-qa
 
 # Start or restart the Web UI after installation or update
-npx --yes @deepseek-ai/dsh@0.1.7-rc.2 web
+npx --yes @deepseek-ai/dsh web
 ```
 
 ### Option 2: Start from a DeepSeek Harness source checkout
@@ -113,7 +113,14 @@ To pin GitHub or a local development checkout, replace `add dsh-qa` in either op
 
 ### Official macOS client
 
-The official macOS DSH client exclusively owns the `desktop` profile, so it must not be managed with `dsh plugin --profile desktop` from the CLI. Install or update `dsh-qa` through the client's Plugins manager; for a local development checkout, select the corresponding Git repository or local path. After installing or updating, fully quit DSH with `⌘Q` and reopen it so the plugin code is loaded again. The `v0.2.0-rc.2` acceptance above was performed through this client path.
+The official macOS DSH client exclusively owns the `desktop` profile, so it must not be managed with `dsh plugin --profile desktop` from the CLI. Install `dsh-qa` as follows:
+
+1. Open the client's **Plugins** page and choose the add-plugin or Git-repository entry point.
+2. Enter `https://github.com/naodeng/dsh-qa` and confirm the installation; for local development, select the local Git repository or path.
+3. After installing or updating, fully quit DSH with `⌘Q` and reopen it so the plugin code is loaded again.
+4. Open **QA Workbench / 质量工作台** from the sidebar.
+
+If the plugin manager reports `Already up to date` for an unchanged Git URL but does not load new code, remove the old `dsh-qa` entry from the Plugins page and add it again. This does not delete project data or conversation bindings under `~/.dsh/dsh-qa/`. The `v0.2.0-rc.2` acceptance above was performed through this client path.
 
 > **Models & API**: The workbench does not maintain a second set of API keys or model configs. Each test project binds a native DSH session whose working directory is the project folder, and automatically uses Test Mode (preset id: `qa`). Model list, model switching, skills, commands, tools, and permission policies all come from DSH; to add providers or models, configure them in DSH settings.
 >

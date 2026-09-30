@@ -85,13 +85,13 @@
 
 ```bash
 # 安装 dsh-qa 插件
-npx --yes @deepseek-ai/dsh@0.1.7-rc.2 plugin --profile web add dsh-qa
+npx --yes @deepseek-ai/dsh plugin --profile web add dsh-qa
 
-# 更新到已验证兼容的 Harness 版本
-npx --yes @deepseek-ai/dsh@0.1.7-rc.2 plugin --profile web update dsh-qa
+# 更新 dsh-qa 插件
+npx --yes @deepseek-ai/dsh plugin --profile web update dsh-qa
 
 # 安装或更新后启动/重启 Web UI
-npx --yes @deepseek-ai/dsh@0.1.7-rc.2 web
+npx --yes @deepseek-ai/dsh web
 ```
 
 ### 方式二：从 DeepSeek Harness 源码仓库启动
@@ -113,7 +113,14 @@ pnpm dsh web
 
 ### 官方 macOS 客户端
 
-官方 macOS DSH 客户端独占 `desktop` profile，不能使用 `dsh plugin --profile desktop` 通过 CLI 管理。请在客户端的 Plugins 管理器中安装或更新 `dsh-qa`；使用本地开发副本时选择对应的 Git 仓库或本地路径。安装或更新后使用 `⌘Q` 完全退出并重新打开 DSH，使插件代码重新加载。上面的 `v0.2.0-rc.2` 验收记录即来自该客户端路径。
+官方 macOS DSH 客户端独占 `desktop` profile，不能使用 `dsh plugin --profile desktop` 通过 CLI 管理。请按以下步骤安装 `dsh-qa`：
+
+1. 打开 DSH 客户端的 **Plugins** 页面，选择添加插件或 Git 仓库。
+2. 输入 `https://github.com/naodeng/dsh-qa` 并确认安装；本地开发时也可以选择本地 Git 仓库或路径。
+3. 安装或更新完成后使用 `⌘Q` 完全退出并重新打开 DSH，使插件代码重新加载。
+4. 从侧边栏打开「质量工作台 / QA Workbench」。
+
+如果插件管理器对同一个 Git 地址提示 `Already up to date` 但没有加载新代码，可先在 Plugins 页面移除旧的 `dsh-qa` 条目，再重新添加；这不会删除 `~/.dsh/dsh-qa/` 中的项目数据和对话关联。上面的 `v0.2.0-rc.2` 验收记录即来自该客户端路径。
 
 > **模型与 API**：工作台不维护第二套 API Key 或模型配置。每个测试项目绑定一个以项目文件夹为工作目录的 DSH 原生会话，并自动使用「测试模式」（preset id: `qa`）。模型列表、模型切换、技能、命令、工具和权限策略全部来自 DSH；新增服务商或模型请在 DSH 设置中配置。
 >
