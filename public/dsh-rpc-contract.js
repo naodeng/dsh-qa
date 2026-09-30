@@ -58,6 +58,16 @@ export function findDshHistoricalSession({
   return findDshHistoricalSessions({ items, linkedSessionId, workspacePath, qaPresetId }).at(-1) || null;
 }
 
+export function mergeDshHistorySessionIds({
+  archivedSessionIds = [],
+  discoveredSessionIds = [],
+  sessionToArchive = '',
+  currentSessionId = '',
+} = {}) {
+  return [...new Set([...archivedSessionIds, ...discoveredSessionIds, sessionToArchive])]
+    .filter((sessionId) => typeof sessionId === 'string' && sessionId && sessionId !== currentSessionId);
+}
+
 export function createFollowWebSocketUrl({
   location = globalThis.location,
   streamBaseUrl,

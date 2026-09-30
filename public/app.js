@@ -1,4 +1,4 @@
-import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findDshHistoricalSession, findDshHistoricalSessions, openFollowSnapshot, planDshSessionBinding } from './dsh-rpc-contract.js';
+import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findDshHistoricalSession, findDshHistoricalSessions, mergeDshHistorySessionIds, openFollowSnapshot, planDshSessionBinding } from './dsh-rpc-contract.js';
 
 // 质量工作台前端：测试首页、DSH 测试模式、项目看板、日历排期
 (() => {
@@ -887,7 +887,12 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findD
       workspacePath: p.workspacePath,
       qaPresetId: qaPreset.id,
     });
-    const historySessionIds = historicalSessions.map((item) => item.sessionId);
+    const historySessionIds = mergeDshHistorySessionIds({
+      archivedSessionIds,
+      discoveredSessionIds: historicalSessions.map((item) => item.sessionId),
+      sessionToArchive,
+      currentSessionId: sessionId,
+    });
     if (historySessionIds.some((id) => !archivedSessionIds.includes(id))) {
       const nextArchivedSessionIds = [...new Set([...archivedSessionIds, ...historySessionIds])];
       await api(`api/projects/${projectId}`, { method: 'PATCH', body: { dshSessionHistory: nextArchivedSessionIds } });
@@ -1008,7 +1013,8 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findD
     const histories = await Promise.all(sessionIds.map(async (sessionId) => {
       try {
         return await dshHistory(sessionId, 30);
-      } catch {
+      } catch (error) {
+        if (sessionId === state.dsh.sessionId) throw error;
         return { events: [] };
       }
     }));

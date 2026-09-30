@@ -12,6 +12,7 @@ import {
   planDshSessionBinding,
   parseFollowSnapshot,
   findDshHistoricalSession,
+  mergeDshHistorySessionIds,
 } from '../../public/dsh-rpc-contract.js';
 
 const fixture = JSON.parse(fs.readFileSync(new URL('../fixtures/dsh-0.1.6-follow-snapshot.json', import.meta.url), 'utf8'));
@@ -145,6 +146,22 @@ test('orders historical sessions by the later summary or prompt timestamp', () =
     workspacePath: '/tmp/project',
     qaPresetId: 'qa',
   }).map((item) => item.sessionId), ['summary-newer', 'prompt-newer']);
+});
+
+test('keeps archived sessions, including a replaced non-QA session, in render order', () => {
+  assert.deepEqual(mergeDshHistorySessionIds({
+    archivedSessionIds: ['archived-standard'],
+    discoveredSessionIds: ['older-qa', 'archived-standard'],
+    sessionToArchive: 'replaced-standard',
+    currentSessionId: 'current-qa',
+  }), ['archived-standard', 'older-qa', 'replaced-standard']);
+});
+
+test('does not render the active session as historical history', () => {
+  assert.deepEqual(mergeDshHistorySessionIds({
+    archivedSessionIds: ['active-session', 'old-session'],
+    currentSessionId: 'active-session',
+  }), ['old-session']);
 });
 
 test('sends model selection and cancellation through the current RPC client', async () => {
