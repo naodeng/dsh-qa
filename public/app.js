@@ -51,7 +51,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findD
   const THEME_VALUES = ['system', 'light', 'dark'];
   const DEFAULT_APP_INFO = {
     currentVersion: '0.7.1', latestVersion: '0.7.1', isOutdated: false,
-    dshVersion: 'dsh-v0.1.7-rc.2',
+    dshVersion: 'dsh-v0.2.0-rc.2',
     repositoryUrl: 'https://github.com/naodeng/dsh-qa',
     websiteZhUrl: 'https://inaodeng.com/zh-cn/dsh-qa/',
     websiteEnUrl: 'https://inaodeng.com/en/dsh-qa/',
@@ -538,7 +538,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findD
     const now = new Date();
     const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
     $('#today-label').textContent = currentLang() === 'en' ? now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' }) : `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 · 星期${weekdays[now.getDay()]}`;
-    $('.welcome-row h1').textContent = currentLang() === 'en' ? 'Good day — where shall we start?' : `${now.getHours() < 12 ? '上午' : now.getHours() < 18 ? '下午' : '晚上'}好，今天从哪里开始？`;
+    $('.welcome-row h1').textContent = currentLang() === 'en' ? 'Good day. Where shall we start?' : `${now.getHours() < 12 ? '上午' : now.getHours() < 18 ? '下午' : '晚上'}好，今天从哪里开始？`;
     renderMetrics();
     renderReminders();
     renderDashboardCases();
@@ -2029,7 +2029,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findD
       '#view-dashboard .attention-panel h2': ['需要你处理', 'Needs your attention'],
       '#view-dashboard .attention-panel p': ['按风险和截止时间排序的 QA 分诊队列', 'A QA triage queue sorted by risk and due date'],
       '#view-dashboard .case-overview-panel h2': ['在办项目', 'Active projects'],
-      '#view-dashboard .case-overview-panel p': ['按最近活动排序，点击进入 DSH 测试空间', 'Sorted by recent activity — click to open the DSH test space'],
+      '#view-dashboard .case-overview-panel p': ['按最近活动排序，点击进入 DSH 测试空间', 'Sorted by recent activity. Click to open the DSH test space.'],
       '#view-dashboard .ai-control-panel h2': ['DSH 全流程辅助', 'DSH Full Assistance'],
       '#view-dashboard .ai-control-panel p': ['需求、用例、缺陷、里程碑与报告提醒都由你决定是否启用。', 'You decide which requirements, cases, defects, milestones and report reminders are enabled.'],
       '#view-dashboard .activity-panel h2': ['最近动态', 'Recent activity'],

@@ -6,14 +6,14 @@
 [![Version](https://img.shields.io/badge/version-0.7.1-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
-[![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.7--rc.2%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-rc.2)
-[![DeepSeek Harness 0.2](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.2.0--rc.2%20user--verified-1B8A78)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.0-rc.2)
+[![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.2.0--rc.2%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.0-rc.2)
+[![DeepSeek Harness 0.2](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.2.0--rc.2%20official--macOS--verified-1B8A78)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.0-rc.2)
 
 **dsh-qa** 是 DeepSeek Harness 的本地 QA 工作台：在一个项目空间中管理需求、测试用例、风险、执行、证据和交付决策。项目与迭代的对话复用 DSH 原生会话，并自动使用「测试模式」（preset id: `qa`）；业务数据保留在本机，运行时没有生产依赖。
 
 当前发布版本是 `v0.7.1`；本版在 0.7.0 的 Quality Insights 和工作台交互基础上，补齐功能性文字可读性、浅色主题对比度和页面语义层级。安装 `dsh-qa` 主 bundle 会同时提供 `qa` 与 `quality-control` 两个 preset，无需再执行单独的 preset 安装命令。任意外部提供方的真实执行仍需按具体 provider 单独验收。
 
-兼容性验收：已在 DeepSeek Harness `v0.2.0-rc.2` 官方 macOS 客户端上验证插件加载、`qa` 测试模式和已有项目历史 DSH 对话展示通过。该结果是用户本地宿主验收，不替代完整 Host Smoke 兼容矩阵。
+兼容性验收：已在 DeepSeek Harness `v0.2.0-rc.2` 官方 macOS 客户端上验证插件加载、`qa` 测试模式和已有项目历史 DSH 对话展示通过；同版本带认证宿主 URL 的 `qa` Host Smoke 已完成 `6 passed`。该结果覆盖 `qa` bundle，不替代 `quality-control` 独立 bundle 的单独验证。
 
 ```
 测试首页 → DSH 测试对话 → 项目看板 → 日历排期

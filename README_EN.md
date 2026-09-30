@@ -6,14 +6,14 @@
 [![Version](https://img.shields.io/badge/version-0.7.1-informational)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 [![DSH Plugin](https://img.shields.io/badge/DSH-plugin-0A7EA4)]()
-[![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.1.7--rc.2%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-rc.2)
-[![DeepSeek Harness 0.2](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.2.0--rc.2%20user--verified-1B8A78)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.0-rc.2)
+[![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.2.0--rc.2%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.0-rc.2)
+[![DeepSeek Harness 0.2](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.2.0--rc.2%20official--macOS--verified-1B8A78)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.0-rc.2)
 
 **dsh-qa** is a local QA workbench for DeepSeek Harness. It keeps requirements, test cases, risks, execution, evidence, and delivery decisions in one project space. Project and iteration conversations reuse native DSH sessions with **Test Mode** (preset id: `qa`); business data stays local and the runtime has no production dependencies.
 
 The published version is `v0.7.1`; this patch release builds on 0.7.0 with more legible functional copy, stronger light-theme contrast, and a cleaner semantic heading hierarchy. Installing the `dsh-qa` main bundle provides both the `qa` and `quality-control` presets, so no separate preset-install command is needed. Real execution through any external provider still requires provider-specific acceptance.
 
-Compatibility acceptance: plugin loading, Test Mode (`qa`), and existing-project DSH history rendering were verified in the official macOS client running DeepSeek Harness `v0.2.0-rc.2`. This is a user-host acceptance result and does not replace the complete Host Smoke compatibility matrix.
+Compatibility acceptance: plugin loading, Test Mode (`qa`), and existing-project DSH history rendering were verified in the official macOS client running DeepSeek Harness `v0.2.0-rc.2`; the authenticated `qa` Host Smoke on the same version completed with `6 passed`. This covers the `qa` bundle and does not replace separate validation of the `quality-control` bundle.
 
 ```
 Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule

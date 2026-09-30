@@ -165,13 +165,13 @@ test.describe('首页', () => {
 
     await page.locator('#btn-settings').click();
     await expect(page.locator('#settings-modal')).toContainText('关于');
-    await expect(page.locator('#settings-modal')).toContainText('dsh-v0.1.7-rc.2');
+    await expect(page.locator('#settings-modal')).toContainText('dsh-v0.2.0-rc.2');
     await expect(page.locator('#settings-modal a[href="https://github.com/naodeng/dsh-qa"]')).toBeVisible();
     await expect(page.locator('#settings-modal a[href="https://inaodeng.com/zh-cn/dsh-qa/"]')).toHaveText('https://inaodeng.com/zh-cn/dsh-qa/');
 
     await page.locator('[data-settings-lang="en"]').click();
     await expect(page.locator('#settings-modal')).toContainText('About');
-    await expect(page.locator('#settings-modal')).toContainText('Compatible DSH version');
+    await expect(page.locator('#settings-modal')).toContainText('Currently verified DSH version');
     await expect(page.locator('#settings-modal a[href="https://inaodeng.com/en/dsh-qa/"]')).toHaveText('https://inaodeng.com/en/dsh-qa/');
 
     await page.locator('#st-close').click();

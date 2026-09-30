@@ -11,7 +11,7 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 const REMOTE_TIMEOUT_MS = 1200;
 const VERSION_PATTERN = /^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/;
 const APP_METADATA = {
-  dshVersion: 'dsh-v0.1.7-rc.2',
+  dshVersion: 'dsh-v0.2.0-rc.2',
   repositoryUrl: 'https://github.com/naodeng/dsh-qa',
   websiteZhUrl: 'https://inaodeng.com/zh-cn/dsh-qa/',
   websiteEnUrl: 'https://inaodeng.com/en/dsh-qa/',
