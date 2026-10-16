@@ -22,6 +22,7 @@ Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
 
 ## Table of Contents
 
+- [What dsh-qa is and how to use it](#what-dsh-qa-is-and-how-to-use-it)
 - [Features](#features)
 - [Installation (DSH plugin)](#installation-dsh-plugin)
 - [Install and update with npm (standalone)](#install-and-update-with-npm-standalone)
@@ -35,6 +36,19 @@ Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
 - [Roadmap Documentation](#roadmap-documentation)
 - [License](#license)
 - [FAQ](#faq)
+
+## What dsh-qa is and how to use it
+
+`dsh-qa` is a local QA workbench plugin for DeepSeek Harness (DSH). DSH provides chat, models, skills, and commands; dsh-qa provides QA management for test projects, requirements, cases, defects, quality tasks, execution evidence, and reports. You do not need to create a shared Git repository to install or use the plugin; this repository distributes the plugin itself.
+
+A typical workflow is:
+
+1. Follow [Installation (DSH plugin)](#installation-dsh-plugin), restart DSH, and open **QA Workbench** from the sidebar.
+2. Create a test project or iteration. Its optional project workspace is local to the machine; when you first enter a project, the workbench binds a DSH session that uses the `qa` Test Mode preset.
+3. Provide requirements, acceptance criteria, and documents or code that the DSH session can access. Ask DSH to help analyze or update requirements, test cases, risks, and defects, or maintain those records directly in the workbench.
+4. For code or release acceptance, create a quality task, add acceptance criteria and test scope, maintain a test plan and execution profile, then run tests, archive evidence, and review the quality gate. Track retests and reports in the same project, with an owner reviewing before release or closure.
+
+**Data and collaboration boundaries**: In plugin mode, project records and local materials are stored on the machine running DSH (`~/.dsh/dsh-qa/`); DSH stores its own conversations. Live kanban updates are for multiple windows of the same local workbench and do not synchronize project data with other team members. Git is not a collaboration or notification channel in dsh-qa: a quality task can capture a supported local Git diff snapshot from the project workspace, but the plugin does not watch remote repository changes, pull code automatically, or sync project records. The workbench currently has no WPS or ZenTao connector, so materials that need to move between those systems must still be handled manually.
 
 ## Features
 
