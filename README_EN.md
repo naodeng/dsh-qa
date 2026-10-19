@@ -23,6 +23,8 @@ Test Dashboard → DSH Test Chat → Project Kanban → Calendar Schedule
 ## Table of Contents
 
 - [What dsh-qa is and how to use it](#what-dsh-qa-is-and-how-to-use-it)
+- [English User Guide](./docs/quality-workbench/user-guide-en.md)
+- [Chinese User Guide](./docs/quality-workbench/user-guide-zh-CN.md)
 - [Features](#features)
 - [Installation (DSH plugin)](#installation-dsh-plugin)
 - [Install and update with npm (standalone)](#install-and-update-with-npm-standalone)

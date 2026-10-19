@@ -23,6 +23,8 @@
 ## 目录
 
 - [功能定位与使用方式](#功能定位与使用方式)
+- [中文使用指南](./docs/quality-workbench/user-guide-zh-CN.md)
+- [English User Guide](./docs/quality-workbench/user-guide-en.md)
 - [功能特性](#功能特性)
 - [安装（DSH 插件）](#安装dsh-插件)
 - [npm 安装与更新（独立运行）](#npm-安装与更新独立运行)

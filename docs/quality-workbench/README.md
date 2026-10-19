@@ -1,5 +1,7 @@
 # 质量工作台文档索引
 
+面向用户的逐步操作说明请参阅[中文版使用指南](./user-guide-zh-CN.md)或[English user guide](./user-guide-en.md)。
+
 当前路线以 [版本语义与路线边界](./2026-09-15-version-map.md) 为准。当前发布基线是 `v0.7.2`；本补丁版本在 DSH 历史会话恢复、Harness `0.2.0-rc.2` 兼容验证和官方 macOS 客户端安装指引基础上，延续工作台可读性修复。外部 provider 的真实执行仍需按具体 provider 单独验收。
 
 ## 已发布质量基线
