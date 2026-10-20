@@ -4,7 +4,7 @@
 
 ## 1. 当前发布基线
 
-当前 `master` 和最新 Git tag 基线是 `v0.7.2`。该补丁版本在 0.7.1 的工作台可读性基础上恢复历史 DSH 对话展示，并补齐 Harness `0.2.0-rc.2` 宿主验证与官方 macOS 客户端安装指引；对应事实记录见 [CHANGELOG.md](../../CHANGELOG.md)、0.7 设计规格和实现计划。npm、Git tag、GitHub Release 与宿主兼容性仍作为独立交付事实记录。
+当前 `master` 和最新 Git tag 基线是 `v0.7.3`。该补丁版本为桌面端拦截弹窗的场景增加全屏工作台回退，并发布中英文使用指南；对应事实记录见 [CHANGELOG.md](../../CHANGELOG.md)、0.7 设计规格和实现计划。npm、Git tag、GitHub Release 与宿主兼容性仍作为独立交付事实记录。
 
 下面这些事实不能混为一谈：
 
@@ -28,6 +28,8 @@
 
 `0.7.2` 作为 DSH 历史会话与 Harness 兼容性修订版发布，恢复同一项目空间中历史对话的发现、保留、排序与渲染，支持 `dsh-v0.2.0-rc.2` `qa` Host Smoke，并补充官方 macOS 客户端安装指引；它不改变质量事实、执行边界或 `quality-control` 独立 bundle 的宿主验收边界。
 
+`0.7.3` 作为宿主弹窗兼容性修订版发布：当桌面端拦截独立弹窗时，在当前页面显示全屏工作台，并可通过关闭按钮或 `Esc` 退出；同时提供中英文使用指南。它不改变质量事实、执行边界或 provider 验收边界。
+
 ## 2. 当前有效路线
 
 ```text
@@ -42,6 +44,8 @@ v0.4.1 Harness 0.1.6 Compatibility（历史基线）
 0.7.1 Workbench readability and accessibility patch
         ↓
 0.7.2 DSH history and Harness 0.2.0-rc.2 compatibility patch
+        ↓
+0.7.3 In-app fullscreen workbench fallback and bilingual user guides
         ↓
 1.0.0 AI-Native QA Workbench
         ↓
@@ -64,6 +68,7 @@ Post-1.0：Quality Obligation、Evidence Graph、Adapter、Policy、Multi-Agent�
 | `0.7.0` | Released | AI Quality Intelligence | 如何从 Evidence、Failure、Regression 和 Gate 事实给出可解释建议？ | AI 直接改 Gate 或替代人工审批 |
 | `0.7.1` | Released | Workbench readability and accessibility | 如何让质量工作台的功能文字、对比度和语义层级在不同屏幕上保持可读？ | 改变质量事实、执行边界或 provider 验收 |
 | `0.7.2` | Released | DSH history and Harness 0.2.0-rc.2 compatibility | 如何在升级宿主后保留并展示同一项目空间中的历史 DSH 对话？ | 改变质量事实、执行边界或 quality-control 独立 bundle 宿主验收 |
+| `0.7.3` | Released | In-app fullscreen workbench fallback | 桌面端拦截新窗口时，如何继续打开工作台？ | 改变质量事实、执行边界或 provider 验收 |
 | `1.0.0` | Planned | AI-Native QA Workbench | 如何把 Panel、执行、智能分析和受控 Agent Loop 收束成可依赖主路径？ | 自动生产发布、无限权限自治 |
 
 ### 3.1 `0.4.1` 的验收边界

@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+## 0.7.3 - 2026-10-20
+
+## 中文
+
+### 新功能
+
+- 当 DeepSeek Harness 桌面端拦截独立弹窗时，在当前页面以内嵌全屏浮层打开工作台；支持点击关闭按钮或按 Esc 退出。
+- 调整宿主面板和工作台 iframe 的布局，让工作台能够填满可用区域。
+
+### 文档
+
+- 新增中英文使用指南，覆盖安装、入门、日常操作和进阶使用，并补充工作台的本地个人使用定位。
+
+### 验证
+
+- `npm test`：268 个单元/API 测试和 41 个 Chromium E2E 测试通过（E2E 使用隔离端口 `8913`）。
+- `npm pack --dry-run`、`node --check public/app.js` 和 `git diff --check`：通过。
+
+## English
+
+### Features
+
+- Open the workbench in a fullscreen in-app overlay when the DeepSeek Harness desktop host blocks a separate popup; close it with the button or Escape.
+- Make the host panel and workbench iframe fill the available space.
+
+### Documentation
+
+- Add Chinese and English user guides for installation, onboarding, daily use, and advanced workflows, and clarify the workbench's local, individual-use scope.
+
+### Verification
+
+- `npm test`: 268 unit/API tests and 41 Chromium E2E tests passed (E2E used the isolated port `8913`).
+- `npm pack --dry-run`, `node --check public/app.js`, and `git diff --check` passed.
+
 ## 0.7.2 - 2026-09-30
 
 ## 中文

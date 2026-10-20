@@ -1,6 +1,6 @@
 # dsh-qa User Guide
 
-This guide takes you from installation through first use and daily workflows, then into advanced quality controls. It is based on the repository's `v0.7.2` interface and server code. See the [GitHub project](https://github.com/naodeng/dsh-qa) for the source; later versions may differ.
+This guide takes you from installation through first use and daily workflows, then into advanced quality controls. It is based on the repository's `v0.7.3` interface and server code. See the [GitHub project](https://github.com/naodeng/dsh-qa) for the source; later versions may differ.
 
 ## Contents
 
@@ -138,6 +138,8 @@ For a short cycle within an existing test project, create an **Iteration** and l
 In plugin mode, the workbench does not store model settings or API keys. Configure a model and credentials in DSH settings, then select an available model at the top of **DSH Test Chat**. The first time you open a project, the workbench binds a DSH test session to it and uses the project folder as that session's working directory.
 
 The standalone address (default `127.0.0.1:8899`) opens only the workbench. To use DSH sessions and Skills, open the plugin from the DSH sidebar.
+
+If the desktop host blocks the separate window opened from the panel, the workbench opens over the current page instead. Close it with the button in the upper-right corner or press `Escape`.
 
 ## 5. Daily Workflows
 
