@@ -9,7 +9,70 @@ import { createDshQaPanelDefinition } from '../../lib/panel-contract.js';
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const clientSource = fs.readFileSync(path.join(root, '..', 'lib', 'client.js'), 'utf8');
 
-function loadClientRuntime({ nullForNoopener = false } = {}) {
+function createDocumentStub() {
+  function createNode(tagName) {
+    const node = {
+      tagName,
+      style: {},
+      children: [],
+      parentNode: null,
+      attributes: {},
+      listeners: {},
+      textContent: '',
+      setAttribute(name, value) {
+        this.attributes[name] = String(value);
+      },
+      append(...kids) {
+        for (const kid of kids) {
+          kid.parentNode = node;
+          node.children.push(kid);
+        }
+      },
+      addEventListener(type, listener) {
+        this.listeners[type] = listener;
+      },
+    };
+    Object.defineProperty(node.style, 'cssText', {
+      set(value) {
+        node.styleText = String(value);
+      },
+      get() {
+        return node.styleText || '';
+      },
+    });
+    return node;
+  }
+
+  const body = createNode('body');
+  body.appendChild = (child) => {
+    child.parentNode = body;
+    body.children.push(child);
+  };
+  body.removeChild = (child) => {
+    const index = body.children.indexOf(child);
+    if (index >= 0) body.children.splice(index, 1);
+    child.parentNode = null;
+  };
+  return {
+    body,
+    createElement: createNode,
+    getElementById() {
+      return null;
+    },
+  };
+}
+
+function findDomNode(node, predicate) {
+  if (!node || typeof node !== 'object') return null;
+  if (predicate(node)) return node;
+  for (const child of node.children || []) {
+    const match = findDomNode(child, predicate);
+    if (match) return match;
+  }
+  return null;
+}
+
+function loadClientRuntime({ nullForNoopener = false, denyWindowOpen = false, document = null } = {}) {
   let moduleDefinition;
   const listeners = new Map();
   const listenerEvents = [];
@@ -27,6 +90,7 @@ function loadClientRuntime({ nullForNoopener = false } = {}) {
       alerts.push(message);
     },
     open(url, target, features) {
+      if (denyWindowOpen) return null;
       const popup = {
         url,
         target,
@@ -60,13 +124,15 @@ function loadClientRuntime({ nullForNoopener = false } = {}) {
     },
   };
 
-  vm.runInNewContext(clientSource, { window, React }, { filename: 'lib/client.js' });
+  const sandbox = { window, React };
+  if (document) sandbox.document = document;
+  vm.runInNewContext(clientSource, sandbox, { filename: 'lib/client.js' });
   assert.ok(moduleDefinition, 'client bundle did not register a ModuleLoader definition');
   const runtime = moduleDefinition.factory((name) => {
     assert.equal(name, 'react');
     return React;
   });
-  return { runtime, window, alerts, listenerEvents, effectCleanups, openedPopups };
+  return { runtime, window, alerts, listenerEvents, effectCleanups, openedPopups, document };
 }
 
 function findRenderedElement(node, predicate) {
@@ -204,6 +270,75 @@ test('raw client main renderer closes opened popouts on unmount', () => {
 
   effectCleanups[0]();
   assert.equal(openedPopups[0].closed, true);
+});
+
+function renderMainPanel(runtimeOptions = {}) {
+  const loaded = loadClientRuntime(runtimeOptions);
+  const { ctx, registrations } = createContext();
+  loaded.runtime.registerDshQaPanel(ctx, loaded.runtime.createDshQaPanelDefinition({ icon: 'qa-icon' }));
+  const mainRegistration = registrations.find((entry) => entry.options?.name === 'main');
+  const tree = mainRegistration.component();
+  const popout = findRenderedElement(tree, (node) => node.props?.['aria-label'] === '在标签页打开');
+  return { ...loaded, tree, popout };
+}
+
+test('main panel stretches with the host instead of the iframe intrinsic width', () => {
+  const { tree } = renderMainPanel();
+  const iframe = findRenderedElement(tree, (node) => node.type === 'iframe');
+
+  assert.equal(tree.props.style.width, '100%');
+  assert.equal(tree.props.style.minWidth, 0);
+  assert.equal(tree.props.style.flex, '1 1 auto');
+  assert.equal(tree.props.style.alignSelf, 'stretch');
+  assert.equal(tree.props.style.boxSizing, 'border-box');
+  assert.equal(iframe.props.style.minWidth, 0);
+  assert.equal(iframe.props.style.display, 'block');
+  assert.equal(iframe.props.style.flex, '1 1 auto');
+  assert.equal(iframe.props.style.width, '100%');
+});
+
+test('denied desktop window.open falls back to an in-app fullscreen workbench', () => {
+  const document = createDocumentStub();
+  const { popout, openedPopups } = renderMainPanel({ denyWindowOpen: true, document });
+
+  popout.props.onClick();
+  popout.props.onClick();
+
+  assert.equal(openedPopups.length, 0);
+  assert.equal(document.body.children.length, 1);
+  const overlay = document.body.children[0];
+  assert.equal(overlay.attributes['data-dsh-qa-popout-overlay'], '');
+  assert.match(overlay.style.cssText, /position:\s*fixed/);
+  assert.match(overlay.style.cssText, /inset:\s*0/);
+  const frame = findDomNode(overlay, (node) => node.tagName === 'iframe');
+  assert.equal(frame.attributes.src || frame.src, '/api/dsh-qa/workbench/');
+});
+
+test('in-app fullscreen workbench closes from the close button, Escape, and panel unmount', () => {
+  const document = createDocumentStub();
+  const { popout, listenerEvents, effectCleanups } = renderMainPanel({ denyWindowOpen: true, document });
+  const closeOverlay = () => findDomNode(document.body, (node) => node.attributes?.['aria-label'] === '退出全屏');
+
+  popout.props.onClick();
+  closeOverlay().listeners.click();
+  assert.equal(document.body.children.length, 0);
+
+  popout.props.onClick();
+  const onKeydown = listenerEvents.filter((event) => event.action === 'add' && event.type === 'keydown').at(-1).listener;
+  onKeydown({ key: 'Escape' });
+  assert.equal(document.body.children.length, 0);
+  assert.equal(
+    listenerEvents.filter((event) => event.type === 'keydown' && event.action === 'remove').length,
+    2,
+  );
+
+  popout.props.onClick();
+  effectCleanups[0]();
+  assert.equal(document.body.children.length, 0);
+  assert.equal(
+    listenerEvents.filter((event) => event.type === 'keydown' && event.action === 'remove').length,
+    3,
+  );
 });
 
 test('embedded Workbench iframe keeps native modal permission unnecessary', () => {
