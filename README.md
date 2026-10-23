@@ -9,6 +9,8 @@
 [![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.2.0--rc.2%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.0-rc.2)
 [![DeepSeek Harness 0.2](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.2.0--rc.2%20official--macOS--verified-1B8A78)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.0-rc.2)
 
+![dsh-qa：DeepSeek Harness 本地 QA 工作台](./assets/dsh-qa-github-social-preview.jpg)
+
 **dsh-qa** 是 DeepSeek Harness 的本地 QA 工作台：在一个项目空间中管理需求、测试用例、风险、执行、证据和交付决策。项目与迭代的对话复用 DSH 原生会话，并自动使用「测试模式」（preset id: `qa`）；业务数据保留在本机，运行时没有生产依赖。
 
 当前发布版本是 `v0.7.3`；本版新增宿主内全屏工作台回退：当桌面端拦截独立弹窗时，工作台会以内嵌浮层打开，可按 Esc 或点击关闭按钮退出。另提供中英文使用指南，覆盖从安装到进阶使用。安装 `dsh-qa` 主 bundle 会同时提供 `qa` 与 `quality-control` 两个 preset，无需再执行单独的 preset 安装命令。任意外部提供方的真实执行仍需按具体 provider 单独验收。

@@ -9,6 +9,8 @@
 [![DeepSeek Harness Compatibility](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.2.0--rc.2%20host--tested-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.0-rc.2)
 [![DeepSeek Harness 0.2](https://img.shields.io/badge/DeepSeek%20Harness-dsh--v0.2.0--rc.2%20official--macOS--verified-1B8A78)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.0-rc.2)
 
+![dsh-qa: Local QA Workbench for DeepSeek Harness](./assets/dsh-qa-github-social-preview.jpg)
+
 **dsh-qa** is a local QA workbench for DeepSeek Harness. It keeps requirements, test cases, risks, execution, evidence, and delivery decisions in one project space. Project and iteration conversations reuse native DSH sessions with **Test Mode** (preset id: `qa`); business data stays local and the runtime has no production dependencies.
 
 The published version is `v0.7.3`; this patch release adds an in-app fullscreen workbench fallback when the desktop host blocks a separate popup. The overlay can be closed with Escape or its close button. It also adds Chinese and English user guides covering setup through advanced use. Installing the `dsh-qa` main bundle provides both the `qa` and `quality-control` presets, so no separate preset-install command is needed. Real execution through any external provider still requires provider-specific acceptance.
