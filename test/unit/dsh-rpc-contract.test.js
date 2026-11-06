@@ -64,6 +64,11 @@ test('builds the strict commands/execute argument names', () => {
     line: '/permission auto',
     submittedAttachments: [],
   });
+  assert.deepEqual(createCommandExecuteArgs('session_1', '/plan review', [{ type: 'file', receiptId: 'receipt_1' }]), {
+    agentId: 'session_1',
+    line: '/plan review',
+    submittedAttachments: [{ type: 'file', receiptId: 'receipt_1' }],
+  });
 });
 
 test('preserves a historical non-QA session and plans a fresh QA binding', () => {
@@ -221,6 +226,28 @@ test('surfaces rejected model selection and cancellation responses', async () =>
       new RegExp(`${method} denied`),
     );
   }
+});
+
+test('preserves DSH RPC error codes and details for attachment recovery', async () => {
+  const rpc = createDshRpc(async (_url, options) => {
+    const body = JSON.parse(options.body);
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return {
+          rpcId: body.rpcId,
+          result: { ok: false, error: { code: 'session/attachment-invalid', message: 'File was not uploaded for this session.', details: { reason: 'FILE_NOT_STAGED' } } },
+        };
+      },
+    };
+  }, { rpcIdFactory: () => 'rpc_attachment_error' });
+
+  await assert.rejects(rpc('session/prompt', {}), (error) => {
+    assert.equal(error.code, 'session/attachment-invalid');
+    assert.deepEqual(error.details, { reason: 'FILE_NOT_STAGED' });
+    return /not uploaded/.test(error.message);
+  });
 });
 
 test('builds the session/follow WebSocket open envelope', () => {

@@ -153,8 +153,11 @@
           <div id="chat-msgs" class="chat-msgs"></div>
           <div class="composer-wrap">
             <div class="composer-tools"><span id="assistant-mode-label">全流程辅助</span><button id="btn-assistant-policy" type="button">调整辅助策略</button></div>
+            <div id="attachment-guidance" class="attachment-guidance hidden" role="status" aria-live="polite"></div>
+            <div id="chat-attachments" class="chat-attachments" aria-live="polite"></div>
             <div class="composer">
-            <button class="composer-icon" type="button" title="材料上传将在下一版接入" aria-label="上传材料（下一版接入）" disabled><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+              <button id="btn-attach" class="composer-icon" type="button" title="添加附件" aria-label="添加附件"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+              <input id="chat-file-input" class="visually-hidden" type="file" multiple aria-label="选择对话附件" />
               <textarea id="chat-input" rows="1" placeholder="描述需求或下一步测试任务，DSH 测试模式会按本项目策略协作…"></textarea>
               <button id="btn-stop" class="send-btn danger hidden" type="button">■</button>
               <button id="btn-send" class="send-btn" type="button" aria-label="发送"><svg viewBox="0 0 24 24"><path d="m5 12 14-7-4 14-3-6-7-1Z"/><path d="m12 13 7-8"/></svg></button>

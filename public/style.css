@@ -393,11 +393,27 @@ body.dsh-busy .model-reminder { color: var(--blue); background: var(--blue-soft)
 .composer-tools { max-width: 800px; margin: 0 auto 5px; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 9.5px; }
 .composer-tools span { padding-left: 3px; font-weight: 600; }
 .composer-tools button { border: 0; background: transparent; color: var(--blue); font-size: 9.5px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.attachment-guidance { max-width: 800px; margin: 0 auto 6px; padding: 6px 9px; border-radius: 7px; color: var(--muted); background: var(--surface-soft); font-size: 9.5px; line-height: 1.45; }
+.attachment-guidance.error { color: var(--danger); background: var(--danger-soft); }
+.chat-attachments:empty { display: none; }
+.chat-attachments { max-width: 800px; margin: 0 auto 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.attachment-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.message-attachments { margin-top: 7px; }
+.attachment-chip { min-width: 0; max-width: 100%; display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: var(--surface); font-size: 9px; line-height: 1.3; }
+.attachment-type { width: 25px; height: 21px; flex: none; display: grid; place-items: center; border-radius: 5px; color: var(--teal); background: var(--teal-soft); font-size: 7px; font-weight: 750; }
+.attachment-name { min-width: 0; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attachment-chip small { flex: none; color: var(--muted); font-size: 8px; }
+.attachment-remove { width: 24px; height: 24px; flex: none; display: grid; place-items: center; border: 0; border-radius: 5px; color: var(--muted); background: transparent; }
+.attachment-remove svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-width: 1.8; }
+.attachment-remove:hover { color: var(--danger); background: var(--danger-soft); }
+.attachment-remove:disabled, .composer-icon:disabled { cursor: not-allowed; opacity: .55; }
 .composer { max-width: 800px; min-height: 47px; margin: 0 auto; padding: 6px; display: flex; align-items: flex-end; gap: 4px; border: 1px solid #cfd8df; border-radius: 13px; background: #fff; box-shadow: 0 3px 15px rgba(25,49,65,.06); }
 .composer:focus-within { border-color: #7a9bb5; box-shadow: 0 0 0 3px rgba(40,104,169,.08); }
 .composer textarea { flex: 1; min-height: 32px; max-height: 130px; padding: 6px 5px; resize: none; border: 0; outline: 0; background: transparent; font-size: 11.5px; line-height: 1.5; }
 .composer-icon, .send-btn { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border: 0; border-radius: 8px; }
 .composer-icon { color: var(--faint); background: transparent; }
+.composer-icon:hover:not(:disabled) { color: var(--teal); background: var(--teal-soft); }
 .send-btn { color: #fff; background: var(--navy); }
 .send-btn:disabled { cursor: not-allowed; opacity: .45; }
 .send-btn.danger { background: var(--red); }

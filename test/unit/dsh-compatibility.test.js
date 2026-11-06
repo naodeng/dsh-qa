@@ -275,6 +275,6 @@ test('DSH skill catalog uses the Harness session request envelope', () => {
 });
 
 test('DSH command execution uses the Harness submittedAttachments field', () => {
-  assert.match(app, /createCommandExecuteArgs\(sessionId, text\)/);
-  assert.doesNotMatch(app, /commands\/execute'.*attachments\s*:/s, 'commands/execute still uses the retired attachments field');
+  assert.match(app, /createCommandExecuteArgs\(sessionId, text, attachmentParts\)/);
+  assert.doesNotMatch(app, /dshRpc\('commands\/execute',\s*\{[^}]*\battachments\s*:/s, 'commands/execute still uses the retired attachments field');
 });
