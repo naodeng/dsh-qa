@@ -71,6 +71,17 @@ test('QA preset uses the current persona config schema', () => {
   assert.doesNotMatch(qaPreset, /^(\s+)text:/m, 'QA persona still uses the retired text config key');
 });
 
+test('presets do not mount the removed list-agents subpath export', () => {
+  for (const [name, preset] of [['qa', qaPreset], ['quality-control', qualityControlPreset]]) {
+    assert.match(preset, /name: '@deepseek-ai\/dsh-tool-subagent-control'/, `${name} preset must keep the main control plugin`);
+    assert.doesNotMatch(
+      preset,
+      /@deepseek-ai\/dsh-tool-subagent-control\/list-agents/,
+      `${name} preset references a subpath removed in Harness 0.2.2-rc.1`,
+    );
+  }
+});
+
 test('Harness 0.1.7 main bundle declares the QA and quality-control presets', () => {
   assert.deepEqual(packageManifest.dsh?.bundle?.patch, [
     './cordis.patch.yml',
