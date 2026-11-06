@@ -1,4 +1,7 @@
 import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findDshHistoricalSession, findDshHistoricalSessions, mergeDshHistorySessionIds, openFollowSnapshot, planDshSessionBinding } from './dsh-rpc-contract.js';
+import { extractDshMessageAttachments, isDshInlineImage, prepareDshAttachmentParts, uploadDshFile, validateDshAttachmentBatch } from './dsh-attachments.js';
+import { renderMarkdown } from './markdown.js';
+import { filterSlashCapabilities } from './slash-search.js';
 
 // 质量工作台前端：测试首页、DSH 测试模式、项目看板、日历排期
 (() => {
@@ -65,12 +68,15 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findD
     dshEmbedded: location.pathname.startsWith('/api/dsh-qa/workbench'),
     layout: { ...DEFAULT_LAYOUT },
     appInfo: { ...DEFAULT_APP_INFO }, appInfoStatus: 'idle', appInfoRequest: null, releasePage: 1,
-    dsh: { projectId: null, sessionId: '', historySessionIds: [], skills: [], commands: [], models: null, qaPreset: null, busy: false, turnToken: 0 },
+    dsh: { projectId: null, sessionId: '', historySessionIds: [], skills: [], commands: [], models: null, qaPreset: null, busy: false, turnToken: 0, attachments: [], attachmentProjectId: '' },
     skillCatalog: { lang: '', categories: [], groups: [], skills: [] }, skillSearch: '', installingSkill: '', uninstallingSkill: '',
     calendarCursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), selectedDate: localDate(new Date()),
     refreshTimer: null, actionQueueRefreshTimer: null, sseReconnectTimer: null,
   };
   const dshRpc = createDshRpc(globalThis.fetch.bind(globalThis), { embedded: state.dshEmbedded });
+  let attachmentFeedback = { message: '', kind: '' };
+  let sendingMessage = false;
+  let activeAttachmentUpload = null;
 
   // ---------- helpers ----------
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -742,8 +748,20 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findD
   // ---------- chat ----------
   async function loadChat(id, switchToAssistant = true) {
     if (switchToAssistant) switchView('assistant');
+    const reloadingCurrentProject = state.activeProjectId === id;
     state.dsh.turnToken += 1;
+    if (reloadingCurrentProject) {
+      state.dsh.busy = false;
+      updateChatUI();
+    }
+    activeAttachmentUpload?.abort();
     state.activeProjectId = id;
+    if (state.dsh.attachmentProjectId !== id) {
+      state.dsh.attachments = [];
+      state.dsh.attachmentProjectId = id;
+      renderChatAttachments();
+      renderAttachmentGuidance();
+    }
     state.streams.clear();
     renderRailCases();
     renderCaseList();
@@ -826,7 +844,8 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findD
     if (state.dsh.projectId === p.id && state.dsh.sessionId && state.dsh.models) return state.dsh.sessionId;
     const projectId = p.id;
     const qaPreset = await getQaPreset();
-    state.dsh = { projectId, sessionId: '', historySessionIds: [], skills: [], commands: [], models: null, qaPreset, busy: false, turnToken: state.dsh.turnToken };
+    const attachments = state.dsh.attachmentProjectId === projectId ? state.dsh.attachments || [] : [];
+    state.dsh = { projectId, sessionId: '', historySessionIds: [], skills: [], commands: [], models: null, qaPreset, busy: false, turnToken: state.dsh.turnToken, attachments, attachmentProjectId: projectId };
     updateDshChrome();
     if (!p.workspacePath) {
       const workspace = await api(`api/projects/${projectId}/workspace`, { method: 'POST', body: {} });
@@ -940,16 +959,146 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findD
     });
     container.scrollTop = container.scrollHeight;
   }
-  function appendUserMsg(text, scroll = true) {
+  function formatAttachmentSize(bytes) {
+    const size = Math.max(0, Number(bytes) || 0);
+    if (size < 1024) return `${size} B`;
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(size < 10 * 1024 ? 1 : 0)} KB`;
+    return `${(size / (1024 * 1024)).toFixed(size < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+  }
+  function attachmentTypeLabel(attachment) {
+    if (attachment.kind === 'image') return 'IMG';
+    const extension = String(attachment.name || '').match(/\.([a-z0-9]{1,5})$/i)?.[1];
+    return extension ? extension.toUpperCase() : 'FILE';
+  }
+  function attachmentChipHtml(attachment, removable = false) {
+    const name = attachment.name || label('未命名附件', 'Untitled attachment');
+    const title = `${name}${attachment.mediaType ? ` · ${attachment.mediaType}` : ''} · ${formatAttachmentSize(attachment.bytes)}`;
+    return `<span class="attachment-chip" title="${esc(title)}"><span class="attachment-type" aria-hidden="true">${esc(attachmentTypeLabel(attachment))}</span><span class="attachment-name">${esc(name)}</span><small>${formatAttachmentSize(attachment.bytes)}</small>${removable ? `<button class="attachment-remove" type="button" data-attachment-id="${esc(attachment.id)}" aria-label="${esc(label(`移除 ${name}`, `Remove ${name}`))}" title="${esc(label('移除附件', 'Remove attachment'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>` : ''}</span>`;
+  }
+  function displayDraftAttachment(draft) {
+    return {
+      id: draft.id,
+      kind: isDshInlineImage(draft.file) ? 'image' : 'file',
+      name: draft.file?.name || '',
+      bytes: Number(draft.file?.size) || 0,
+      mediaType: draft.file?.type || '',
+    };
+  }
+  function renderChatAttachments() {
+    const container = $('#chat-attachments');
+    if (!container) return;
+    container.innerHTML = state.dsh.attachments.map((draft) => attachmentChipHtml(displayDraftAttachment(draft), true)).join('');
+    $$('.attachment-remove', container).forEach((button) => button.addEventListener('click', () => {
+      if (state.dsh.busy || sendingMessage) return;
+      state.dsh.attachments = state.dsh.attachments.filter((draft) => draft.id !== button.dataset.attachmentId);
+      attachmentFeedback = { message: '', kind: '' };
+      renderChatAttachments();
+      renderAttachmentGuidance();
+    }));
+  }
+  function renderAttachmentGuidance() {
+    const guidance = $('#attachment-guidance');
+    const attachButton = $('#btn-attach');
+    const fileInput = $('#chat-file-input');
+    if (!guidance || !attachButton || !fileInput) return;
+    const unavailable = !state.dshEmbedded
+      ? label('附件上传需要 DSH 原生会话，请从 DSH 侧边栏打开工作台。', 'Attachments require a native DSH session. Open the Workbench from the DSH sidebar.')
+      : !state.activeProjectId
+        ? label('请先选择一个项目，再添加附件。', 'Select a project before adding attachments.')
+        : '';
+    const message = unavailable || attachmentFeedback.message;
+    guidance.textContent = message;
+    guidance.classList.toggle('hidden', !message);
+    guidance.classList.toggle('error', !unavailable && attachmentFeedback.kind === 'error');
+    const isError = attachmentFeedback.kind === 'error' && !unavailable;
+    guidance.setAttribute('role', isError ? 'alert' : 'status');
+    guidance.setAttribute('aria-live', isError ? 'assertive' : 'polite');
+    attachButton.disabled = Boolean(unavailable) || state.dsh.busy || sendingMessage;
+    attachButton.title = unavailable || label('添加附件', 'Add attachments');
+    attachButton.setAttribute('aria-label', currentLang() === 'en' ? 'Add attachments' : '添加附件');
+    fileInput.setAttribute('aria-label', currentLang() === 'en' ? 'Choose chat attachments' : '选择对话附件');
+    fileInput.disabled = attachButton.disabled;
+  }
+  function setAttachmentFeedback(message, kind = 'error') {
+    attachmentFeedback = { message: String(message || ''), kind };
+    renderAttachmentGuidance();
+  }
+  function addAttachmentFiles(files) {
+    const selected = Array.from(files || []);
+    if (!selected.length) return;
+    if (state.dsh.attachmentProjectId !== state.activeProjectId) {
+      state.dsh.attachments = [];
+      state.dsh.attachmentProjectId = state.activeProjectId;
+    }
+    const drafts = state.dsh.attachments;
+    try {
+      validateDshAttachmentBatch([...drafts.map((draft) => draft.file), ...selected]);
+      const makeId = () => globalThis.crypto?.randomUUID?.() || `attachment-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      state.dsh.attachments = [...drafts, ...selected.map((file) => ({ id: makeId(), file }))];
+      attachmentFeedback = { message: '', kind: '' };
+      renderChatAttachments();
+      renderAttachmentGuidance();
+    } catch (error) {
+      setAttachmentFeedback(error.message, 'error');
+      toast(error.message, 'err');
+    }
+  }
+  function clearSubmittedDrafts(drafts) {
+    const submitted = new Set(drafts);
+    state.dsh.attachments = state.dsh.attachments.filter((draft) => !submitted.has(draft));
+    const input = $('#chat-input');
+    input.value = '';
+    autoGrow(input);
+    renderSlashSuggestions();
+    attachmentFeedback = { message: '', kind: '' };
+    renderChatAttachments();
+    renderAttachmentGuidance();
+  }
+  function appendUserMsg(text, scroll = true, attachments = []) {
     const wrap = document.createElement('div');
-    wrap.className = 'msg-wrap user'; wrap.innerHTML = `<div class="msg user">${esc(text)}</div>`;
+    wrap.className = 'msg-wrap user';
+    const chips = attachments.length ? `<div class="attachment-chips message-attachments">${attachments.map((attachment) => attachmentChipHtml(attachment)).join('')}</div>` : '';
+    wrap.innerHTML = `<div class="msg user">${text ? `<div class="msg-text">${esc(text)}</div>` : ''}${chips}</div>`;
     $('#chat-msgs').appendChild(wrap); if (scroll) scrollChat();
   }
   function appendAiMsg(text, scroll = true, kind = '') {
     const wrap = document.createElement('div');
-    wrap.className = 'msg-wrap ai'; wrap.innerHTML = `<div class="msg ai ${esc(kind)}">${esc(text)}</div>`;
+    wrap.className = 'msg-wrap ai';
+    const message = document.createElement('div');
+    message.className = 'msg ai';
+    if (kind === 'dsh' || kind === 'command') message.classList.add(kind);
+    if (kind === 'dsh') {
+      wrap.classList.add('dsh');
+      const header = document.createElement('div');
+      header.className = 'msg-dsh-head';
+      const mark = document.createElement('span');
+      mark.className = 'msg-dsh-mark';
+      mark.textContent = 'D';
+      const label = document.createElement('span');
+      label.className = 'msg-dsh-label';
+      label.textContent = 'DSH Agent';
+      header.append(mark, label);
+      if (!scroll) {
+        const tag = document.createElement('span');
+        tag.className = 'msg-dsh-tag';
+        tag.textContent = currentLang() === 'en' ? 'Previous reply' : '历史回复';
+        header.append(tag);
+      }
+      const content = document.createElement('div');
+      content.className = 'msg-content msg-markdown';
+      content.innerHTML = renderMarkdown(text);
+      message.append(header, content);
+    } else {
+      message.textContent = text;
+    }
+    wrap.append(message);
     $('#chat-msgs').appendChild(wrap); if (scroll) scrollChat();
-    return $('.msg', wrap);
+    return message;
+  }
+  function setAiMsgText(message, text) {
+    const content = $('.msg-content', message);
+    if (content) content.innerHTML = renderMarkdown(text);
+    else message.textContent = text;
   }
   function appendToolMsg(label) {
     const wrap = document.createElement('div');
@@ -985,8 +1134,10 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findD
       if (event.type === 'user/message') {
         const message = event.data?.message;
         if (message?.source?.kind !== 'user') continue;
-        const text = contentText(message.content);
-        if (text) rows.push({ role: 'user', text });
+        const content = message.content;
+        const text = contentText(content);
+        const attachments = extractDshMessageAttachments(content);
+        if (text || attachments.length) rows.push({ role: 'user', text, attachments });
       } else if (event.type === 'assistant/message') {
         const text = contentText(event.data?.message?.content);
         if (text) rows.push({ role: 'assistant', text, kind: 'dsh' });
@@ -1021,51 +1172,109 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findD
     const rows = histories.flatMap((history) => dshRows(history.events || []));
     if (!rows.length) return renderDshEmpty(`已绑定本项目文件夹。输入“/”可选择 ${state.dsh.skills.length} 个技能或 ${state.dsh.commands.length} 个命令。`);
     $('#chat-msgs').innerHTML = '';
-    rows.forEach((row) => row.role === 'user' ? appendUserMsg(row.text, false) : appendAiMsg(row.text, false, row.kind));
+    rows.forEach((row) => row.role === 'user' ? appendUserMsg(row.text, false, row.attachments || []) : appendAiMsg(row.text, false, row.kind));
     scrollChat();
   }
   async function sendMessage() {
     const input = $('#chat-input');
     const text = input.value.trim();
-    if (!text || !state.activeProjectId || state.dsh.busy) return;
+    const hasAttachments = state.dsh.attachments.length > 0;
+    if ((!text && !hasAttachments) || !state.activeProjectId || state.dsh.busy || sendingMessage) return;
+    if (hasAttachments && state.dsh.attachmentProjectId !== state.activeProjectId) {
+      state.dsh.attachments = [];
+      state.dsh.attachmentProjectId = state.activeProjectId;
+      renderChatAttachments();
+      const message = label('项目已切换，旧项目附件草稿已清除，请重新选择。', 'The project changed, so its attachment draft was cleared. Select the files again.');
+      setAttachmentFeedback(message, 'error');
+      toast(message, 'err');
+      return;
+    }
+    if (!state.dshEmbedded) {
+      const message = label('附件与 DSH 对话需要从 DSH 侧边栏打开工作台。', 'Attachments and DSH chat require opening the Workbench from the DSH sidebar.');
+      setAttachmentFeedback(message, 'error');
+      toast(message, 'err');
+      return;
+    }
+    try { validateDshAttachmentBatch(state.dsh.attachments.map((draft) => draft.file)); }
+    catch (error) { setAttachmentFeedback(error.message, 'error'); toast(error.message, 'err'); return; }
     return sendDshMessage(text);
   }
   async function sendDshMessage(text) {
     const projectId = state.activeProjectId;
-    const input = $('#chat-input');
-    let token = 0;
-    input.value = ''; autoGrow(input); renderSlashSuggestions();
+    const drafts = [...state.dsh.attachments];
+    const token = ++state.dsh.turnToken;
+    const uploadController = new AbortController();
+    activeAttachmentUpload = uploadController;
+    let accepted = false;
+    sendingMessage = true;
+    updateChatUI();
     try {
       const sessionId = await ensureDshProject();
-      if (projectId !== state.activeProjectId) return;
-      appendUserMsg(text);
-      state.dsh.busy = true;
-      token = ++state.dsh.turnToken;
-      updateChatUI();
+      if (token !== state.dsh.turnToken || projectId !== state.activeProjectId) return;
       const commandName = text.match(/^\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\s|$)/i)?.[1]?.toLowerCase();
       const command = commandName && state.dsh.commands.find((item) => item.name === commandName);
+      if (command && drafts.length && !command.input?.attachments) {
+        throw new Error(label(`命令 /${command.name} 未声明支持附件，请移除附件后重试。`, `/${command.name} does not accept attachments. Remove them and retry.`));
+      }
+      state.dsh.busy = true;
+      updateChatUI();
+      const attachmentParts = await prepareDshAttachmentParts(drafts, {
+        sessionId,
+        uploadFile: (activeSessionId, file) => uploadDshFile(globalThis.fetch.bind(globalThis), activeSessionId, file, { signal: uploadController.signal }),
+      });
+      if (token !== state.dsh.turnToken || projectId !== state.activeProjectId) return;
       if (command) {
-        const pending = appendAiMsg(`/${command.name} 正在执行…`, true, 'command');
-        const execution = await dshRpc('commands/execute', createCommandExecuteArgs(sessionId, text));
+        const execution = await dshRpc('commands/execute', createCommandExecuteArgs(sessionId, text, attachmentParts));
+        if (token !== state.dsh.turnToken || projectId !== state.activeProjectId) return;
         const result = execution?.result;
+        if (!result) throw new Error(label(`DSH 命令 /${command.name} 未执行，请刷新命令列表后重试。`, `/${command.name} was not executed. Refresh the command list and retry.`));
+        if (result.kind !== 'success') {
+          appendUserMsg(text, true, drafts.map(displayDraftAttachment));
+          appendAiMsg(result.text || `/${command.name} 执行失败`, true, 'command');
+          throw new Error(result.text || `/${command.name} 执行失败`);
+        }
+        accepted = true;
+        clearSubmittedDrafts(drafts);
+        appendUserMsg(text, true, drafts.map(displayDraftAttachment));
+        const pending = appendAiMsg(`/${command.name} 正在执行…`, true, 'command');
         pending.textContent = result?.text || (result?.kind === 'error' ? '命令执行失败' : `/${command.name} 已执行`);
-        if (result?.kind === 'error') throw new Error(result.text || '命令执行失败');
         toast(`DSH 命令 /${command.name} 已执行`, 'ok');
       } else {
         const before = await dshHistory(sessionId, 1);
+        if (token !== state.dsh.turnToken || projectId !== state.activeProjectId) return;
         const afterSeq = Math.max(-1, ...(before.events || []).map((entry) => entry.event.seq));
-        const pending = appendAiMsg(t('chat.reading'), true, 'dsh');
         const requestId = globalThis.crypto?.randomUUID?.() || `dshqa-prompt-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-        await dshRpc('session/prompt', { request: { requestId, sessionId, mode: 'queue', content: [{ type: 'text', text }], clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone } });
+        const content = [...(text ? [{ type: 'text', text }] : []), ...attachmentParts];
+        await dshRpc('session/prompt', { request: { requestId, sessionId, mode: 'queue', content, clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone } });
+        if (token !== state.dsh.turnToken || projectId !== state.activeProjectId) return;
+        accepted = true;
+        clearSubmittedDrafts(drafts);
+        appendUserMsg(text, true, drafts.map(displayDraftAttachment));
+        const pending = appendAiMsg(t('chat.reading'), true, 'dsh');
         const answer = await waitForDshTurn(sessionId, afterSeq, pending, token);
-        if (token === state.dsh.turnToken && projectId === state.activeProjectId) pending.textContent = answer || '本轮已完成（无文本回复）';
+        if (token === state.dsh.turnToken && projectId === state.activeProjectId) setAiMsgText(pending, answer || '本轮已完成（无文本回复）');
       }
     } catch (error) {
-      if (token && token !== state.dsh.turnToken) return;
-      if (projectId === state.activeProjectId) appendAiMsg(`DSH 调用失败：${error.message}`, true, 'dsh');
-      toast(error.message, 'err');
+      if (token !== state.dsh.turnToken || projectId !== state.activeProjectId) return;
+      let message = error.message;
+      if (error.details?.reason === 'FILE_NOT_STAGED') {
+        for (const draft of drafts) {
+          delete draft.receiptId;
+          delete draft.receiptFile;
+          delete draft.receiptSessionId;
+        }
+        message = label('DSH 附件暂存已失效；草稿已保留，重试时会重新上传。', 'The DSH attachment receipt expired. Your draft is kept and will be re-uploaded on retry.');
+      }
+      if (projectId === state.activeProjectId) {
+        setAttachmentFeedback(message, 'error');
+        if (accepted) appendAiMsg(`DSH 调用失败：${error.message}`, true, 'dsh');
+      }
+      toast(message, 'err');
     } finally {
-      if (projectId === state.activeProjectId) { state.dsh.busy = false; updateChatUI(); }
+      if (activeAttachmentUpload === uploadController) activeAttachmentUpload = null;
+      sendingMessage = false;
+      if (projectId === state.activeProjectId && token === state.dsh.turnToken) state.dsh.busy = false;
+      updateChatUI();
     }
   }
   async function waitForDshTurn(sessionId, afterSeq, pending, token) {
@@ -1079,7 +1288,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findD
       if (tools.length) {
         const last = tools.at(-1);
         const toolName = last.view?.view?.title || last.event.data?.name || last.event.data?.call?.name || '工具';
-        pending.textContent = `${t('chat.executing')} ${toolName}（${t('chat.executingTip')}）`;
+        setAiMsgText(pending, `${t('chat.executing')} ${toolName}（${t('chat.executingTip')}）`);
       }
       const assistant = [...fresh].reverse().find((entry) => entry.event.type === 'assistant/message');
       const ended = fresh.some((entry) => entry.event.type === 'turn/end');
@@ -1090,18 +1299,25 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findD
   async function stopChat() {
     if (!state.activeProjectId) return;
     try {
-      if (state.dsh.sessionId) await dshRpc('session/cancel', { request: { sessionId: state.dsh.sessionId } });
-      state.dsh.turnToken += 1; state.dsh.busy = false; updateChatUI(); toast('已请求停止 DSH 当前任务', 'ok');
+      const sessionId = state.dsh.sessionId;
+      state.dsh.turnToken += 1;
+      activeAttachmentUpload?.abort();
+      state.dsh.busy = false;
+      updateChatUI();
+      if (sessionId) await dshRpc('session/cancel', { request: { sessionId } });
+      toast('已请求停止 DSH 当前任务', 'ok');
     }
     catch (error) { toast(error.message, 'err'); }
   }
   function autoGrow(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 130) + 'px'; }
   function updateChatUI() {
-    const busy = state.dsh.busy;
+    const busy = state.dsh.busy || sendingMessage;
     document.body.classList.toggle('dsh-busy', busy);
     $('#chat-input').disabled = !state.activeProjectId || busy;
     $('#chat-input').placeholder = busy ? t('chat.input.busy') : t('chat.input.placeholder');
     $('#btn-send').disabled = !state.activeProjectId || busy;
+    $$('.attachment-remove', $('#chat-attachments')).forEach((button) => { button.disabled = busy; });
+    renderAttachmentGuidance();
     $('#btn-stop').classList.toggle('hidden', !busy);
   }
   function capabilityRows() {
@@ -1120,7 +1336,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findD
     const value = $('#chat-input').value;
     if (!value.trimStart().startsWith('/') || !state.dsh.sessionId) { panel.classList.add('hidden'); panel.innerHTML = ''; return; }
     const query = value.trimStart().slice(1).split(/\s/, 1)[0].toLowerCase();
-    const rows = capabilityRows().filter((item) => !query || item.name.includes(query) || item.description?.toLowerCase().includes(query)).slice(0, 9);
+    const rows = filterSlashCapabilities(capabilityRows(), query);
     if (!rows.length) { panel.classList.add('hidden'); return; }
     panel.innerHTML = rows.map((item) => `<button class="slash-suggestion" data-capability="${esc(item.name)}" type="button"><code>/${esc(item.name)}</code><span>${esc(item.description || item.input?.hint || '')}</span><em>${item.kind}</em></button>`).join('');
     panel.classList.remove('hidden');
@@ -1829,7 +2045,7 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findD
     await api(`api/projects/${p.id}`, { method: 'PATCH', body: { dshSessionId: created.sessionId, dshSessionHistory: archivedSessionIds } });
     p.dshSessionId = created.sessionId;
     p.dshSessionHistory = archivedSessionIds;
-    if (state.activeProjectId === p.id) state.dsh = { projectId: null, sessionId: '', historySessionIds: [], skills: [], commands: [], models: null, qaPreset, busy: false, turnToken: state.dsh.turnToken + 1 };
+    if (state.activeProjectId === p.id) state.dsh = { projectId: null, sessionId: '', historySessionIds: [], skills: [], commands: [], models: null, qaPreset, busy: false, turnToken: state.dsh.turnToken + 1, attachments: state.dsh.attachments || [], attachmentProjectId: p.id };
     return created.sessionId;
   }
   function openSettings() {
@@ -2079,6 +2295,11 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findD
       nodes.forEach((node) => { if (node.nodeValue.trim()) node.nodeValue = replace(node.nodeValue); });
       $$('input, textarea, button, [aria-label], [title]').forEach((el) => ['placeholder', 'title', 'aria-label'].forEach((attr) => { if (el.hasAttribute(attr)) el.setAttribute(attr, replace(el.getAttribute(attr))); }));
     }
+    const attachmentAddLabel = currentLang() === 'en' ? 'Add attachments' : '添加附件';
+    const attachmentInputLabel = currentLang() === 'en' ? 'Choose chat attachments' : '选择对话附件';
+    if ($('#btn-attach')) $('#btn-attach').setAttribute('aria-label', attachmentAddLabel);
+    if ($('#chat-file-input')) $('#chat-file-input').setAttribute('aria-label', attachmentInputLabel);
+    $$('.msg-dsh-tag').forEach((tag) => { tag.textContent = currentLang() === 'en' ? 'Previous reply' : '历史回复'; });
     if ($('#service-status span')) {
       if (!state.dshEmbedded) $('#service-status span').textContent = t('service.standalone');
       else if (!$('#service-status').classList.contains('offline')) $('#service-status span').textContent = currentLang() === 'en' ? copy['service-status'][1] : copy['service-status'][0];
@@ -2153,6 +2374,14 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findD
     $('#btn-project-detail-chat').addEventListener('click', () => { if (state.detailProject) openProject(state.detailProject.id); });
     $('#btn-project-detail-folder').addEventListener('click', () => { if (state.detailProject) openWorkspace(state.detailProject.id); });
     $('#btn-send').addEventListener('click', sendMessage); $('#btn-stop').addEventListener('click', stopChat);
+    $('#btn-attach').addEventListener('click', () => {
+      if ($('#btn-attach').disabled) return;
+      $('#chat-file-input').click();
+    });
+    $('#chat-file-input').addEventListener('change', (event) => {
+      addAttachmentFiles(event.target.files);
+      event.target.value = '';
+    });
     $('#chat-input').addEventListener('input', () => { autoGrow($('#chat-input')); renderSlashSuggestions(); });
     $('#chat-input').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendMessage(); } });
     $('#chat-model').addEventListener('change', async () => {
@@ -2184,8 +2413,10 @@ import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findD
     applyStaticCopy();
     loadLayout();
     bind();
+    renderChatAttachments();
     populateDshModelSelect(null);
     updateDshChrome();
+    updateChatUI();
     if (state.dshEmbedded) {
       getQaPreset().catch((error) => { $('#service-status').classList.add('offline'); $('#service-status span').textContent = '测试模式缺失'; toast(error.message, 'err'); });
     }

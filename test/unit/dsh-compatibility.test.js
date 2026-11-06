@@ -71,6 +71,27 @@ test('QA preset uses the current persona config schema', () => {
   assert.doesNotMatch(qaPreset, /^(\s+)text:/m, 'QA persona still uses the retired text config key');
 });
 
+test('preset persona prefixes only use variables registered by DSH', () => {
+  for (const [name, preset] of [['qa', qaPreset], ['quality-control', qualityControlPreset]]) {
+    const variables = [...preset.matchAll(/\{\{([a-z][a-z0-9_-]*)\}\}/gi)].map((match) => match[1]);
+    assert.ok(
+      variables.every((variable) => ['model', 'provider'].includes(variable)),
+      `${name} preset uses an unregistered prompt variable: ${variables.find((variable) => !['model', 'provider'].includes(variable))}`,
+    );
+  }
+});
+
+test('presets do not mount the removed list-agents subpath export', () => {
+  for (const [name, preset] of [['qa', qaPreset], ['quality-control', qualityControlPreset]]) {
+    assert.match(preset, /name: '@deepseek-ai\/dsh-tool-subagent-control'/, `${name} preset must keep the main control plugin`);
+    assert.doesNotMatch(
+      preset,
+      /@deepseek-ai\/dsh-tool-subagent-control\/list-agents/,
+      `${name} preset references a subpath removed in Harness 0.2.2-rc.1`,
+    );
+  }
+});
+
 test('Harness 0.1.7 main bundle declares the QA and quality-control presets', () => {
   assert.deepEqual(packageManifest.dsh?.bundle?.patch, [
     './cordis.patch.yml',
@@ -264,6 +285,6 @@ test('DSH skill catalog uses the Harness session request envelope', () => {
 });
 
 test('DSH command execution uses the Harness submittedAttachments field', () => {
-  assert.match(app, /createCommandExecuteArgs\(sessionId, text\)/);
-  assert.doesNotMatch(app, /commands\/execute'.*attachments\s*:/s, 'commands/execute still uses the retired attachments field');
+  assert.match(app, /createCommandExecuteArgs\(sessionId, text, attachmentParts\)/);
+  assert.doesNotMatch(app, /dshRpc\('commands\/execute',\s*\{[^}]*\battachments\s*:/s, 'commands/execute still uses the retired attachments field');
 });

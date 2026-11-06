@@ -99,7 +99,13 @@ export function createDshRpc(fetchImpl, {
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(`DSH 连接失败 (${response.status})`);
     if (data.rpcId && data.rpcId !== rpcId) throw new Error('DSH 响应校验失败');
-    if (!data.result?.ok) throw new Error(data.result?.error?.message || 'DSH 调用失败');
+    if (!data.result?.ok) {
+      const dshError = data.result?.error || {};
+      const error = new Error(dshError.message || 'DSH 调用失败');
+      if (dshError.code !== undefined) error.code = dshError.code;
+      if (dshError.details !== undefined) error.details = dshError.details;
+      throw error;
+    }
     const value = data.result.value;
     if (endpoint === 'session/modelCatalog') {
       return {

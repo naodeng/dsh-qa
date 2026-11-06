@@ -13,13 +13,14 @@
           # ── identity ────────────────────────────────────────────────────────────────
 
           # The preset's own persona, shadowing the deployment default for this agent.
-          # `{{model}}` and `{{cwd}}` resolve from the agent's own route and workspace.
+          # The deployment registers provider/model for prompt interpolation; avoid
+          # workspace variables that this persona prefix cannot resolve.
           - id: persona
             name: '@deepseek-ai/dsh-persona'
             config:
               prefix: >-
                 You are a software testing (QA) agent powered by the {{model}} model,
-                working in {{cwd}}. You collaborate with the test team on requirements
+                working in the current project workspace. You collaborate with the test team on requirements
                 analysis, test case design, test execution, defect reporting, and test
                 reports. Treat the user's request and the files actually inspected as the
                 source of truth. Before producing a substantive QA result, perform a
@@ -225,9 +226,6 @@
             config:
               - id: tool-subagent-control
                 name: '@deepseek-ai/dsh-tool-subagent-control'
-
-              - id: tool-subagent-list-agents
-                name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
 
               - id: tool-subagent
                 name: '@deepseek-ai/dsh-tool-subagent'
