@@ -1229,7 +1229,6 @@ import { filterSlashCapabilities } from './slash-search.js';
         const result = execution?.result;
         if (!result) throw new Error(label(`DSH 命令 /${command.name} 未执行，请刷新命令列表后重试。`, `/${command.name} was not executed. Refresh the command list and retry.`));
         if (result.kind !== 'success') {
-          appendUserMsg(text, true, drafts.map(displayDraftAttachment));
           appendAiMsg(result.text || `/${command.name} 执行失败`, true, 'command');
           throw new Error(result.text || `/${command.name} 执行失败`);
         }
