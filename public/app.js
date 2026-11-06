@@ -748,7 +748,12 @@ import { filterSlashCapabilities } from './slash-search.js';
   // ---------- chat ----------
   async function loadChat(id, switchToAssistant = true) {
     if (switchToAssistant) switchView('assistant');
+    const reloadingCurrentProject = state.activeProjectId === id;
     state.dsh.turnToken += 1;
+    if (reloadingCurrentProject) {
+      state.dsh.busy = false;
+      updateChatUI();
+    }
     activeAttachmentUpload?.abort();
     state.activeProjectId = id;
     if (state.dsh.attachmentProjectId !== id) {
@@ -1220,6 +1225,7 @@ import { filterSlashCapabilities } from './slash-search.js';
       if (token !== state.dsh.turnToken || projectId !== state.activeProjectId) return;
       if (command) {
         const execution = await dshRpc('commands/execute', createCommandExecuteArgs(sessionId, text, attachmentParts));
+        if (token !== state.dsh.turnToken || projectId !== state.activeProjectId) return;
         const result = execution?.result;
         if (!result) throw new Error(label(`DSH 命令 /${command.name} 未执行，请刷新命令列表后重试。`, `/${command.name} was not executed. Refresh the command list and retry.`));
         if (result.kind !== 'success') {
@@ -1240,6 +1246,7 @@ import { filterSlashCapabilities } from './slash-search.js';
         const requestId = globalThis.crypto?.randomUUID?.() || `dshqa-prompt-${Date.now()}-${Math.random().toString(16).slice(2)}`;
         const content = [...(text ? [{ type: 'text', text }] : []), ...attachmentParts];
         await dshRpc('session/prompt', { request: { requestId, sessionId, mode: 'queue', content, clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone } });
+        if (token !== state.dsh.turnToken || projectId !== state.activeProjectId) return;
         accepted = true;
         clearSubmittedDrafts(drafts);
         appendUserMsg(text, true, drafts.map(displayDraftAttachment));

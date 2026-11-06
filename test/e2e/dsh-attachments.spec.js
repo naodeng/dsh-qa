@@ -143,6 +143,67 @@ test('clears attachment drafts when switching projects', async ({ page }) => {
   await expect(page.locator('#chat-attachments .attachment-chip')).toHaveCount(0);
 });
 
+test('does not render a pending prompt into a newly selected project', async ({ page }) => {
+  const nextTitle = `附件 E2E 第二项目 ${Date.now()}`;
+  const fixture = await createEmbeddedFixture(page, { secondProjectTitle: nextTitle, holdPrompt: true });
+  const frame = fixture.frame;
+
+  await frame.locator('#chat-input').fill('Project A prompt');
+  await frame.locator('#btn-send').click();
+  await expect.poll(() => fixture.prompts.length).toBe(1);
+  await expect.poll(() => typeof fixture.releasePrompt).toBe('function');
+
+  await page.locator('#case-list .case-item').filter({ hasText: nextTitle }).click();
+  await expect(page.locator('#chat-head-title')).toHaveText(nextTitle);
+  fixture.releasePrompt();
+
+  await expect(frame.locator('.msg-wrap.user')).toHaveCount(0);
+  await expect(frame.locator('#btn-send')).toBeEnabled();
+});
+
+test('does not render a pending command into a newly selected project', async ({ page }) => {
+  const nextTitle = `附件 E2E 第二项目 ${Date.now()}`;
+  const fixture = await createEmbeddedFixture(page, {
+    commands: [{ name: 'hold', input: { attachments: false } }],
+    secondProjectTitle: nextTitle,
+    holdCommand: true,
+  });
+  const frame = fixture.frame;
+
+  await frame.locator('#chat-input').fill('/hold inspect');
+  await frame.locator('#btn-send').click();
+  await expect.poll(() => fixture.commands.length).toBe(1);
+  await expect.poll(() => typeof fixture.releaseCommand).toBe('function');
+
+  await page.locator('#case-list .case-item').filter({ hasText: nextTitle }).click();
+  await expect(page.locator('#chat-head-title')).toHaveText(nextTitle);
+  fixture.releaseCommand();
+  await expect.poll(() => fixture.commandResponses).toBe(1);
+
+  await expect(frame.locator('.msg-wrap.user')).toHaveCount(0);
+  await expect(frame.locator('#btn-send')).toBeEnabled();
+});
+
+test('reloading the current project during a turn releases the busy state', async ({ page }) => {
+  const fixture = await createEmbeddedFixture(page, { holdPrompt: true });
+  const frame = fixture.frame;
+
+  await frame.locator('#chat-input').fill('Reload during turn');
+  await frame.locator('#btn-send').click();
+  await expect.poll(() => fixture.prompts.length).toBe(1);
+  await expect(frame.locator('#btn-send')).toBeDisabled();
+
+  const projectReload = page.waitForResponse((response) => (
+    new URL(response.url()).pathname === `/api/projects/${fixture.projectId}`
+    && response.request().method() === 'GET'
+  ));
+  await page.locator('#case-list .case-item').filter({ hasText: fixture.title }).click();
+  await projectReload;
+  fixture.releasePrompt();
+
+  await expect(frame.locator('#btn-send')).toBeEnabled();
+});
+
 test('passes attachments to declaring commands and renders their chips for the current run', async ({ page }) => {
   const fixture = await createEmbeddedFixture(page, {
     commands: [{ name: 'with-files', input: { attachments: true } }],
@@ -214,12 +275,17 @@ async function createEmbeddedFixture(page, options = {}) {
 
   const fixture = {
     title,
+    projectId,
     workspacePath,
     uploads: [],
     prompts: [],
     commands: [],
+    commandListReads: 0,
+    commandResponses: 0,
     records: [],
     failFirstPromptAsNotStaged: Boolean(options.failFirstPromptAsNotStaged),
+    holdNextPrompt: Boolean(options.holdPrompt),
+    holdNextCommand: Boolean(options.holdCommand),
     commandDefinitions: options.commands || [],
     commandResult: options.commandResult,
     holdNextUpload: Boolean(options.holdFirstUpload),
@@ -272,9 +338,16 @@ async function createEmbeddedFixture(page, options = {}) {
     else if (method === 'session/create') value = { sessionId: `attachment-session-${fixture.uploads.length}-${Date.now()}` };
     else if (method === 'session/cancel') fixture.cancelCalls += 1;
     else if (method === 'skills/list') value = { skills: [] };
-    else if (method === 'commands/list') value = fixture.commandDefinitions;
+    else if (method === 'commands/list') {
+      fixture.commandListReads += 1;
+      value = fixture.commandDefinitions;
+    }
     else if (method === 'session/prompt') {
       fixture.prompts.push(payload.args);
+      if (fixture.holdNextPrompt) {
+        fixture.holdNextPrompt = false;
+        await new Promise((resolve) => { fixture.releasePrompt = resolve; });
+      }
       const content = payload.args.request.content;
       if (fixture.failFirstPromptAsNotStaged && fixture.prompts.length === 1) {
         await route.fulfill({
@@ -295,6 +368,10 @@ async function createEmbeddedFixture(page, options = {}) {
       value = { accepted: true };
     } else if (method === 'commands/execute') {
       fixture.commands.push(payload.args);
+      if (fixture.holdNextCommand) {
+        fixture.holdNextCommand = false;
+        await new Promise((resolve) => { fixture.releaseCommand = resolve; });
+      }
       const commandId = `command-${fixture.commands.length}`;
       const [, name = 'command', args = ''] = String(payload.args.line || '').match(/^\/([^\s]+)\s*(.*)$/) || [];
       fixture.records.push({ event: { seq: fixture.records.length, type: 'command/run', data: { commandId, name, args, source: { kind: 'user' } } } });
@@ -303,6 +380,7 @@ async function createEmbeddedFixture(page, options = {}) {
       value = { commandId, result };
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ rpcId, result: { ok: true, value } }) });
+    if (method === 'commands/execute') fixture.commandResponses += 1;
   });
 
   const embeddedPrefix = '/api/dsh-qa/workbench';
@@ -327,6 +405,7 @@ async function createEmbeddedFixture(page, options = {}) {
 
   await page.goto(`${embeddedPrefix}/`);
   const frame = await openEmbeddedProject(page, title);
+  await expect.poll(() => fixture.commandListReads).toBeGreaterThan(0);
   fixture.frame = frame;
   return fixture;
 }
