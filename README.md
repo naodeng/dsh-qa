@@ -92,7 +92,7 @@ qabench
 - 看板实时更新用于同一台机器上的多个窗口，不会同步给其他团队成员。
 - 质量任务可采集受支持的本地 Git diff 快照；dsh-qa 不监听远端仓库变化，也不会自动拉取代码。
 - 当前没有 WPS 或禅道连接器。模型、密钥和权限由 DSH 管理。
-- 已在截至 2026-11-06 可用的 DeepSeek Harness Desktop 最新版上手动验证 dsh-qa 插件集成；具体版本号和构建号未记录。
+- 已在 DeepSeek Harness Desktop [v0.2.2-rc.1](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.2-rc.1) 上手动验证 dsh-qa 插件集成（验证日期：2026-11-06）。
 - 已在 DeepSeek Harness v0.2.0-rc.2 官方 macOS 客户端验证插件加载、qa 测试模式和已有会话展示；同版本 qa Host Smoke 为 6 passed。该结果不代表 quality-control bundle 已完成独立宿主验证。
 
 ## 开发与相关文档

@@ -92,7 +92,7 @@ To get started, create a test project or iteration, add requirements, acceptance
 - Live kanban updates support multiple windows on the same machine. Project data is not synchronized with a team.
 - A quality task can capture supported local Git diff snapshots. dsh-qa does not monitor remote repository changes or pull code.
 - There is no WPS or ZenTao connector. DSH manages models, credentials, and permissions.
-- The dsh-qa plugin integration was manually verified with the latest DeepSeek Harness Desktop available on 2026-11-06; the exact version and build number were not recorded.
+- The dsh-qa plugin integration was manually verified with DeepSeek Harness Desktop [v0.2.2-rc.1](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.2-rc.1) on 2026-11-06.
 - Plugin loading, Test Mode (qa), and existing-session display were verified in the official macOS client running DeepSeek Harness v0.2.0-rc.2. The authenticated qa Host Smoke passed 6 tests on the same version. This does not establish independent host validation for the quality-control bundle.
 
 ## Development and documentation
