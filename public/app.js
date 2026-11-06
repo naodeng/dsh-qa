@@ -1,5 +1,7 @@
 import { createCommandExecuteArgs, createDshRpc, createFollowWebSocketUrl, findDshHistoricalSession, findDshHistoricalSessions, mergeDshHistorySessionIds, openFollowSnapshot, planDshSessionBinding } from './dsh-rpc-contract.js';
 import { extractDshMessageAttachments, isDshInlineImage, prepareDshAttachmentParts, uploadDshFile, validateDshAttachmentBatch } from './dsh-attachments.js';
+import { renderMarkdown } from './markdown.js';
+import { filterSlashCapabilities } from './slash-search.js';
 
 // 质量工作台前端：测试首页、DSH 测试模式、项目看板、日历排期
 (() => {
@@ -1008,6 +1010,8 @@ import { extractDshMessageAttachments, isDshInlineImage, prepareDshAttachmentPar
     guidance.setAttribute('aria-live', isError ? 'assertive' : 'polite');
     attachButton.disabled = Boolean(unavailable) || state.dsh.busy || sendingMessage;
     attachButton.title = unavailable || label('添加附件', 'Add attachments');
+    attachButton.setAttribute('aria-label', currentLang() === 'en' ? 'Add attachments' : '添加附件');
+    fileInput.setAttribute('aria-label', currentLang() === 'en' ? 'Choose chat attachments' : '选择对话附件');
     fileInput.disabled = attachButton.disabled;
   }
   function setAttachmentFeedback(message, kind = 'error') {
@@ -1054,9 +1058,42 @@ import { extractDshMessageAttachments, isDshInlineImage, prepareDshAttachmentPar
   }
   function appendAiMsg(text, scroll = true, kind = '') {
     const wrap = document.createElement('div');
-    wrap.className = 'msg-wrap ai'; wrap.innerHTML = `<div class="msg ai ${esc(kind)}">${esc(text)}</div>`;
+    wrap.className = 'msg-wrap ai';
+    const message = document.createElement('div');
+    message.className = 'msg ai';
+    if (kind === 'dsh' || kind === 'command') message.classList.add(kind);
+    if (kind === 'dsh') {
+      wrap.classList.add('dsh');
+      const header = document.createElement('div');
+      header.className = 'msg-dsh-head';
+      const mark = document.createElement('span');
+      mark.className = 'msg-dsh-mark';
+      mark.textContent = 'D';
+      const label = document.createElement('span');
+      label.className = 'msg-dsh-label';
+      label.textContent = 'DSH Agent';
+      header.append(mark, label);
+      if (!scroll) {
+        const tag = document.createElement('span');
+        tag.className = 'msg-dsh-tag';
+        tag.textContent = currentLang() === 'en' ? 'Previous reply' : '历史回复';
+        header.append(tag);
+      }
+      const content = document.createElement('div');
+      content.className = 'msg-content msg-markdown';
+      content.innerHTML = renderMarkdown(text);
+      message.append(header, content);
+    } else {
+      message.textContent = text;
+    }
+    wrap.append(message);
     $('#chat-msgs').appendChild(wrap); if (scroll) scrollChat();
-    return $('.msg', wrap);
+    return message;
+  }
+  function setAiMsgText(message, text) {
+    const content = $('.msg-content', message);
+    if (content) content.innerHTML = renderMarkdown(text);
+    else message.textContent = text;
   }
   function appendToolMsg(label) {
     const wrap = document.createElement('div');
@@ -1208,7 +1245,7 @@ import { extractDshMessageAttachments, isDshInlineImage, prepareDshAttachmentPar
         appendUserMsg(text, true, drafts.map(displayDraftAttachment));
         const pending = appendAiMsg(t('chat.reading'), true, 'dsh');
         const answer = await waitForDshTurn(sessionId, afterSeq, pending, token);
-        if (token === state.dsh.turnToken && projectId === state.activeProjectId) pending.textContent = answer || '本轮已完成（无文本回复）';
+        if (token === state.dsh.turnToken && projectId === state.activeProjectId) setAiMsgText(pending, answer || '本轮已完成（无文本回复）');
       }
     } catch (error) {
       if (token !== state.dsh.turnToken || projectId !== state.activeProjectId) return;
@@ -1244,7 +1281,7 @@ import { extractDshMessageAttachments, isDshInlineImage, prepareDshAttachmentPar
       if (tools.length) {
         const last = tools.at(-1);
         const toolName = last.view?.view?.title || last.event.data?.name || last.event.data?.call?.name || '工具';
-        pending.textContent = `${t('chat.executing')} ${toolName}（${t('chat.executingTip')}）`;
+        setAiMsgText(pending, `${t('chat.executing')} ${toolName}（${t('chat.executingTip')}）`);
       }
       const assistant = [...fresh].reverse().find((entry) => entry.event.type === 'assistant/message');
       const ended = fresh.some((entry) => entry.event.type === 'turn/end');
@@ -1292,7 +1329,7 @@ import { extractDshMessageAttachments, isDshInlineImage, prepareDshAttachmentPar
     const value = $('#chat-input').value;
     if (!value.trimStart().startsWith('/') || !state.dsh.sessionId) { panel.classList.add('hidden'); panel.innerHTML = ''; return; }
     const query = value.trimStart().slice(1).split(/\s/, 1)[0].toLowerCase();
-    const rows = capabilityRows().filter((item) => !query || item.name.includes(query) || item.description?.toLowerCase().includes(query)).slice(0, 9);
+    const rows = filterSlashCapabilities(capabilityRows(), query);
     if (!rows.length) { panel.classList.add('hidden'); return; }
     panel.innerHTML = rows.map((item) => `<button class="slash-suggestion" data-capability="${esc(item.name)}" type="button"><code>/${esc(item.name)}</code><span>${esc(item.description || item.input?.hint || '')}</span><em>${item.kind}</em></button>`).join('');
     panel.classList.remove('hidden');
@@ -2251,6 +2288,11 @@ import { extractDshMessageAttachments, isDshInlineImage, prepareDshAttachmentPar
       nodes.forEach((node) => { if (node.nodeValue.trim()) node.nodeValue = replace(node.nodeValue); });
       $$('input, textarea, button, [aria-label], [title]').forEach((el) => ['placeholder', 'title', 'aria-label'].forEach((attr) => { if (el.hasAttribute(attr)) el.setAttribute(attr, replace(el.getAttribute(attr))); }));
     }
+    const attachmentAddLabel = currentLang() === 'en' ? 'Add attachments' : '添加附件';
+    const attachmentInputLabel = currentLang() === 'en' ? 'Choose chat attachments' : '选择对话附件';
+    if ($('#btn-attach')) $('#btn-attach').setAttribute('aria-label', attachmentAddLabel);
+    if ($('#chat-file-input')) $('#chat-file-input').setAttribute('aria-label', attachmentInputLabel);
+    $$('.msg-dsh-tag').forEach((tag) => { tag.textContent = currentLang() === 'en' ? 'Previous reply' : '历史回复'; });
     if ($('#service-status span')) {
       if (!state.dshEmbedded) $('#service-status span').textContent = t('service.standalone');
       else if (!$('#service-status').classList.contains('offline')) $('#service-status span').textContent = currentLang() === 'en' ? copy['service-status'][1] : copy['service-status'][0];

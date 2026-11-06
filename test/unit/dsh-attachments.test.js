@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   validateDshAttachmentBatch,
   isDshInlineImage,
+  validateDshImageDimensions,
   encodeDshImage,
   uploadDshFile,
   prepareDshAttachmentParts,
@@ -38,6 +39,26 @@ test('only supported raster media types use inline DSH image blocks', () => {
   for (const type of ['image/svg+xml', 'application/pdf', '']) {
     assert.equal(isDshInlineImage(fakeFile({ type })), false);
   }
+});
+
+test('validates DSH image side and pixel limits before encoding', async () => {
+  const image = fakeFile({ name: 'screen.png', type: 'image/png' });
+  assert.deepEqual(await validateDshImageDimensions(image, { decodeImage: async () => ({ width: 8192, height: 7812 }) }), {
+    width: 8192,
+    height: 7812,
+  });
+  await assert.rejects(
+    validateDshImageDimensions(image, { decodeImage: async () => ({ width: 8193, height: 1 }) }),
+    (error) => error.code === 'ATTACHMENT_IMAGE_DIMENSION_LIMIT',
+  );
+  await assert.rejects(
+    validateDshImageDimensions(image, { decodeImage: async () => ({ width: 8001, height: 8000 }) }),
+    (error) => error.code === 'ATTACHMENT_IMAGE_PIXEL_LIMIT',
+  );
+  await assert.rejects(
+    validateDshImageDimensions(image, { decodeImage: async () => { throw new Error('decoder failed'); } }),
+    /无法读取图片尺寸/,
+  );
 });
 
 test('encodes an image as a named DSH prompt block without changing the bytes', async () => {
@@ -108,6 +129,7 @@ test('prepares mixed attachments in selection order and reuses staged file recei
 
   const parts = await prepareDshAttachmentParts([image, file, secondFile], {
     sessionId: 'session-1',
+    validateImage: async () => true,
     encodeImage: async (candidate) => ({ type: 'image', mediaType: candidate.type, data: 'AQID', name: candidate.name }),
     uploadFile: async (_sessionId, candidate) => {
       uploadCount += 1;
@@ -126,10 +148,23 @@ test('prepares mixed attachments in selection order and reuses staged file recei
 
   await prepareDshAttachmentParts([image, file, secondFile], {
     sessionId: 'session-1',
+    validateImage: async () => true,
     encodeImage: async (candidate) => ({ type: 'image', mediaType: candidate.type, data: 'AQID', name: candidate.name }),
     uploadFile: async () => { uploadCount += 1; throw new Error('should not upload a cached receipt'); },
   });
   assert.equal(uploadCount, 1);
+});
+
+test('validates every image before staging any generic file', async () => {
+  const file = { file: fakeFile({ name: 'spec.md' }) };
+  const oversizedImage = { file: fakeFile({ name: 'large.png', type: 'image/png' }) };
+  let uploadCount = 0;
+  await assert.rejects(prepareDshAttachmentParts([file, oversizedImage], {
+    sessionId: 'session-1',
+    validateImage: async () => { throw Object.assign(new Error('too many pixels'), { code: 'ATTACHMENT_IMAGE_PIXEL_LIMIT' }); },
+    uploadFile: async () => { uploadCount += 1; return { receiptId: 'unexpected' }; },
+  }), /too many pixels/);
+  assert.equal(uploadCount, 0);
 });
 
 test('does not reuse a receipt staged for another session', async () => {

@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 const SESSION_ID = 'attachment-session';
+const ONE_PIXEL_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==';
 
 test('standalone mode explains that native attachments require DSH', async ({ page }) => {
   await page.goto('/');
@@ -8,6 +9,10 @@ test('standalone mode explains that native attachments require DSH', async ({ pa
 
   await expect(page.locator('#btn-attach')).toBeDisabled();
   await expect(page.locator('#attachment-guidance')).toContainText('DSH');
+  await page.locator('#btn-settings').click();
+  await page.locator('[data-settings-lang="en"]').click();
+  await expect(page.locator('#btn-attach')).toHaveAttribute('aria-label', 'Add attachments');
+  await expect(page.locator('#chat-file-input')).toHaveAttribute('aria-label', 'Choose chat attachments');
 });
 
 test('selects and removes attachments without uploading until Send', async ({ page }) => {
@@ -20,7 +25,7 @@ test('selects and removes attachments without uploading until Send', async ({ pa
   expect(chooser.isMultiple()).toBe(true);
   await chooser.setFiles([
     { name: 'requirements.md', mimeType: 'text/markdown', buffer: Buffer.from('# Requirements') },
-    { name: 'screenshot.png', mimeType: 'image/png', buffer: Buffer.from([137, 80, 78, 71]) },
+    { name: 'screenshot.png', mimeType: 'image/png', buffer: Buffer.from(ONE_PIXEL_PNG, 'base64') },
   ]);
 
   await expect(frame.locator('#chat-attachments .attachment-chip')).toHaveCount(2);
@@ -32,7 +37,7 @@ test('selects and removes attachments without uploading until Send', async ({ pa
   await expect.poll(() => fixture.uploads.length).toBe(0);
   await expect.poll(() => fixture.prompts.length).toBe(1);
   expect(fixture.prompts[0].request.content).toEqual([
-    { type: 'image', mediaType: 'image/png', data: 'iVBORw==' , name: 'screenshot.png' },
+    { type: 'image', mediaType: 'image/png', data: ONE_PIXEL_PNG, name: 'screenshot.png' },
   ]);
   await expect(frame.locator('.msg-wrap.user .attachment-chip')).toHaveCount(1);
 });

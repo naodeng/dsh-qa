@@ -71,6 +71,16 @@ test('QA preset uses the current persona config schema', () => {
   assert.doesNotMatch(qaPreset, /^(\s+)text:/m, 'QA persona still uses the retired text config key');
 });
 
+test('preset persona prefixes only use variables registered by DSH', () => {
+  for (const [name, preset] of [['qa', qaPreset], ['quality-control', qualityControlPreset]]) {
+    const variables = [...preset.matchAll(/\{\{([a-z][a-z0-9_-]*)\}\}/gi)].map((match) => match[1]);
+    assert.ok(
+      variables.every((variable) => ['model', 'provider'].includes(variable)),
+      `${name} preset uses an unregistered prompt variable: ${variables.find((variable) => !['model', 'provider'].includes(variable))}`,
+    );
+  }
+});
+
 test('presets do not mount the removed list-agents subpath export', () => {
   for (const [name, preset] of [['qa', qaPreset], ['quality-control', qualityControlPreset]]) {
     assert.match(preset, /name: '@deepseek-ai\/dsh-tool-subagent-control'/, `${name} preset must keep the main control plugin`);

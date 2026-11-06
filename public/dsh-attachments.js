@@ -2,6 +2,8 @@ export const DSH_ATTACHMENT_LIMITS = Object.freeze({
   maxCount: 10,
   maxFileBytes: 20 * 1024 * 1024,
   maxTotalBytes: 50 * 1024 * 1024,
+  maxImagePixels: 64_000_000,
+  maxImageDimension: 8192,
 });
 
 const DSH_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
@@ -37,6 +39,63 @@ export function validateDshAttachmentBatch(files) {
 
 export function isDshInlineImage(file) {
   return DSH_IMAGE_TYPES.has(String(file?.type || '').toLowerCase());
+}
+
+async function decodeImageDimensions(file) {
+  if (typeof globalThis.createImageBitmap === 'function') {
+    let bitmap;
+    try {
+      bitmap = await globalThis.createImageBitmap(file);
+      return { width: bitmap.width, height: bitmap.height };
+    } catch {
+      throw attachmentError('ATTACHMENT_IMAGE_INVALID', '无法读取图片尺寸，请检查图片文件是否有效', { name: file?.name || '' });
+    } finally {
+      bitmap?.close?.();
+    }
+  }
+
+  const ImageConstructor = globalThis.Image;
+  const urlApi = globalThis.URL;
+  if (typeof ImageConstructor === 'function' && typeof urlApi?.createObjectURL === 'function') {
+    const objectUrl = urlApi.createObjectURL(file);
+    try {
+      return await new Promise((resolve, reject) => {
+        const image = new ImageConstructor();
+        image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+        image.onerror = () => reject(new Error('Image decoding failed'));
+        image.src = objectUrl;
+      });
+    } catch {
+      throw attachmentError('ATTACHMENT_IMAGE_INVALID', '无法读取图片尺寸，请检查图片文件是否有效', { name: file?.name || '' });
+    } finally {
+      urlApi.revokeObjectURL(objectUrl);
+    }
+  }
+
+  throw attachmentError('ATTACHMENT_IMAGE_VALIDATION_UNAVAILABLE', '当前环境无法校验图片尺寸，未发送附件');
+}
+
+export async function validateDshImageDimensions(file, { decodeImage = decodeImageDimensions } = {}) {
+  if (!isDshInlineImage(file)) return true;
+  let dimensions;
+  try {
+    dimensions = await decodeImage(file);
+  } catch (error) {
+    if (error?.code) throw error;
+    throw attachmentError('ATTACHMENT_IMAGE_INVALID', '无法读取图片尺寸，请检查图片文件是否有效', { name: file?.name || '' });
+  }
+  const width = Number(dimensions?.width);
+  const height = Number(dimensions?.height);
+  if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
+    throw attachmentError('ATTACHMENT_IMAGE_INVALID', '无法读取图片尺寸，请检查图片文件是否有效', { name: file?.name || '' });
+  }
+  if (width > DSH_ATTACHMENT_LIMITS.maxImageDimension || height > DSH_ATTACHMENT_LIMITS.maxImageDimension) {
+    throw attachmentError('ATTACHMENT_IMAGE_DIMENSION_LIMIT', `图片单边不能超过 ${DSH_ATTACHMENT_LIMITS.maxImageDimension} 像素`, { name: file?.name || '', width, height });
+  }
+  if (width * height > DSH_ATTACHMENT_LIMITS.maxImagePixels) {
+    throw attachmentError('ATTACHMENT_IMAGE_PIXEL_LIMIT', `图片不能超过 ${DSH_ATTACHMENT_LIMITS.maxImagePixels / 1_000_000} 百万像素`, { name: file?.name || '', width, height });
+  }
+  return { width, height };
 }
 
 function encodeBase64(buffer) {
@@ -109,11 +168,24 @@ export async function uploadDshFile(fetchImpl, sessionId, file, { signal } = {})
   return value;
 }
 
-export async function prepareDshAttachmentParts(drafts, { sessionId, uploadFile, encodeImage = encodeDshImage } = {}) {
+export async function prepareDshAttachmentParts(drafts, {
+  sessionId,
+  uploadFile,
+  encodeImage = encodeDshImage,
+  validateImage = validateDshImageDimensions,
+} = {}) {
+  const attachmentDrafts = Array.from(drafts || []);
+  for (const draft of attachmentDrafts) {
+    if (!draft?.file) throw attachmentError('ATTACHMENT_DRAFT_INVALID', '附件草稿已失效');
+  }
+  validateDshAttachmentBatch(attachmentDrafts.map((draft) => draft.file));
+  for (const draft of attachmentDrafts) {
+    if (isDshInlineImage(draft.file)) await validateImage(draft.file);
+  }
+
   const parts = [];
-  for (const draft of drafts || []) {
+  for (const draft of attachmentDrafts) {
     const file = draft?.file;
-    if (!file) throw attachmentError('ATTACHMENT_DRAFT_INVALID', '附件草稿已失效');
     if (isDshInlineImage(file)) {
       parts.push(await encodeImage(file));
       continue;
