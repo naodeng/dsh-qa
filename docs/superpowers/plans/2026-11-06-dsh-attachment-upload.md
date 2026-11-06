@@ -107,4 +107,4 @@ Expected: the attachment list aligns with the composer, remains usable on mobile
 - [x] Run `git diff --check`; no whitespace errors.
 - [x] Check `git status --short` and confirm pre-existing preset, Markdown, slash-search, and unit-test changes remain unstaged.
 - [x] Check real-host smoke availability; `DSH_WEB_URL` and `DSH_HOST_VERSION` are unset, so host smoke is `NOT_RUN`.
-- [ ] Stage only attachment feature changes, commit, and push the existing task branch if its configured remote matches the user's earlier “提交到远端” request; do not stage pre-existing unrelated worktree changes.
+- [x] Stage only attachment feature changes, commit, and push the existing task branch as requested; commit `351cc3c` was pushed to `origin/codex/fix-subagent-list-agents`. Pre-existing unrelated worktree changes remain unstaged.
