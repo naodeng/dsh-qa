@@ -244,6 +244,7 @@ test('keeps drafts when a command handler returns an error', async ({ page }) =>
   await expect(frame.locator('#chat-input')).toHaveValue('/with-files review');
   await expect(frame.locator('#chat-attachments .attachment-chip')).toContainText('command.txt');
   await expect(frame.locator('.msg-wrap.ai .msg')).toContainText('命令无法处理这组附件');
+  await expect(frame.locator('.msg-wrap.user')).toHaveCount(0);
 });
 
 async function createEmbeddedFixture(page, options = {}) {
