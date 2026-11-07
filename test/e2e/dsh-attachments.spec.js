@@ -3,6 +3,14 @@ import { test, expect } from '@playwright/test';
 const SESSION_ID = 'attachment-session';
 const ONE_PIXEL_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==';
 
+function sessionIdFromStreamOpen(message) {
+  const { payload } = message || {};
+  const { args } = payload || {};
+  const { request } = args || {};
+  const { address } = request || {};
+  return address?.sessionId;
+}
+
 test('standalone mode explains that native attachments require DSH', async ({ page }) => {
   await page.goto('/');
   await page.locator('[data-view="assistant"]').click();
@@ -554,7 +562,7 @@ async function createEmbeddedFixture(page, options = {}) {
       let message;
       try { message = JSON.parse(String(raw)); } catch { return; }
       if (message.type !== 'open') return;
-      const sessionId = message.payload?.args?.request?.address?.sessionId;
+      const sessionId = sessionIdFromStreamOpen(message);
       const records = fixture.recordsBySession.get(sessionId) || [];
       socket.send(JSON.stringify({
         type: 'item',

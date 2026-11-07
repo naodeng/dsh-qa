@@ -1244,16 +1244,18 @@ import { filterSlashCapabilities } from './slash-search.js';
     $('.dsh-recovery-detail p', card).textContent = copy.detail;
     const retryButton = $('[data-recovery-retry]', card);
     const newButton = $('[data-recovery-new]', card);
+    const setRecoveryButtonsDisabled = (disabled) => {
+      retryButton.disabled = disabled;
+      newButton.disabled = disabled;
+    };
     retryButton.textContent = en ? 'Check again' : '重新检查';
     newButton.textContent = en ? 'Create a new DSH chat' : '新建 DSH 对话';
     retryButton.addEventListener('click', async () => {
-      retryButton.disabled = true;
-      newButton.disabled = true;
+      setRecoveryButtonsDisabled(true);
       try { await initializeDshChat({ initialize: true }); }
       catch (retryError) { toast(retryError.message, 'err'); }
       finally {
-        retryButton.disabled = false;
-        newButton.disabled = false;
+        setRecoveryButtonsDisabled(false);
       }
     });
     newButton.addEventListener('click', async () => {
@@ -1263,8 +1265,7 @@ import { filterSlashCapabilities } from './slash-search.js';
         title: en ? 'Create a new DSH chat' : '新建 DSH 对话',
         confirmLabel: en ? 'Create chat' : '新建对话',
       })) return;
-      retryButton.disabled = true;
-      newButton.disabled = true;
+      setRecoveryButtonsDisabled(true);
       try {
         await createFreshDshSession(project);
         await initializeDshChat({ initialize: true });
@@ -1272,8 +1273,7 @@ import { filterSlashCapabilities } from './slash-search.js';
       } catch (newError) {
         toast(newError.message, 'err');
       } finally {
-        retryButton.disabled = false;
-        newButton.disabled = false;
+        setRecoveryButtonsDisabled(false);
       }
     });
     container.appendChild(card);
