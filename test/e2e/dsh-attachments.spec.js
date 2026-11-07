@@ -317,14 +317,22 @@ test('distinguishes an unreadable DSH session list from a missing bound session'
   await expect(card).toContainText('新建 DSH 对话');
 
   await frame.locator('#chat-input').fill('暂存中的提问');
+  await frame.locator('#chat-file-input').setInputFiles({
+    name: '会话列表故障草稿.md', mimeType: 'text/markdown', buffer: Buffer.from('未发送的需求'),
+  });
   await frame.locator('#btn-send').click();
   await expect(frame.locator('.dsh-session-recovery')).toHaveCount(1);
+  await expect(frame.locator('.msg-wrap.user')).toContainText('仍需保留的历史内容');
   await expect(frame.locator('#chat-input')).toHaveValue('暂存中的提问');
+  await expect(frame.locator('#chat-attachments .attachment-chip')).toContainText('会话列表故障草稿.md');
   await card.getByRole('button', { name: '重新检查' }).click();
 
   await expect.poll(() => fixture.sessionListReads).toBe(initialSessionListReads + 2);
   await expect(card).toHaveCount(1);
   await expect(card).toContainText('暂时无法读取 DSH 会话列表');
+  await expect(frame.locator('.msg-wrap.user')).toContainText('仍需保留的历史内容');
+  await expect(frame.locator('#chat-input')).toHaveValue('暂存中的提问');
+  await expect(frame.locator('#chat-attachments .attachment-chip')).toContainText('会话列表故障草稿.md');
   expect(fixture.createSessionCalls).toBe(0);
   expect(fixture.prompts).toHaveLength(0);
 });
@@ -381,6 +389,10 @@ async function createEmbeddedFixture(page, options = {}) {
   const sessionRecords = (sessionId) => {
     if (!fixture.recordsBySession.has(sessionId)) fixture.recordsBySession.set(sessionId, []);
     return fixture.recordsBySession.get(sessionId);
+  };
+  const appendSessionEvent = (sessionId, type, data) => {
+    const records = sessionRecords(sessionId);
+    records.push({ event: { seq: records.length, type, data } });
   };
 
   await page.route('**/api/**', async (route) => {
@@ -468,10 +480,10 @@ async function createEmbeddedFixture(page, options = {}) {
         const upload = fixture.uploads.find((item) => item.receiptId === block.receiptId);
         return upload ? { ...block, attachment: { name: upload.name, bytes: upload.bytes.length, mediaType: upload.contentType } } : block;
       });
-      const records = sessionRecords(payload.args.request.sessionId);
-      records.push({ event: { seq: records.length, type: 'user/message', data: { message: { source: { kind: 'user' }, content: historyContent } } } });
-      records.push({ event: { seq: records.length, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: '已收到' }] } } } });
-      records.push({ event: { seq: records.length, type: 'turn/end', data: {} } });
+      const sessionId = payload.args.request.sessionId;
+      appendSessionEvent(sessionId, 'user/message', { message: { source: { kind: 'user' }, content: historyContent } });
+      appendSessionEvent(sessionId, 'assistant/message', { message: { content: [{ type: 'text', text: '已收到' }] } });
+      appendSessionEvent(sessionId, 'turn/end', {});
       value = { accepted: true };
     } else if (method === 'commands/execute') {
       fixture.commands.push(payload.args);
@@ -481,10 +493,9 @@ async function createEmbeddedFixture(page, options = {}) {
       }
       const commandId = `command-${fixture.commands.length}`;
       const [, name = 'command', args = ''] = String(payload.args.line || '').match(/^\/([^\s]+)\s*(.*)$/) || [];
-      const records = sessionRecords(payload.args.agentId);
-      records.push({ event: { seq: records.length, type: 'command/run', data: { commandId, name, args, source: { kind: 'user' } } } });
+      appendSessionEvent(payload.args.agentId, 'command/run', { commandId, name, args, source: { kind: 'user' } });
       const result = fixture.commandResult || { kind: 'success', text: '命令已完成' };
-      records.push({ event: { seq: records.length, type: 'command/done', data: { commandId, ...result } } });
+      appendSessionEvent(payload.args.agentId, 'command/done', { commandId, ...result });
       value = { commandId, result };
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ rpcId, result: { ok: true, value } }) });
