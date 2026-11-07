@@ -851,7 +851,10 @@ import { filterSlashCapabilities } from './slash-search.js';
       await showDshSessionRecovery(error, project);
       return;
     }
-    if (state.activeProjectId === project.id && state.dsh.projectId === project.id) await renderDshHistory();
+    if (state.activeProjectId === project.id && state.dsh.projectId === project.id) {
+      $('.dsh-session-recovery', $('#chat-msgs'))?.remove();
+      await renderDshHistory();
+    }
   }
   async function ensureDshProject(p = state.activeProject, { allowNewSession = true } = {}) {
     if (!p) throw new Error('请先选择项目');
@@ -1186,6 +1189,8 @@ import { filterSlashCapabilities } from './slash-search.js';
   }
   async function renderDshHistory() {
     if (!state.dsh.sessionId) return renderDshEmpty('尚未绑定 DSH 会话。');
+    const container = $('#chat-msgs');
+    let archivedHistoryUnavailable = false;
     const sessionIds = [...new Set([
       ...(state.dsh.historySessionIds || []),
       state.dsh.sessionId,
@@ -1195,9 +1200,11 @@ import { filterSlashCapabilities } from './slash-search.js';
         return await dshHistory(sessionId, 30);
       } catch (error) {
         if (sessionId === state.dsh.sessionId) throw error;
+        archivedHistoryUnavailable = true;
         return { events: [] };
       }
     }));
+    if (archivedHistoryUnavailable && container.querySelector('.msg-wrap')) return;
     const rows = histories.flatMap((history) => dshRows(history.events || []));
     if (!rows.length) return renderDshEmpty(`已绑定本项目文件夹。输入“/”可选择 ${state.dsh.skills.length} 个技能或 ${state.dsh.commands.length} 个命令。`);
     renderDshRows(rows);
@@ -1322,6 +1329,7 @@ import { filterSlashCapabilities } from './slash-search.js';
     return sendDshMessage(text);
   }
   async function sendDshMessage(text) {
+    const project = state.activeProject;
     const projectId = state.activeProjectId;
     const drafts = [...state.dsh.attachments];
     const token = ++state.dsh.turnToken;
@@ -1377,8 +1385,10 @@ import { filterSlashCapabilities } from './slash-search.js';
       }
     } catch (error) {
       if (token !== state.dsh.turnToken || projectId !== state.activeProjectId) return;
-      if (error instanceof DshSessionRecoveryError) {
-        await showDshSessionRecovery(error, state.activeProject);
+      const recoveryError = error instanceof DshSessionRecoveryError ? error : await checkDshSessionRecovery(project);
+      if (token !== state.dsh.turnToken || projectId !== state.activeProjectId) return;
+      if (recoveryError) {
+        await showDshSessionRecovery(recoveryError, project);
         return;
       }
       let message = error.message;
@@ -1466,6 +1476,23 @@ import { filterSlashCapabilities } from './slash-search.js';
     panel.innerHTML = rows.map((item) => `<button class="slash-suggestion" data-capability="${esc(item.name)}" type="button"><code>/${esc(item.name)}</code><span>${esc(item.description || item.input?.hint || '')}</span><em>${item.kind}</em></button>`).join('');
     panel.classList.remove('hidden');
     $$('[data-capability]', panel).forEach((button) => button.addEventListener('click', () => chooseCapability(button.dataset.capability)));
+  }
+  async function checkDshSessionRecovery(project) {
+    const sessionId = state.dsh.projectId === project?.id ? state.dsh.sessionId || project.dshSessionId : project?.dshSessionId;
+    if (!sessionId) return null;
+    let sessions;
+    try {
+      sessions = await dshRpc('session/list', { _request: {} });
+    } catch (error) {
+      return new DshSessionRecoveryError('unavailable', error.message || 'DSH 会话列表暂不可读');
+    }
+    if (!Array.isArray(sessions?.items)) {
+      return new DshSessionRecoveryError('unavailable', 'DSH session/list 未返回可用的会话列表');
+    }
+    if (!sessions.items.some((item) => item.sessionId === sessionId)) {
+      return new DshSessionRecoveryError('missing', 'DSH 已返回会话列表，但其中没有项目当前绑定的会话。');
+    }
+    return null;
   }
   function renderProjectRadar(p) {
     const card = state.cards.get(p.id) || p;
@@ -2170,7 +2197,7 @@ import { filterSlashCapabilities } from './slash-search.js';
     await api(`api/projects/${p.id}`, { method: 'PATCH', body: { dshSessionId: created.sessionId, dshSessionHistory: archivedSessionIds } });
     p.dshSessionId = created.sessionId;
     p.dshSessionHistory = archivedSessionIds;
-    if (state.activeProjectId === p.id) state.dsh = { projectId: null, sessionId: '', historySessionIds: [], skills: [], commands: [], models: null, qaPreset, busy: false, turnToken: state.dsh.turnToken + 1, attachments: state.dsh.attachments || [], attachmentProjectId: p.id };
+    if (state.activeProjectId === p.id) state.dsh = { projectId: p.id, sessionId: '', historySessionIds: [], skills: [], commands: [], models: null, qaPreset, busy: false, turnToken: state.dsh.turnToken + 1, attachments: state.dsh.attachments || [], attachmentProjectId: p.id };
     return created.sessionId;
   }
   function openSettings() {
