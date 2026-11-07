@@ -74,6 +74,13 @@ import { filterSlashCapabilities } from './slash-search.js';
     refreshTimer: null, actionQueueRefreshTimer: null, sseReconnectTimer: null,
   };
   const dshRpc = createDshRpc(globalThis.fetch.bind(globalThis), { embedded: state.dshEmbedded });
+  class DshSessionRecoveryError extends Error {
+    constructor(kind, message) {
+      super(message);
+      this.name = 'DshSessionRecoveryError';
+      this.kind = kind;
+    }
+  }
   let attachmentFeedback = { message: '', kind: '' };
   let sendingMessage = false;
   let activeAttachmentUpload = null;
@@ -832,10 +839,17 @@ import { filterSlashCapabilities } from './slash-search.js';
     const { initialize = true } = options;
     updateDshChrome();
     populateDshModelSelect(state.dsh.projectId === state.activeProject?.id ? state.dsh.models : null);
-    renderDshEmpty(initialize ? '正在连接本项目的 DSH 测试模式会话…' : '进入对话空间后即可使用 DSH 模型、技能、命令和工具。');
+    const keepCurrentMessages = initialize && state.dsh.projectId === state.activeProject?.id;
+    if (!keepCurrentMessages) renderDshEmpty(initialize ? '正在连接本项目的 DSH 测试模式会话…' : '进入对话空间后即可使用 DSH 模型、技能、命令和工具。');
     updateChatUI();
     if (!initialize || !state.activeProject) return;
-    await ensureDshProject(state.activeProject);
+    try {
+      await ensureDshProject(state.activeProject);
+    } catch (error) {
+      if (!(error instanceof DshSessionRecoveryError)) throw error;
+      await showDshSessionRecovery(error, state.activeProject);
+      return;
+    }
     if (state.activeProjectId === state.dsh.projectId) await renderDshHistory();
   }
   async function ensureDshProject(p = state.activeProject) {
@@ -853,8 +867,16 @@ import { filterSlashCapabilities } from './slash-search.js';
     }
     let sessionId = p.dshSessionId || '';
     let archivedSessionIds = Array.isArray(p.dshSessionHistory) ? [...p.dshSessionHistory] : [];
-    const sessions = await dshRpc('session/list', { _request: {} });
-    const sessionItems = sessions.items || [];
+    let sessions;
+    try {
+      sessions = await dshRpc('session/list', { _request: {} });
+    } catch (error) {
+      throw new DshSessionRecoveryError('unavailable', error.message || 'DSH 会话列表暂不可读');
+    }
+    if (!Array.isArray(sessions?.items)) {
+      throw new DshSessionRecoveryError('unavailable', 'DSH session/list 未返回可用的会话列表');
+    }
+    const sessionItems = sessions.items;
     let models;
     let needsNewSession = !sessionId;
     let replacedIncompatibleSession = false;
@@ -862,7 +884,7 @@ import { filterSlashCapabilities } from './slash-search.js';
     if (sessionId) {
       let linked = sessionItems.find((item) => item.sessionId === sessionId);
       if (!linked) {
-        throw new Error('本项目已绑定的 DSH 会话暂时无法确认，原会话已保留；为避免历史丢失，未自动新建会话。请检查 DSH 状态后重试，或在项目详情中点击“新建 DSH 对话”。');
+        throw new DshSessionRecoveryError('missing', 'DSH 已返回会话列表，但其中没有项目当前绑定的会话。');
       }
       if (linked.blank === true && archivedSessionIds.length === 0) {
         const recovered = findDshHistoricalSession({
@@ -1171,8 +1193,89 @@ import { filterSlashCapabilities } from './slash-search.js';
     }));
     const rows = histories.flatMap((history) => dshRows(history.events || []));
     if (!rows.length) return renderDshEmpty(`已绑定本项目文件夹。输入“/”可选择 ${state.dsh.skills.length} 个技能或 ${state.dsh.commands.length} 个命令。`);
-    $('#chat-msgs').innerHTML = '';
+    renderDshRows(rows);
+  }
+  function renderDshRows(rows) {
+    const container = $('#chat-msgs');
+    container.innerHTML = '';
     rows.forEach((row) => row.role === 'user' ? appendUserMsg(row.text, false, row.attachments || []) : appendAiMsg(row.text, false, row.kind));
+    scrollChat();
+  }
+  async function showDshSessionRecovery(error, project = state.activeProject) {
+    if (!project || state.activeProjectId !== project.id) return;
+    const container = $('#chat-msgs');
+    if (!container.querySelector('.msg-wrap') && project.dshSessionId) {
+      try {
+        const history = await dshHistory(project.dshSessionId, 30);
+        if (state.activeProjectId !== project.id) return;
+        const rows = dshRows(history.events || []);
+        if (rows.length) renderDshRows(rows);
+      } catch { /* Keep any history already rendered; the recovery card explains the DSH connection issue. */ }
+    }
+    if (state.activeProjectId !== project.id) return;
+    const existingCard = $('.dsh-session-recovery', container);
+    if (existingCard) existingCard.remove();
+    if (!container.querySelector('.msg-wrap')) $('.chat-empty', container)?.remove();
+
+    const en = currentLang() === 'en';
+    const copy = error.kind === 'missing'
+      ? {
+        title: en ? 'The DSH session bound to this project was not found' : '未找到本项目绑定的 DSH 会话',
+        body: en ? 'The current DSH session list does not include this project’s linked session. The original conversation may still be available in another DSH profile or history.' : '当前 DSH 会话列表中没有这条项目绑定会话。原对话可能仍在其他 DSH 配置或历史记录中。',
+        detail: en ? 'DSH returned a session list, but none matched the session ID saved for this project. Check whether DSH Desktop is using the original profile.' : `已读取 DSH 会话列表，但没有匹配项目保存的绑定会话。${error.message || ''} 请确认 DSH Desktop 仍使用原来的配置。`,
+      }
+      : {
+        title: en ? 'The DSH session list is temporarily unavailable' : '暂时无法读取 DSH 会话列表',
+        body: en ? 'DSH did not return a usable session list, so the workbench cannot confirm whether the bound session is available.' : 'DSH 暂时没有返回可用的会话列表，因此工作台无法判断绑定会话是否可用。',
+        detail: en ? `Session list request failed: ${error.message || 'unknown error'}. Check that DSH is running and connected to the original profile, then check again.` : `会话列表请求失败：${error.message || '未知错误'}。请检查 DSH 是否正常运行、是否连接原来的配置，然后重新检查。`,
+      };
+    const card = document.createElement('article');
+    card.className = 'dsh-session-recovery';
+    card.setAttribute('role', 'alert');
+    card.setAttribute('aria-labelledby', 'dsh-session-recovery-title');
+    card.innerHTML = `<div class="dsh-recovery-title-row"><span class="dsh-recovery-icon" aria-hidden="true">!</span><div class="dsh-recovery-copy"><h3 id="dsh-session-recovery-title"></h3><p></p></div></div><div class="dsh-recovery-actions"><button class="btn primary sm" type="button" data-recovery-retry></button><button class="btn sm" type="button" data-recovery-new></button></div><p class="dsh-recovery-footnote"></p><details class="dsh-recovery-detail"><summary></summary><p></p></details>`;
+    $('.dsh-recovery-copy h3', card).textContent = copy.title;
+    $('.dsh-recovery-copy p', card).textContent = copy.body;
+    $('.dsh-recovery-footnote', card).textContent = en
+      ? 'Your current input was not sent. The project binding is unchanged; the original conversation was not deleted and your draft is kept.'
+      : '当前输入未发送，项目绑定未更改。原会话没有被删除，输入和附件草稿均已保留。';
+    $('.dsh-recovery-detail summary', card).textContent = en ? 'Details and troubleshooting' : '查看原因与排查建议';
+    $('.dsh-recovery-detail p', card).textContent = copy.detail;
+    const retryButton = $('[data-recovery-retry]', card);
+    const newButton = $('[data-recovery-new]', card);
+    retryButton.textContent = en ? 'Check again' : '重新检查';
+    newButton.textContent = en ? 'Create a new DSH chat' : '新建 DSH 对话';
+    retryButton.addEventListener('click', async () => {
+      retryButton.disabled = true;
+      newButton.disabled = true;
+      try { await initializeDshChat({ initialize: true }); }
+      catch (retryError) { toast(retryError.message, 'err'); }
+      finally {
+        retryButton.disabled = false;
+        newButton.disabled = false;
+      }
+    });
+    newButton.addEventListener('click', async () => {
+      if (!await confirmAction(en
+        ? 'A new DSH chat will be created for this project. The original conversation will be kept in history. Continue?'
+        : '将为当前项目新建一个独立的 DSH 对话。原会话不会删除，仍会保留在历史记录中。要继续吗？', {
+        title: en ? 'Create a new DSH chat' : '新建 DSH 对话',
+        confirmLabel: en ? 'Create chat' : '新建对话',
+      })) return;
+      retryButton.disabled = true;
+      newButton.disabled = true;
+      try {
+        await createFreshDshSession(project);
+        await initializeDshChat({ initialize: true });
+        toast(en ? 'A new DSH chat is linked to this project' : '已新建并绑定 DSH 测试模式对话', 'ok');
+      } catch (newError) {
+        toast(newError.message, 'err');
+      } finally {
+        retryButton.disabled = false;
+        newButton.disabled = false;
+      }
+    });
+    container.appendChild(card);
     scrollChat();
   }
   async function sendMessage() {
@@ -1255,6 +1358,10 @@ import { filterSlashCapabilities } from './slash-search.js';
       }
     } catch (error) {
       if (token !== state.dsh.turnToken || projectId !== state.activeProjectId) return;
+      if (error instanceof DshSessionRecoveryError) {
+        await showDshSessionRecovery(error, state.activeProject);
+        return;
+      }
       let message = error.message;
       if (error.details?.reason === 'FILE_NOT_STAGED') {
         for (const draft of drafts) {

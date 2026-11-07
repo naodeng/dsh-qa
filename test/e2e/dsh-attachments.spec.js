@@ -247,6 +247,88 @@ test('keeps drafts when a command handler returns an error', async ({ page }) =>
   await expect(frame.locator('.msg-wrap.user')).toHaveCount(0);
 });
 
+test('shows a recovery card when the bound DSH session is missing without losing history or drafts', async ({ page }) => {
+  const fixture = await createEmbeddedFixture(page, {
+    sessionListMode: 'missing',
+    initialRecords: [
+      { event: { seq: 0, type: 'user/message', data: { message: { source: { kind: 'user' }, content: [{ type: 'text', text: '之前的需求讨论' }] } } } },
+      { event: { seq: 1, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: '之前的测试结论' }] } } } },
+    ],
+  });
+  const frame = fixture.frame;
+  const card = frame.locator('.dsh-session-recovery');
+  const initialSessionListReads = fixture.sessionListReads;
+
+  await expect(card).toHaveCount(1);
+  await expect(card).toContainText('未找到本项目绑定的 DSH 会话');
+  await expect(frame.locator('.msg-wrap.user')).toContainText('之前的需求讨论');
+  await expect(frame.locator('.msg-wrap.dsh')).toContainText('之前的测试结论');
+
+  await frame.locator('#chat-input').fill('/qa-testcase-generator 新需求');
+  await frame.locator('#chat-file-input').setInputFiles({
+    name: '需求草稿.md', mimeType: 'text/markdown', buffer: Buffer.from('未发送的需求'),
+  });
+  await frame.locator('#btn-send').click();
+
+  await expect(card).toHaveCount(1);
+  await expect(frame.locator('#chat-input')).toHaveValue('/qa-testcase-generator 新需求');
+  await expect(frame.locator('#chat-attachments .attachment-chip')).toContainText('需求草稿.md');
+  await expect(frame.locator('.msg-wrap.user')).toHaveCount(1);
+  await expect.poll(() => fixture.sessionListReads).toBe(initialSessionListReads + 1);
+  await expect.poll(() => fixture.prompts.length).toBe(0);
+
+  await card.getByRole('button', { name: '重新检查' }).click();
+  await expect.poll(() => fixture.sessionListReads).toBe(initialSessionListReads + 2);
+  await expect(frame.locator('.dsh-session-recovery')).toHaveCount(1);
+  await expect(frame.locator('#chat-input')).toHaveValue('/qa-testcase-generator 新需求');
+  await expect(frame.locator('#chat-attachments .attachment-chip')).toContainText('需求草稿.md');
+  expect(fixture.createSessionCalls).toBe(0);
+  expect(fixture.prompts).toHaveLength(0);
+  expect(fixture.commands).toHaveLength(0);
+
+  await frame.locator('.dsh-session-recovery').getByRole('button', { name: '新建 DSH 对话' }).click();
+  const confirm = page.locator('#modal-root .modal');
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole('button', { name: '新建对话', exact: true }).click();
+  await expect.poll(() => fixture.createSessionCalls).toBe(1);
+  await expect(frame.locator('.dsh-session-recovery')).toHaveCount(0);
+  await expect(frame.locator('.msg-wrap.user')).toHaveCount(1);
+  await expect(frame.locator('.msg-wrap.user')).toContainText('之前的需求讨论');
+  await expect(frame.locator('.msg-wrap.dsh')).toContainText('之前的测试结论');
+  await expect(frame.locator('#chat-input')).toHaveValue('/qa-testcase-generator 新需求');
+  await expect(frame.locator('#chat-attachments .attachment-chip')).toContainText('需求草稿.md');
+});
+
+test('distinguishes an unreadable DSH session list from a missing bound session', async ({ page }) => {
+  const fixture = await createEmbeddedFixture(page, {
+    sessionListMode: 'unavailable',
+    initialRecords: [
+      { event: { seq: 0, type: 'user/message', data: { message: { source: { kind: 'user' }, content: [{ type: 'text', text: '仍需保留的历史内容' }] } } } },
+    ],
+  });
+  const frame = fixture.frame;
+  const card = frame.locator('.dsh-session-recovery');
+  const initialSessionListReads = fixture.sessionListReads;
+
+  await expect(card).toHaveCount(1);
+  await expect(card).toContainText('暂时无法读取 DSH 会话列表');
+  await expect(frame.locator('.msg-wrap.user')).toContainText('仍需保留的历史内容');
+  await expect(card).toContainText('重新检查');
+  await expect(card).toContainText('新建 DSH 对话');
+
+  await frame.locator('#chat-input').fill('暂存中的提问');
+  await frame.locator('#btn-send').click();
+  await expect(frame.locator('.dsh-session-recovery')).toHaveCount(1);
+  await expect(frame.locator('#chat-input')).toHaveValue('暂存中的提问');
+  await card.getByRole('button', { name: '重新检查' }).click();
+
+  await expect.poll(() => fixture.sessionListReads).toBe(initialSessionListReads + 2);
+  await expect(card).toHaveCount(1);
+  await expect(card).toContainText('暂时无法读取 DSH 会话列表');
+  expect(fixture.createSessionCalls).toBe(0);
+  expect(fixture.prompts).toHaveLength(0);
+});
+
 async function createEmbeddedFixture(page, options = {}) {
   const title = `附件 E2E ${Date.now()} ${Math.random().toString(16).slice(2, 7)}`;
   const createResponse = await page.request.post('/api/projects', {
@@ -281,9 +363,12 @@ async function createEmbeddedFixture(page, options = {}) {
     uploads: [],
     prompts: [],
     commands: [],
-    commandListReads: 0,
+    sessionListReads: 0,
+    createSessionCalls: 0,
+    createdSessionIds: [],
     commandResponses: 0,
-    records: [],
+    recordsBySession: new Map([[SESSION_ID, options.initialRecords || []]]),
+    sessionListMode: options.sessionListMode || 'available',
     failFirstPromptAsNotStaged: Boolean(options.failFirstPromptAsNotStaged),
     holdNextPrompt: Boolean(options.holdPrompt),
     holdNextCommand: Boolean(options.holdCommand),
@@ -292,6 +377,10 @@ async function createEmbeddedFixture(page, options = {}) {
     holdNextUpload: Boolean(options.holdFirstUpload),
     uploadAborted: false,
     cancelCalls: 0,
+  };
+  const sessionRecords = (sessionId) => {
+    if (!fixture.recordsBySession.has(sessionId)) fixture.recordsBySession.set(sessionId, []);
+    return fixture.recordsBySession.get(sessionId);
   };
 
   await page.route('**/api/**', async (route) => {
@@ -334,13 +423,29 @@ async function createEmbeddedFixture(page, options = {}) {
     const { method, rpcId, payload } = body;
     let value = {};
     if (method === 'agentPresets/list') value = { presets: [{ id: 'qa', name: '测试模式' }] };
-    else if (method === 'session/list') value = { items: [{ sessionId: SESSION_ID, cwd: fixture.workspacePath, blank: false, projections: { values: { agentPreset: 'qa' } } }] };
+    else if (method === 'session/list') {
+      fixture.sessionListReads += 1;
+      if (fixture.sessionListMode === 'unavailable') {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ rpcId, result: { ok: false, error: { code: 'session/list-unavailable', message: 'DSH 会话列表暂不可读' } } }) });
+        return;
+      }
+      const items = fixture.sessionListMode === 'missing'
+        ? []
+        : [{ sessionId: SESSION_ID, cwd: fixture.workspacePath, blank: false, projections: { values: { agentPreset: 'qa' } } }];
+      fixture.createdSessionIds.forEach((sessionId) => items.push({ sessionId, cwd: fixture.workspacePath, blank: true, projections: { values: { agentPreset: 'qa' } } }));
+      value = { items };
+    }
     else if (method === 'session/modelCatalog') value = { default: { provider: 'deepseek', model: 'deepseek-chat' }, groups: [], routable: false };
-    else if (method === 'session/create') value = { sessionId: `attachment-session-${fixture.uploads.length}-${Date.now()}` };
+    else if (method === 'session/create') {
+      fixture.createSessionCalls += 1;
+      const sessionId = `attachment-session-${fixture.createSessionCalls}-${Date.now()}`;
+      fixture.createdSessionIds.push(sessionId);
+      sessionRecords(sessionId);
+      value = { sessionId };
+    }
     else if (method === 'session/cancel') fixture.cancelCalls += 1;
     else if (method === 'skills/list') value = { skills: [] };
     else if (method === 'commands/list') {
-      fixture.commandListReads += 1;
       value = fixture.commandDefinitions;
     }
     else if (method === 'session/prompt') {
@@ -363,9 +468,10 @@ async function createEmbeddedFixture(page, options = {}) {
         const upload = fixture.uploads.find((item) => item.receiptId === block.receiptId);
         return upload ? { ...block, attachment: { name: upload.name, bytes: upload.bytes.length, mediaType: upload.contentType } } : block;
       });
-      fixture.records.push({ event: { seq: fixture.records.length, type: 'user/message', data: { message: { source: { kind: 'user' }, content: historyContent } } } });
-      fixture.records.push({ event: { seq: fixture.records.length, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: '已收到' }] } } } });
-      fixture.records.push({ event: { seq: fixture.records.length, type: 'turn/end', data: {} } });
+      const records = sessionRecords(payload.args.request.sessionId);
+      records.push({ event: { seq: records.length, type: 'user/message', data: { message: { source: { kind: 'user' }, content: historyContent } } } });
+      records.push({ event: { seq: records.length, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: '已收到' }] } } } });
+      records.push({ event: { seq: records.length, type: 'turn/end', data: {} } });
       value = { accepted: true };
     } else if (method === 'commands/execute') {
       fixture.commands.push(payload.args);
@@ -375,9 +481,10 @@ async function createEmbeddedFixture(page, options = {}) {
       }
       const commandId = `command-${fixture.commands.length}`;
       const [, name = 'command', args = ''] = String(payload.args.line || '').match(/^\/([^\s]+)\s*(.*)$/) || [];
-      fixture.records.push({ event: { seq: fixture.records.length, type: 'command/run', data: { commandId, name, args, source: { kind: 'user' } } } });
+      const records = sessionRecords(payload.args.agentId);
+      records.push({ event: { seq: records.length, type: 'command/run', data: { commandId, name, args, source: { kind: 'user' } } } });
       const result = fixture.commandResult || { kind: 'success', text: '命令已完成' };
-      fixture.records.push({ event: { seq: fixture.records.length, type: 'command/done', data: { commandId, ...result } } });
+      records.push({ event: { seq: records.length, type: 'command/done', data: { commandId, ...result } } });
       value = { commandId, result };
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ rpcId, result: { ok: true, value } }) });
@@ -396,17 +503,25 @@ async function createEmbeddedFixture(page, options = {}) {
       let message;
       try { message = JSON.parse(String(raw)); } catch { return; }
       if (message.type !== 'open') return;
+      const sessionId = message.payload?.args?.request?.address?.sessionId;
+      const records = fixture.recordsBySession.get(sessionId) || [];
       socket.send(JSON.stringify({
         type: 'item',
         streamId: message.streamId,
-        value: { type: 'snapshot', snapshot: { records: fixture.records, cursor: fixture.records.length - 1 } },
+        value: { type: 'snapshot', snapshot: { records, cursor: records.length - 1 } },
       }));
     });
   });
 
   await page.goto(`${embeddedPrefix}/`);
   const frame = await openEmbeddedProject(page, title);
-  await expect.poll(() => fixture.commandListReads).toBeGreaterThan(0);
+  await expect.poll(async () => {
+    if (await frame.locator('.dsh-session-recovery').count()) return true;
+    if (!await page.locator('body').evaluate((body) => body.classList.contains('dsh-connected'))) return false;
+    if (await frame.locator('#chat-msgs .msg-wrap').count()) return true;
+    const emptyCopy = frame.locator('#chat-msgs .chat-empty p');
+    return await emptyCopy.count() > 0 && !(await emptyCopy.textContent()).includes('正在连接');
+  }).toBe(true);
   fixture.frame = frame;
   return fixture;
 }
@@ -418,6 +533,5 @@ async function openEmbeddedProject(page, title) {
   await expect(project).toBeVisible();
   await project.click();
   await expect(page.locator('#chat-head-title')).toHaveText(title);
-  await expect(page.locator('body')).toHaveClass(/dsh-connected/);
   return page.locator('#view-assistant');
 }
