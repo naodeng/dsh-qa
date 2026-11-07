@@ -11,6 +11,11 @@ function sessionIdFromStreamOpen(message) {
   return address?.sessionId;
 }
 
+async function expectRetainedDraft(frame, text, fileName) {
+  await expect(frame.locator('#chat-input')).toHaveValue(text);
+  await expect(frame.locator('#chat-attachments .attachment-chip')).toContainText(fileName);
+}
+
 test('standalone mode explains that native attachments require DSH', async ({ page }) => {
   await page.goto('/');
   await page.locator('[data-view="assistant"]').click();
@@ -279,8 +284,7 @@ test('shows a recovery card when the bound DSH session is missing without losing
   await frame.locator('#btn-send').click();
 
   await expect(card).toHaveCount(1);
-  await expect(frame.locator('#chat-input')).toHaveValue('/qa-testcase-generator 新需求');
-  await expect(frame.locator('#chat-attachments .attachment-chip')).toContainText('需求草稿.md');
+  await expectRetainedDraft(frame, '/qa-testcase-generator 新需求', '需求草稿.md');
   await expect(frame.locator('.msg-wrap.user')).toHaveCount(1);
   await expect.poll(() => fixture.sessionListReads).toBe(initialSessionListReads + 1);
   await expect.poll(() => fixture.prompts.length).toBe(0);
@@ -288,8 +292,7 @@ test('shows a recovery card when the bound DSH session is missing without losing
   await card.getByRole('button', { name: '重新检查' }).click();
   await expect.poll(() => fixture.sessionListReads).toBe(initialSessionListReads + 2);
   await expect(frame.locator('.dsh-session-recovery')).toHaveCount(1);
-  await expect(frame.locator('#chat-input')).toHaveValue('/qa-testcase-generator 新需求');
-  await expect(frame.locator('#chat-attachments .attachment-chip')).toContainText('需求草稿.md');
+  await expectRetainedDraft(frame, '/qa-testcase-generator 新需求', '需求草稿.md');
   await expect(frame.locator('.msg-wrap.user')).toContainText('之前的需求讨论');
   await expect(frame.locator('.msg-wrap.dsh')).toContainText('之前的测试结论');
   expect(fixture.createSessionCalls).toBe(0);
@@ -305,8 +308,68 @@ test('shows a recovery card when the bound DSH session is missing without losing
   await expect(frame.locator('.msg-wrap.user')).toHaveCount(1);
   await expect(frame.locator('.msg-wrap.user')).toContainText('之前的需求讨论');
   await expect(frame.locator('.msg-wrap.dsh')).toContainText('之前的测试结论');
-  await expect(frame.locator('#chat-input')).toHaveValue('/qa-testcase-generator 新需求');
-  await expect(frame.locator('#chat-attachments .attachment-chip')).toContainText('需求草稿.md');
+  await expectRetainedDraft(frame, '/qa-testcase-generator 新需求', '需求草稿.md');
+});
+
+test('retrying an unbound project never creates a DSH session without confirmation', async ({ page }) => {
+  const fixture = await createEmbeddedFixture(page, {
+    sessionListMode: 'unavailable',
+    unboundSession: true,
+  });
+  const frame = fixture.frame;
+  const card = frame.locator('.dsh-session-recovery');
+
+  await expect(card).toContainText('暂时无法读取 DSH 会话列表');
+  await frame.locator('#chat-input').fill('尚未发送的需求');
+  await frame.locator('#chat-file-input').setInputFiles({
+    name: '未发送需求.md', mimeType: 'text/markdown', buffer: Buffer.from('草稿内容'),
+  });
+  fixture.sessionListMode = 'available';
+  const initialSessionListReads = fixture.sessionListReads;
+  await card.getByRole('button', { name: '重新检查' }).click();
+
+  await expect.poll(() => fixture.sessionListReads).toBe(initialSessionListReads + 1);
+  await expect(card).toContainText('本项目尚未绑定 DSH 会话');
+  await expectRetainedDraft(frame, '尚未发送的需求', '未发送需求.md');
+  expect(fixture.createSessionCalls).toBe(0);
+
+  await card.getByRole('button', { name: '新建 DSH 对话' }).click();
+  const confirm = page.locator('#modal-root .modal');
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole('button', { name: '新建对话', exact: true }).click();
+  await expect.poll(() => fixture.createSessionCalls).toBe(1);
+  await expect(frame.locator('.dsh-session-recovery')).toHaveCount(0);
+  await expectRetainedDraft(frame, '尚未发送的需求', '未发送需求.md');
+});
+
+test('retrying an incompatible bound session does not replace it without confirmation', async ({ page }) => {
+  const fixture = await createEmbeddedFixture(page, {
+    sessionListMode: 'unavailable',
+    sessionPreset: 'legacy',
+    initialRecords: [
+      { event: { seq: 0, type: 'user/message', data: { message: { source: { kind: 'user' }, content: [{ type: 'text', text: '保留的旧会话历史' }] } } } },
+    ],
+  });
+  const frame = fixture.frame;
+  const card = frame.locator('.dsh-session-recovery');
+  await expect(card).toContainText('暂时无法读取 DSH 会话列表');
+
+  fixture.sessionListMode = 'available';
+  const initialSessionListReads = fixture.sessionListReads;
+  await card.getByRole('button', { name: '重新检查' }).click();
+
+  await expect.poll(() => fixture.sessionListReads).toBe(initialSessionListReads + 1);
+  await expect(card).toContainText('当前 DSH 会话无法直接恢复');
+  await expect(frame.locator('.msg-wrap.user')).toContainText('保留的旧会话历史');
+  expect(fixture.createSessionCalls).toBe(0);
+
+  await card.getByRole('button', { name: '新建 DSH 对话' }).click();
+  const confirm = page.locator('#modal-root .modal');
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole('button', { name: '新建对话', exact: true }).click();
+  await expect.poll(() => fixture.createSessionCalls).toBe(1);
+  await expect(frame.locator('.dsh-session-recovery')).toHaveCount(0);
+  await expect(frame.locator('.msg-wrap.user')).toContainText('保留的旧会话历史');
 });
 
 test('distinguishes an unreadable DSH session list from a missing bound session', async ({ page }) => {
@@ -333,16 +396,14 @@ test('distinguishes an unreadable DSH session list from a missing bound session'
   await frame.locator('#btn-send').click();
   await expect(frame.locator('.dsh-session-recovery')).toHaveCount(1);
   await expect(frame.locator('.msg-wrap.user')).toContainText('仍需保留的历史内容');
-  await expect(frame.locator('#chat-input')).toHaveValue('暂存中的提问');
-  await expect(frame.locator('#chat-attachments .attachment-chip')).toContainText('会话列表故障草稿.md');
+  await expectRetainedDraft(frame, '暂存中的提问', '会话列表故障草稿.md');
   await card.getByRole('button', { name: '重新检查' }).click();
 
   await expect.poll(() => fixture.sessionListReads).toBe(initialSessionListReads + 2);
   await expect(card).toHaveCount(1);
   await expect(card).toContainText('暂时无法读取 DSH 会话列表');
   await expect(frame.locator('.msg-wrap.user')).toContainText('仍需保留的历史内容');
-  await expect(frame.locator('#chat-input')).toHaveValue('暂存中的提问');
-  await expect(frame.locator('#chat-attachments .attachment-chip')).toContainText('会话列表故障草稿.md');
+  await expectRetainedDraft(frame, '暂存中的提问', '会话列表故障草稿.md');
   expect(fixture.createSessionCalls).toBe(0);
   expect(fixture.prompts).toHaveLength(0);
 });
@@ -395,10 +456,12 @@ async function createEmbeddedFixture(page, options = {}) {
     workspacePath = (await workspaceResponse.json()).path;
   }
   expect(workspacePath).toBeTruthy();
-  const linkResponse = await page.request.patch(`/api/projects/${encodeURIComponent(projectId)}`, {
-    data: { dshSessionId: SESSION_ID },
-  });
-  expect(linkResponse.ok()).toBe(true);
+  if (!options.unboundSession) {
+    const linkResponse = await page.request.patch(`/api/projects/${encodeURIComponent(projectId)}`, {
+      data: { dshSessionId: SESSION_ID },
+    });
+    expect(linkResponse.ok()).toBe(true);
+  }
   if (options.secondProjectTitle) {
     const secondProjectResponse = await page.request.post('/api/projects', {
       data: { title: options.secondProjectTitle, createWorkspace: true },
@@ -422,6 +485,8 @@ async function createEmbeddedFixture(page, options = {}) {
     commandResponses: 0,
     recordsBySession: new Map([[SESSION_ID, options.initialRecords || []]]),
     sessionListMode: options.sessionListMode || 'available',
+    unboundSession: Boolean(options.unboundSession),
+    sessionPreset: options.sessionPreset || 'qa',
     failFirstPromptAsNotStaged: Boolean(options.failFirstPromptAsNotStaged),
     holdNextPrompt: Boolean(options.holdPrompt),
     holdNextCommand: Boolean(options.holdCommand),
@@ -489,9 +554,9 @@ async function createEmbeddedFixture(page, options = {}) {
         fixture.sessionListErrorResponses += 1;
         return;
       }
-      const items = fixture.sessionListMode === 'missing'
+      const items = fixture.sessionListMode === 'missing' || fixture.unboundSession
         ? []
-        : [{ sessionId: SESSION_ID, cwd: fixture.workspacePath, blank: false, projections: { values: { agentPreset: 'qa' } } }];
+        : [{ sessionId: SESSION_ID, cwd: fixture.workspacePath, blank: false, projections: { values: { agentPreset: fixture.sessionPreset } } }];
       fixture.createdSessionIds.forEach((sessionId) => items.push({ sessionId, cwd: fixture.workspacePath, blank: true, projections: { values: { agentPreset: 'qa' } } }));
       value = { items };
     }

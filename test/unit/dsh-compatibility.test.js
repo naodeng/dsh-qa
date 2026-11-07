@@ -121,6 +121,10 @@ test('a historical non-QA session is preserved while the project gets a fresh QA
   assert.doesNotMatch(app, /catch \{ needsNewSession = true; \}/);
   assert.match(app, /new DshSessionRecoveryError\('missing'/);
   assert.match(app, /new DshSessionRecoveryError\('unavailable'/);
+  assert.match(app, /initializeDshChat\(\{ initialize: true, allowNewSession: false \}\)/);
+  assert.match(app, /if \(!sessionId && !allowNewSession\)/);
+  assert.match(app, /binding\.action !== 'reuse'/);
+  assert.match(app, /本项目尚未绑定 DSH 会话/);
   assert.match(app, /原会话没有被删除/);
   assert.match(app, /planDshSessionBinding\(\{ linked, qaPresetId: qaPreset\.id \}\)/);
   assert.match(app, /replacedIncompatibleSession/);
