@@ -7,7 +7,7 @@
   const DICT = {
     zh: {
       'brand.title': 'QA 工作台',
-      'search.placeholder': '搜索项目、需求、缺陷',
+      'search.placeholder': '搜索项目',
       'top.back': '返回 DSH',
       'service.standalone': '请从 DSH 打开',
       'nav.dashboard': '测试首页',
@@ -352,7 +352,7 @@
     },
     en: {
       'brand.title': 'QA Workbench',
-      'search.placeholder': 'Search projects, requirements, defects',
+      'search.placeholder': 'Search projects',
       'top.back': 'Back to DSH',
       'service.standalone': 'Open from DSH',
       'nav.dashboard': 'Dashboard',

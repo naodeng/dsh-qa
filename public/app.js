@@ -372,7 +372,13 @@ import { filterSlashCapabilities } from './slash-search.js';
     if (!['dashboard', 'assistant', 'board', 'calendar', 'skills', 'project-detail'].includes(view)) return;
     state.view = view;
     $$('.view').forEach((el) => el.classList.toggle('active', el.id === `view-${view}`));
-    $$('.nav-item').forEach((el) => el.classList.toggle('active', el.dataset.view === view));
+    const activeNavView = view === 'project-detail' ? state.detailReturnView : view;
+    $$('.nav-item').forEach((el) => {
+      const isCurrent = el.dataset.view === activeNavView;
+      el.classList.toggle('active', isCurrent);
+      if (isCurrent) el.setAttribute('aria-current', 'page');
+      else el.removeAttribute('aria-current');
+    });
     if (view === 'dashboard') renderDashboard();
     if (view === 'board') renderBoard();
     if (view === 'calendar') renderCalendars();
@@ -2391,7 +2397,15 @@ import { filterSlashCapabilities } from './slash-search.js';
       } catch (error) { toast(error.message, 'err'); }
     });
     $('#search').addEventListener('input', (event) => { state.search = event.target.value; renderCaseList(); });
-    $$('.case-filter button').forEach((button) => button.addEventListener('click', () => { state.caseFilter = button.dataset.caseFilter; $$('.case-filter button').forEach((el) => el.classList.toggle('active', el === button)); renderCaseList(); }));
+    $$('.case-filter button').forEach((button) => button.addEventListener('click', () => {
+      state.caseFilter = button.dataset.caseFilter;
+      $$('.case-filter button').forEach((el) => {
+        const isSelected = el === button;
+        el.classList.toggle('active', isSelected);
+        el.setAttribute('aria-pressed', String(isSelected));
+      });
+      renderCaseList();
+    }));
     $('#cal-prev-mini').addEventListener('click', () => moveMonth(-1)); $('#cal-next-mini').addEventListener('click', () => moveMonth(1)); $('#cal-today-mini').addEventListener('click', goToday);
     $('#cal-prev').addEventListener('click', () => moveMonth(-1)); $('#cal-next').addEventListener('click', () => moveMonth(1)); $('#cal-today').addEventListener('click', goToday);
     $('#cal-year').addEventListener('change', () => { state.calendarCursor = new Date(Number($('#cal-year').value), state.calendarCursor.getMonth(), 1); renderCalendars(); });
