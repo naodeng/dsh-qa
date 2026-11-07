@@ -3,43 +3,52 @@ version: alpha
 name: DSH QA Quality Control Room
 description: Visual identity and interaction system for the local DSH QA workbench.
 colors:
-  primary: "#0E3A5F"
-  ink: "#17212B"
-  muted: "#667380"
-  muted-strong: "#52616D"
-  faint-strong: "#5D6B75"
-  page: "#F3F5F7"
-  panel: "#FFFFFF"
-  line: "#E3E8EC"
-  action: "#1768AD"
-  success: "#0B6B5F"
-  teal-strong: "#0B6B5F"
-  warning: "#8A5300"
-  danger: "#BC3D44"
-  dashboard-navy: "#0E3A5F"
-  terminal-green: "#3DDC84"
-  minimal-black: "#111111"
-  cyber-cyan: "#00D4FF"
+  primary: "#345970"
+  ink: "#22282B"
+  muted: "#4E5A60"
+  muted-strong: "#4E5A60"
+  faint-strong: "#58636A"
+  page: "#F1F2EF"
+  panel: "#FBFBF9"
+  line: "#D7DCDA"
+  line-strong: "#C1CAC6"
+  action: "#345970"
+  action-hover: "#2A4C62"
+  success: "#52665A"
+  success-soft: "#EAF0EC"
+  warning: "#8B5D19"
+  warning-soft: "#F6EFDF"
+  danger: "#A43E42"
+  danger-soft: "#F6E9E9"
+  dark-page: "#191E21"
+  dark-panel: "#232A2E"
+  dark-ink: "#EFF1EE"
+  dark-muted: "#C4CBC7"
+  dark-faint: "#B1B9B5"
+  dark-success: "#A7B3A8"
 typography:
   display:
-    fontFamily: "-apple-system, BlinkMacSystemFont, PingFang SC, Microsoft YaHei, sans-serif"
-    fontSize: 2rem
-    fontWeight: 700
-    lineHeight: 1.15
-    letterSpacing: "-0.03em"
+    fontFamily: "var(--dsw-font-family, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif)"
+    fontSize: 1.75rem
+    fontWeight: 680
+    lineHeight: 1.2
+    letterSpacing: "-0.025em"
   body:
-    fontFamily: "-apple-system, BlinkMacSystemFont, PingFang SC, Microsoft YaHei, sans-serif"
-    fontSize: 0.875rem
-    lineHeight: 1.5
+    fontFamily: "var(--dsw-font-family, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif)"
+    fontSize: 0.9375rem
+    lineHeight: 1.6
   code:
     fontFamily: "SFMono-Regular, Menlo, Consolas, monospace"
     fontSize: 0.75rem
     lineHeight: 1.4
 rounded:
   none: 0px
-  sm: 7px
+  xs: 6px
+  sm: 8px
   md: 10px
+  control-lg: 12px
   lg: 14px
+  panel: 16px
   pill: 999px
 spacing:
   xs: 4px
@@ -50,38 +59,30 @@ spacing:
   page: 30px
 components:
   button-primary:
-    backgroundColor: "{colors.dashboard-navy}"
+    backgroundColor: "{colors.action}"
     textColor: "#FFFFFF"
-    rounded: "{rounded.sm}"
-    height: 36px
+    rounded: "{rounded.md}"
+    height: 38px
   status-success:
-    backgroundColor: "#E7F5F2"
+    backgroundColor: "{colors.success-soft}"
     textColor: "{colors.success}"
     rounded: "{rounded.pill}"
   status-warning:
-    backgroundColor: "#FFF6E7"
+    backgroundColor: "{colors.warning-soft}"
     textColor: "{colors.warning}"
     rounded: "{rounded.pill}"
   status-danger:
-    backgroundColor: "#FCECEE"
+    backgroundColor: "{colors.danger-soft}"
     textColor: "{colors.danger}"
     rounded: "{rounded.pill}"
-  theme-dashboard:
+  theme-light:
     backgroundColor: "{colors.page}"
     textColor: "{colors.ink}"
-    rounded: "{rounded.md}"
-  theme-terminal:
-    backgroundColor: "#07130C"
-    textColor: "{colors.terminal-green}"
-    rounded: "{rounded.none}"
-  theme-minimal:
-    backgroundColor: "#FAFAFA"
-    textColor: "{colors.minimal-black}"
-    rounded: "{rounded.none}"
-  theme-cyber:
-    backgroundColor: "#0A0618"
-    textColor: "{colors.cyber-cyan}"
-    rounded: "6px"
+    rounded: "{rounded.panel}"
+  theme-dark:
+    backgroundColor: "{colors.dark-page}"
+    textColor: "{colors.dark-ink}"
+    rounded: "{rounded.panel}"
   surface-panel:
     backgroundColor: "{colors.panel}"
     textColor: "{colors.ink}"
@@ -96,17 +97,17 @@ components:
 
 ## Overview
 
-DSH QA is a local quality control room, not a generic project tracker. The interface should help a test lead answer what is risky, what is due, which project is active, and which decisions still require a human. The default `dashboard` theme is calm, dense, and operational; the other themes are visual modes over the same information architecture.
+DSH QA is a local quality control room, not a generic project tracker. The interface should help a test lead answer what is risky, what is due, which project is active, and which decisions still require a human. Keep the existing dashboard, board, calendar, and assistant layout stable while applying the shared visual system.
 
 ## Colors
 
-The palette uses deep navy for the workbench frame, warm gray for the page, white for working surfaces, and one semantic accent per state. Green means healthy or passed, amber means attention is needed, and red is reserved for a real risk, failure, or overdue item. Never use color alone to communicate a state: pair it with text, an icon, or a position.
+Use charcoal text on a soft neutral gray page with white work surfaces. Steel blue is the single action and selection accent. The standalone palette is explicit so a host application's unrelated theme cannot change the workbench colors. Muted sage-gray means healthy or passed, amber means attention is needed, and red is reserved for a real risk, failure, or overdue item. Project workflow stages stay neutral or steel blue; they do not imply a test result. Never use color alone to communicate a state: pair it with text, an icon, or a position.
 
-Themes may change the visual treatment, but semantic meaning does not change. `dashboard` uses navy and QA green, `terminal` uses green phosphor on near-black, `minimal` uses black and quiet grays, and `cyber` uses cyan with deep violet surfaces.
+The workbench supports light, dark, and system themes. Dark mode uses charcoal surfaces and a lighter steel-blue accent. Theme changes affect appearance only; the information architecture and QA workflow remain the same.
 
 ## Typography
 
-Use the platform sans stack for Chinese and English product copy. Use the code stack for project keys, timestamps, counts, and technical status labels. Headings are compact and slightly tracked in; metadata is smaller and quieter. Do not use display typography that reduces scan speed in risk lists or tables.
+Use the DSH host font token when available, with the platform sans stack for Chinese and English as the standalone fallback. Use the code stack only for code and terminal output. Keep ordinary interface and supporting copy at 15px, section headings at 18px, and page titles at 28px. Risk lists, tables, forms, and metadata use the same sans family and body size so long work sessions remain easy to read.
 
 ## Layout
 
@@ -116,11 +117,11 @@ Use the spacing scale for consistent rhythm. Page padding is generous enough for
 
 ## Elevation & Depth
 
-Panels use a thin border and a restrained shadow. Depth indicates containment or an active overlay, not importance. Drawers and modals sit above the workbench with a clear backdrop. Terminal and cyber themes may use glow or inset edges sparingly; they must not obscure text or focus rings.
+Panels use a thin border and a restrained neutral shadow. Depth indicates containment or an active overlay, not importance. Drawers and modals sit above the workbench with a clear backdrop. Focus rings remain distinct from elevation shadows.
 
 ## Shapes
 
-The default theme uses small-to-medium radii for panels and controls. Status labels are pills. `minimal` intentionally removes most rounding. `terminal` uses tighter corners to evoke a console. `cyber` uses modest rounding rather than decorative excess. Focus rings remain visible in every theme.
+Controls use 10px radii and panels use 14–16px radii. Status labels are pills. Focus rings remain visible in every theme.
 
 ## Components
 
@@ -128,7 +129,9 @@ Primary buttons are reserved for the main action of a region. Secondary and subt
 
 The assistant distinguishes user messages, DSH analysis, DSH recommendations, and pending human confirmation. A model suggestion must never look like a final release decision. Empty states explain why the region is empty and provide one next action. Disabled controls explain why they are unavailable.
 
-The theme picker previews all four themes and states that themes change appearance only; project data, DSH models, skills, and testing mode are unchanged.
+Use the existing inline SVG icon family with a consistent 18px size and 1.8px stroke. Buttons, inputs, tabs, and theme choices use short transitions for hover, active, and selected states; reduced-motion preferences are respected.
+
+The theme picker provides light, dark, and system options and states that themes change appearance only; project data, DSH models, skills, and testing mode are unchanged.
 
 ## Do's and Don'ts
 
