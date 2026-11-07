@@ -340,6 +340,14 @@ test('shows recovery when a connected session disappears before sending', async 
   await expect(frame.locator('.msg-wrap.user')).toHaveCount(1);
   await expect(frame.locator('.msg-wrap.user')).toContainText('已连接会话里的历史需求');
   await expectRetainedDraft(frame, '新提问草稿', '新提问.md');
+
+  const readsBeforeRetry = fixture.sessionListReads;
+  await frame.locator('.dsh-session-recovery').getByRole('button', { name: '重新检查' }).click();
+  await expect.poll(() => fixture.sessionListReads).toBe(readsBeforeRetry + 1);
+  await expect(frame.locator('.dsh-session-recovery')).toContainText('未找到本项目绑定的 DSH 会话');
+  await expect(frame.locator('.msg-wrap.user')).toContainText('已连接会话里的历史需求');
+  await expectRetainedDraft(frame, '新提问草稿', '新提问.md');
+  expect(fixture.createSessionCalls).toBe(0);
 });
 
 test('retrying an unbound project never creates a DSH session without confirmation', async ({ page }) => {
