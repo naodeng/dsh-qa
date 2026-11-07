@@ -837,20 +837,21 @@ import { filterSlashCapabilities } from './slash-search.js';
   }
   async function initializeDshChat(options = {}) {
     const { initialize = true } = options;
+    const project = state.activeProject;
     updateDshChrome();
-    populateDshModelSelect(state.dsh.projectId === state.activeProject?.id ? state.dsh.models : null);
-    const keepCurrentMessages = initialize && state.dsh.projectId === state.activeProject?.id;
+    populateDshModelSelect(state.dsh.projectId === project?.id ? state.dsh.models : null);
+    const keepCurrentMessages = initialize && state.dsh.projectId === project?.id;
     if (!keepCurrentMessages) renderDshEmpty(initialize ? '正在连接本项目的 DSH 测试模式会话…' : '进入对话空间后即可使用 DSH 模型、技能、命令和工具。');
     updateChatUI();
-    if (!initialize || !state.activeProject) return;
+    if (!initialize || !project) return;
     try {
-      await ensureDshProject(state.activeProject);
+      await ensureDshProject(project);
     } catch (error) {
       if (!(error instanceof DshSessionRecoveryError)) throw error;
-      await showDshSessionRecovery(error, state.activeProject);
+      await showDshSessionRecovery(error, project);
       return;
     }
-    if (state.activeProjectId === state.dsh.projectId) await renderDshHistory();
+    if (state.activeProjectId === project.id && state.dsh.projectId === project.id) await renderDshHistory();
   }
   async function ensureDshProject(p = state.activeProject) {
     if (!p) throw new Error('请先选择项目');
