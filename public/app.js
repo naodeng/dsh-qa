@@ -521,7 +521,7 @@ import { filterSlashCapabilities } from './slash-search.js';
           : `<span class="risk-badge">${t('risk.none')}</span>`;
       return `<div class="case-overview-row" data-project-id="${card.id}">
         <div class="case-main"><b>${esc(card.title)}</b><span>${esc(card.projectKey || card.typeLabel || t('case.table.project'))}</span></div>
-        <span class="stage-pill" style="--cc:${column?.color || '#64748b'}">${esc(column?.title || card.status)}</span>
+        <span class="stage-pill">${esc(column?.title || card.status)}</span>
         <span class="risk-badges">${risk}<span class="risk-badge">${t('case.table.risk').split(' / ')[1] || 'Cases'} ${card.counts.testcases}</span></span>
         <span class="last-active">${fmtTime(card.lastActivityAt)}<button class="row-detail-link" data-project-preview type="button">${currentLang() === 'en' ? 'Quick preview' : '快速预览'}</button></span>
       </div>`;
@@ -669,7 +669,7 @@ import { filterSlashCapabilities } from './slash-search.js';
   function renderRailCases() {
     $('#rail-case-list').innerHTML = sortedCards().slice(0, 7).map((card) => {
       const column = columnOf(card);
-      return `<button class="rail-case ${card.id === state.activeProjectId ? 'active' : ''}" data-project-id="${card.id}" type="button"><b>${esc(card.title)}</b><span><i style="background:${column?.color || '#64748b'}"></i>${esc(enumLabel(KIND_CN, KIND_EN, card.kind, column?.title || card.typeLabel))}</span></button>`;
+      return `<button class="rail-case ${card.id === state.activeProjectId ? 'active' : ''}" data-project-id="${card.id}" type="button"><b>${esc(card.title)}</b><span><i></i>${esc(enumLabel(KIND_CN, KIND_EN, card.kind, column?.title || card.typeLabel))}</span></button>`;
     }).join('') || emptyHtml(t('board.empty'));
     $$('.rail-case', $('#rail-case-list')).forEach((button) => button.addEventListener('click', () => openProject(button.dataset.projectId)));
   }
@@ -684,7 +684,7 @@ import { filterSlashCapabilities } from './slash-search.js';
     $('#case-list').innerHTML = cards.map((card) => {
       const column = columnOf(card);
       return `<button class="case-item ${card.id === state.activeProjectId ? 'active' : ''}" data-project-id="${card.id}" type="button">
-        <i class="ci-dot" style="background:${column?.color || '#64748b'}"></i><span class="ci-body"><span class="ci-title">${esc(card.title)}</span><span class="ci-meta"><span>${esc(KIND_CN[card.kind] || card.typeLabel)}</span><span>${esc(column?.title || card.status)}</span><span>${fmtTime(card.lastActivityAt)}</span>${card.aiActive ? `<span class="ci-ai">${t('caseList.aiBusy')}</span>` : ''}</span></span>
+        <i class="ci-dot"></i><span class="ci-body"><span class="ci-title">${esc(card.title)}</span><span class="ci-meta"><span>${esc(KIND_CN[card.kind] || card.typeLabel)}</span><span>${esc(column?.title || card.status)}</span><span>${fmtTime(card.lastActivityAt)}</span>${card.aiActive ? `<span class="ci-ai">${t('caseList.aiBusy')}</span>` : ''}</span></span>
       </button>`;
     }).join('') || emptyHtml(q ? t('caseList.noMatch') : t('caseList.empty'));
     $$('.case-item', $('#case-list')).forEach((button) => button.addEventListener('click', () => loadChat(button.dataset.projectId, false)));
@@ -694,7 +694,7 @@ import { filterSlashCapabilities } from './slash-search.js';
   function renderBoard() {
     const board = $('#board');
     board.innerHTML = state.columns.map((column) => `
-      <section class="col" data-col="${column.id}" style="--cc:${column.color}"><div class="col-head"><i class="col-dot"></i><div class="col-head-copy">${esc(currentLang() === 'en' ? column.titleEn || column.title : column.title)}<small>${esc(currentLang() === 'en' ? column.hint || '' : column.hint || '')}</small></div><span class="col-count">0</span></div><div class="col-cards"></div></section>`).join('');
+      <section class="col" data-col="${column.id}"><div class="col-head"><i class="col-dot"></i><div class="col-head-copy">${esc(currentLang() === 'en' ? column.titleEn || column.title : column.title)}<small>${esc(currentLang() === 'en' ? column.hint || '' : column.hint || '')}</small></div><span class="col-count">0</span></div><div class="col-cards"></div></section>`).join('');
     state.cards.forEach((card) => appendCardEl(card));
     updateColCounts();
     bindDnD();
@@ -711,7 +711,6 @@ import { filterSlashCapabilities } from './slash-search.js';
     el.className = 'card';
     el.dataset.id = card.id;
     el.draggable = true;
-    el.style.setProperty('--cc', columnOf(card)?.color || '#64748b');
     el.innerHTML = cardHtml(card);
     el.addEventListener('dragstart', (event) => { state.justDragged = true; el.classList.add('dragging'); event.dataTransfer.setData('text/projectid', card.id); setTimeout(() => { state.justDragged = false; }, 300); });
     el.addEventListener('dragend', () => el.classList.remove('dragging'));
@@ -782,9 +781,8 @@ import { filterSlashCapabilities } from './slash-search.js';
     } catch (error) { toast(error.message, 'err'); }
   }
   function updateChatHead(p) {
-    const column = columnOf(p);
     $('#chat-head-title').textContent = p?.title || t('chat.title');
-    $('#chat-head-meta').innerHTML = p ? `<span>${esc(p.projectKey || '未编号')}</span><span class="status-pill" style="background:${column?.color || '#64748b'}">${esc(column?.title || p.status)}</span>${p.product ? `<span>${esc(p.product)}</span>` : ''}` : '';
+    $('#chat-head-meta').innerHTML = p ? `<span>${esc(p.projectKey || '未编号')}</span><span class="status-pill">${esc(columnOf(p)?.title || p.status)}</span>${p.product ? `<span>${esc(p.product)}</span>` : ''}` : '';
     const policy = p?.assistant || { enabled: true, mode: 'full' };
     $('#assistant-mode-label').textContent = policy.enabled === false ? t('chat.mode.off') : langModeCN(policy.mode);
   }
@@ -1497,7 +1495,7 @@ import { filterSlashCapabilities } from './slash-search.js';
     const counts = card.counts || { requirements: p.requirements?.length || 0, testcases: p.testcases?.length || 0, milestones: p.milestones?.length || 0, reports: p.reports?.length || 0, defects: p.defects?.length || 0 };
     const columnIndex = Math.max(0, state.columns.findIndex((column) => column.id === p.status));
     const policy = p.assistant || { enabled: true, mode: 'full', reminders: 'all' };
-    $('#case-radar').innerHTML = `<div class="radar-stage"><small>${t('radar.stage')}</small><b>${esc(columnOf(p)?.title || p.status)}</b><div class="stage-track">${state.columns.map((column, index) => `<i class="${index <= columnIndex ? 'done' : ''}" style="--cc:${column.color}"></i>`).join('')}</div></div>
+    $('#case-radar').innerHTML = `<div class="radar-stage"><small>${t('radar.stage')}</small><b>${esc(columnOf(p)?.title || p.status)}</b><div class="stage-track">${state.columns.map((column, index) => `<i class="${index <= columnIndex ? 'done' : ''}"></i>`).join('')}</div></div>
       <div class="radar-grid"><div class="radar-stat"><b>${counts.requirements}</b><span>${t('radar.req')}</span></div><div class="radar-stat"><b>${counts.testcases}</b><span>${t('radar.tc')}</span></div><div class="radar-stat"><b>${counts.defects}</b><span>${t('radar.defect')}</span></div><div class="radar-stat"><b>${counts.milestones}</b><span>${t('radar.ms')}</span></div></div>
       <div class="assistant-policy-card"><b>${policy.enabled === false ? t('chat.mode.off') : langModeCN(policy.mode)}</b>${policy.enabled === false ? t('chat.mode.offTip') : langModeDesc(policy.mode)}<br/>${t('radar.reminder')}：${policy.reminders === 'off' ? t('radar.reminderOff') : policy.reminders === 'milestones' ? t('radar.reminderMs') : t('radar.reminderAll')}</div>`;
   }
@@ -1531,7 +1529,7 @@ import { filterSlashCapabilities } from './slash-search.js';
       const { project: p } = await api(`api/projects/${id}`);
       state.drawerProject = p;
       $('#drawer-title').textContent = p.title;
-      $('#drawer-meta').innerHTML = `<span>${esc(p.projectKey || '未编号')}</span><span class="status-pill" style="background:${columnOf(p)?.color || '#64748b'}">${esc(columnOf(p)?.title || p.status)}</span>${p.product ? `<span>${esc(p.product)}</span>` : ''}`;
+      $('#drawer-meta').innerHTML = `<span>${esc(p.projectKey || '未编号')}</span><span class="status-pill">${esc(columnOf(p)?.title || p.status)}</span>${p.product ? `<span>${esc(p.product)}</span>` : ''}`;
       const stageIndex = Math.max(0, state.columns.findIndex((column) => column.id === p.status));
       const stagePercent = state.columns.length > 1 ? Math.round(stageIndex / (state.columns.length - 1) * 100) : 0;
       $('#drawer-summary').innerHTML = `<div class="sidebar-stage"><div><span>测试进度</span><b>${esc(columnOf(p)?.title || p.status)}</b></div><div class="stage-track"><i style="width:${stagePercent}%"></i></div><small>${stageIndex + 1} / ${state.columns.length} 阶段</small></div>
