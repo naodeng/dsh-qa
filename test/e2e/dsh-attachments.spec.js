@@ -283,7 +283,7 @@ async function createEmbeddedFixture(page, options = {}) {
     commands: [],
     commandListReads: 0,
     commandResponses: 0,
-    records: [],
+    sessionRecords: new Map([[SESSION_ID, []]]),
     failFirstPromptAsNotStaged: Boolean(options.failFirstPromptAsNotStaged),
     holdNextPrompt: Boolean(options.holdPrompt),
     holdNextCommand: Boolean(options.holdCommand),
@@ -336,7 +336,11 @@ async function createEmbeddedFixture(page, options = {}) {
     if (method === 'agentPresets/list') value = { presets: [{ id: 'qa', name: '测试模式' }] };
     else if (method === 'session/list') value = { items: [{ sessionId: SESSION_ID, cwd: fixture.workspacePath, blank: false, projections: { values: { agentPreset: 'qa' } } }] };
     else if (method === 'session/modelCatalog') value = { default: { provider: 'deepseek', model: 'deepseek-chat' }, groups: [], routable: false };
-    else if (method === 'session/create') value = { sessionId: `attachment-session-${fixture.uploads.length}-${Date.now()}` };
+    else if (method === 'session/create') {
+      const sessionId = `attachment-session-${fixture.uploads.length}-${Date.now()}`;
+      fixture.sessionRecords.set(sessionId, []);
+      value = { sessionId };
+    }
     else if (method === 'session/cancel') fixture.cancelCalls += 1;
     else if (method === 'skills/list') value = { skills: [] };
     else if (method === 'commands/list') {
@@ -363,9 +367,12 @@ async function createEmbeddedFixture(page, options = {}) {
         const upload = fixture.uploads.find((item) => item.receiptId === block.receiptId);
         return upload ? { ...block, attachment: { name: upload.name, bytes: upload.bytes.length, mediaType: upload.contentType } } : block;
       });
-      fixture.records.push({ event: { seq: fixture.records.length, type: 'user/message', data: { message: { source: { kind: 'user' }, content: historyContent } } } });
-      fixture.records.push({ event: { seq: fixture.records.length, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: '已收到' }] } } } });
-      fixture.records.push({ event: { seq: fixture.records.length, type: 'turn/end', data: {} } });
+      const sessionId = payload.args.request.sessionId;
+      const records = fixture.sessionRecords.get(sessionId) || [];
+      fixture.sessionRecords.set(sessionId, records);
+      records.push({ event: { seq: records.length, type: 'user/message', data: { message: { source: { kind: 'user' }, content: historyContent } } } });
+      records.push({ event: { seq: records.length, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: '已收到' }] } } } });
+      records.push({ event: { seq: records.length, type: 'turn/end', data: {} } });
       value = { accepted: true };
     } else if (method === 'commands/execute') {
       fixture.commands.push(payload.args);
@@ -375,9 +382,12 @@ async function createEmbeddedFixture(page, options = {}) {
       }
       const commandId = `command-${fixture.commands.length}`;
       const [, name = 'command', args = ''] = String(payload.args.line || '').match(/^\/([^\s]+)\s*(.*)$/) || [];
-      fixture.records.push({ event: { seq: fixture.records.length, type: 'command/run', data: { commandId, name, args, source: { kind: 'user' } } } });
+      const sessionId = payload.args.agentId;
+      const records = fixture.sessionRecords.get(sessionId) || [];
+      fixture.sessionRecords.set(sessionId, records);
+      records.push({ event: { seq: records.length, type: 'command/run', data: { commandId, name, args, source: { kind: 'user' } } } });
       const result = fixture.commandResult || { kind: 'success', text: '命令已完成' };
-      fixture.records.push({ event: { seq: fixture.records.length, type: 'command/done', data: { commandId, ...result } } });
+      records.push({ event: { seq: records.length, type: 'command/done', data: { commandId, ...result } } });
       value = { commandId, result };
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ rpcId, result: { ok: true, value } }) });
@@ -396,10 +406,12 @@ async function createEmbeddedFixture(page, options = {}) {
       let message;
       try { message = JSON.parse(String(raw)); } catch { return; }
       if (message.type !== 'open') return;
+      const sessionId = message.payload?.args?.request?.address?.sessionId;
+      const records = fixture.sessionRecords.get(sessionId) || [];
       socket.send(JSON.stringify({
         type: 'item',
         streamId: message.streamId,
-        value: { type: 'snapshot', snapshot: { records: fixture.records, cursor: fixture.records.length - 1 } },
+        value: { type: 'snapshot', snapshot: { records, cursor: records.length - 1 } },
       }));
     });
   });
