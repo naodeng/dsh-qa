@@ -14,38 +14,38 @@
     .demo-shell { height: calc(100vh - 100px); display: grid; grid-template-columns: 206px minmax(0, 1fr); overflow: hidden; }
     .demo-side { padding: 16px 11px; background: var(--surface); border-right: 1px solid var(--line); }
     .demo-side-title { margin: 0 8px 13px; color: var(--ink); font-size: 15px; font-weight: 700; }
-    .demo-side small { display: block; margin: 0 8px 8px; color: var(--muted); font-size: 12px; }
+    .demo-side small { display: block; margin: 0 8px 8px; color: var(--muted); font-size: 15px; }
     .demo-project { width: 100%; margin: 4px 0; padding: 9px; display: flex; align-items: center; gap: 8px; color: var(--ink); background: transparent; border: 1px solid transparent; border-radius: var(--radius); text-align: left; font-size: 15px; }
     .demo-project.active { background: var(--surface-soft); border-color: var(--line-strong); }
     .demo-project i { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--danger); }
     #chat-pane { min-width: 0; height: 100%; display: flex; flex-direction: column; background: var(--surface); }
     .chat-head { min-height: 63px; padding: 9px 15px; background: var(--surface); border-color: var(--line); }
-    .chat-title-block h2 { color: var(--ink); font-size: 18px; }
+    .chat-title-block h2 { color: var(--ink); font-size: 18px; font-weight: 600; }
     .chat-kicker { color: var(--faint); }
-    .chat-head-actions { color: var(--muted); font-size: 12px; }
-    .chat-head-actions .btn { font-size: 12px; }
+    .chat-head-actions { color: var(--muted); font-size: 15px; }
+    .chat-head-actions .btn { font-size: 15px; }
     .demo-model { padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius); }
-    .model-reminder { min-height: 36px; padding: 5px 14px; color: var(--teal); background: var(--teal-soft); border-color: var(--line); font-size: 12px; }
+    .model-reminder { min-height: 36px; padding: 5px 14px; color: var(--teal); background: var(--teal-soft); border-color: var(--line); font-size: 15px; }
     .legal-mode-badge { padding: 3px 7px; color: var(--teal); border-color: var(--teal); background: var(--teal-soft); }
     .legal-mode-badge i { box-shadow: none; }
     .demo-chat { position: relative; min-height: 0; flex: 1; padding: 22px 24px 18px; overflow: auto; background: var(--page); }
-    .demo-history { max-width: 800px; margin: 0 auto; color: var(--muted); font-size: 12px; }
+    .demo-history { max-width: 800px; margin: 0 auto; color: var(--muted); font-size: 15px; }
     .demo-history p { margin: 0 0 10px; }
-    .demo-history .status { color: var(--faint); font-size: 12px; }
+    .demo-history .status { color: var(--faint); font-size: 15px; }
     .error-host { display: none; }
     .error-card { color: var(--ink); background: var(--danger-soft); border: 1px solid var(--danger); border-radius: var(--radius); }
-    .error-card h3 { margin: 0 0 5px; color: var(--ink); font-size: 15px; line-height: 1.4; }
+    .error-card h3 { margin: 0 0 5px; color: var(--ink); font-size: 18px; font-weight: 600; line-height: 1.35; }
     .error-card p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.55; }
     .error-title-row { display: flex; align-items: center; gap: 8px; }
     .error-icon { width: 20px; height: 20px; flex: none; display: grid; place-items: center; color: var(--danger); border: 1px solid var(--danger); border-radius: 50%; font-size: 12px; font-weight: 700; }
     .error-copy { min-width: 0; flex: 1; }
     .error-actions { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
-    .error-actions button { min-height: 36px; padding: 0 11px; border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--ink); background: var(--surface); font-size: 15px; font-weight: 650; }
+    .error-actions button { min-height: 36px; padding: 0 11px; border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--ink); background: var(--surface); font-size: 15px; font-weight: 600; }
     .error-actions button.primary { color: #fff; border-color: var(--teal-strong); background: var(--teal-strong); }
     .error-actions button.primary:hover { filter: brightness(.92); }
     .error-actions button:hover { filter: brightness(1.12); }
-    .error-footnote { margin-top: 8px !important; color: var(--muted) !important; font-size: 12px !important; }
-    .error-detail { margin-top: 8px; color: var(--muted); font-size: 12px; }
+    .error-footnote { margin-top: 8px !important; color: var(--muted) !important; font-size: 15px !important; }
+    .error-detail { margin-top: 8px; color: var(--muted); font-size: 15px; }
     .error-detail summary { cursor: pointer; }
     .error-detail code { color: var(--ink); background: var(--surface); }
     .variant-a .error-host { display: block; margin: 0 auto 10px; max-width: 800px; }
@@ -55,21 +55,21 @@
     .variant-b .error-card { padding: 22px; border-radius: var(--radius); }
     .variant-b .error-title-row { align-items: flex-start; }
     .variant-b .error-icon { width: 26px; height: 26px; font-size: 15px; }
-    .variant-b .error-card h3 { font-size: 15px; }
+    .variant-b .error-card h3 { font-size: 18px; }
     .variant-b .error-card p { font-size: 15px; }
     .variant-b .error-actions { margin-top: 16px; }
     .variant-b .error-actions button { min-height: 38px; font-size: 15px; }
     .variant-c #header-error { display: flex; }
-    .header-error { min-height: 43px; padding: 5px 13px; display: none; align-items: center; gap: 8px; color: var(--ink); background: var(--danger-soft); border-bottom: 1px solid var(--danger); font-size: 12px; }
-    .header-error strong { color: var(--ink); font-size: 12px; }
+    .header-error { min-height: 43px; padding: 5px 13px; display: none; align-items: center; gap: 8px; color: var(--ink); background: var(--danger-soft); border-bottom: 1px solid var(--danger); font-size: 15px; }
+    .header-error strong { color: var(--ink); font-size: 15px; font-weight: 600; }
     .header-error span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .header-error button { min-height: 30px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--ink); background: var(--surface); font-size: 12px; }
+    .header-error button { min-height: 30px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--ink); background: var(--surface); font-size: 15px; }
     .header-error button.primary { color: #fff; border-color: var(--teal-strong); background: var(--teal-strong); }
     .variant-c .error-host { display: block; margin: 0 auto 10px; max-width: 800px; }
     .variant-c .error-card { display: none; }
     .composer-wrap { padding: 8px 20px 9px; background: var(--surface); border-color: var(--line); }
-    .composer-tools { max-width: 800px; color: var(--muted); font-size: 12px; }
-    .composer-tools button { color: var(--teal); font-size: 12px; }
+    .composer-tools { max-width: 800px; color: var(--muted); font-size: 15px; }
+    .composer-tools button { color: var(--teal); font-size: 15px; }
     .composer { max-width: 800px; min-height: 46px; padding: 5px; gap: 6px; color: var(--ink); background: var(--surface); border-color: var(--line); box-shadow: none; }
     .composer:focus-within { border-color: var(--teal); box-shadow: none; outline: 2px solid var(--teal); outline-offset: 1px; }
     .composer textarea { min-width: 0; min-height: 32px; flex: 1; padding: 5px 8px; resize: none; outline: 0; color: var(--ink); background: transparent; border: 0; font-size: 15px; }
