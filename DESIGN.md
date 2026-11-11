@@ -3,29 +3,31 @@ version: alpha
 name: DSH QA Quality Control Room
 description: Visual identity and interaction system for the local DSH QA workbench.
 colors:
-  primary: "#345970"
-  ink: "#22282B"
-  muted: "#4E5A60"
-  muted-strong: "#4E5A60"
-  faint-strong: "#58636A"
-  page: "#F1F2EF"
-  panel: "#FBFBF9"
-  line: "#D7DCDA"
-  line-strong: "#C1CAC6"
-  action: "#345970"
-  action-hover: "#2A4C62"
-  success: "#52665A"
-  success-soft: "#EAF0EC"
+  primary: "#385B72"
+  ink: "#25292C"
+  muted: "#515A60"
+  muted-strong: "#454D52"
+  faint-strong: "#616A70"
+  page: "#F4F3F0"
+  panel: "#FCFCFA"
+  panel-soft: "#F0F0ED"
+  line: "#D9D9D4"
+  line-strong: "#8D9495"
+  action: "#385B72"
+  action-hover: "#2F4D61"
+  success: "#536873"
+  success-soft: "#E9EEF0"
   warning: "#8B5D19"
   warning-soft: "#F6EFDF"
   danger: "#A43E42"
   danger-soft: "#F6E9E9"
-  dark-page: "#191E21"
-  dark-panel: "#232A2E"
-  dark-ink: "#EFF1EE"
-  dark-muted: "#C4CBC7"
-  dark-faint: "#B1B9B5"
-  dark-success: "#A7B3A8"
+  dark-page: "#1C2023"
+  dark-panel: "#272C30"
+  dark-panel-soft: "#22272A"
+  dark-ink: "#ECEEED"
+  dark-muted: "#C2C7C8"
+  dark-faint: "#AEB5B8"
+  dark-success: "#B2C0C6"
 typography:
   display:
     fontFamily: "var(--dsw-font-family, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif)"
@@ -40,34 +42,40 @@ typography:
     lineHeight: 1.35
   body:
     fontFamily: "var(--dsw-font-family, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif)"
-    fontSize: 0.9375rem
+    fontSize: 1rem
     lineHeight: 1.6
+  label:
+    fontFamily: "var(--dsw-font-family, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif)"
+    fontSize: 0.875rem
+    lineHeight: 1.45
   code:
     fontFamily: "SFMono-Regular, Menlo, Consolas, monospace"
-    fontSize: 0.75rem
+    fontSize: 0.8125rem
     lineHeight: 1.4
 rounded:
   none: 0px
-  xs: 6px
-  sm: 8px
-  md: 10px
-  control-lg: 12px
-  lg: 14px
-  panel: 16px
+  xs: 5px
+  sm: 7px
+  md: 9px
+  control-lg: 10px
+  lg: 12px
+  panel: 14px
   pill: 999px
 spacing:
-  xs: 4px
-  sm: 8px
-  md: 12px
-  lg: 16px
-  xl: 24px
-  page: 30px
+  3xs: 2px
+  2xs: 4px
+  xs: 8px
+  sm: 12px
+  md: 16px
+  lg: 24px
+  xl: 32px
+  2xl: 48px
 components:
   button-primary:
     backgroundColor: "{colors.action}"
     textColor: "#FFFFFF"
     rounded: "{rounded.md}"
-    height: 38px
+    height: 40px
   status-success:
     backgroundColor: "{colors.success-soft}"
     textColor: "{colors.success}"
@@ -106,13 +114,13 @@ DSH QA is a local quality control room, not a generic project tracker. The inter
 
 ## Colors
 
-Use charcoal text on a soft neutral gray page with white work surfaces. Steel blue is the single action and selection accent. The standalone palette is explicit so a host application's unrelated theme cannot change the workbench colors. Muted sage-gray means healthy or passed, amber means attention is needed, and red is reserved for a real risk, failure, or overdue item. Project workflow stages stay neutral or steel blue; they do not imply a test result. Never use color alone to communicate a state: pair it with text, an icon, or a position.
+Use graphite text on a quiet, warm-neutral page with clean near-white work surfaces. Steel blue is the single action and selection accent. The standalone palette is explicit so a host application's unrelated theme cannot change the workbench colors. Blue-gray means healthy or passed, amber means attention is needed, and red is reserved for a real risk, failure, or overdue item. Project workflow stages stay neutral or steel blue; they do not imply a test result. Never use color alone to communicate a state: pair it with text, an icon, or a position.
 
 The workbench supports light, dark, and system themes. Dark mode uses charcoal surfaces and a lighter steel-blue accent. Theme changes affect appearance only; the information architecture and QA workflow remain the same.
 
 ## Typography
 
-Use the DSH host font token when available, with the platform sans stack for Chinese and English as the standalone fallback. Use the code stack only for code and terminal output. Keep ordinary interface and supporting copy at 15px, section headings at 18px, and page titles at 28px. Use regular (400) for body copy, medium (500) for controls and secondary emphasis, and semibold (600) for headings and key values. Keep tracking neutral on Chinese text; reserve tight tracking for numeric data.
+Use the DSH host font token when available, with the platform sans stack for Chinese and English as the standalone fallback. Use the code stack only for code and terminal output. Keep ordinary interface copy at 16px, labels and secondary metadata at 14px, section headings at 18px, and page titles at 28px. Use regular (400) for body copy, medium (500) for controls and secondary emphasis, and semibold (600) for headings and key values. Keep tracking neutral on Chinese text; reserve tight tracking for numeric data. Risk lists, tables, and forms use the same sans family and role-appropriate sizes so long work sessions remain easy to read.
 
 ## Layout
 

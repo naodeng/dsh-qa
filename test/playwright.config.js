@@ -20,7 +20,7 @@ export default defineConfig({
   },
   webServer: {
     cwd: repoRoot,
-    command: `node -e "import('node:fs').then(({ rmSync }) => rmSync('test/.data/e2e', { recursive: true, force: true }))" && QA_PORT=${e2ePort} QA_DATA_DIR=test/.data/e2e node server/cli.js`,
+    command: `node -e "import('node:fs').then(({ rmSync }) => rmSync('test/.data/e2e', { recursive: true, force: true }))" && QA_PORT=${e2ePort} QA_DATA_DIR=test/.data/e2e QA_SKILLS_ROOT=test/fixtures/qa-skills QA_SKILLS_SITE_ROOT=test/fixtures/qa-skills-site node server/cli.js`,
     url: `http://127.0.0.1:${e2ePort}`,
     reuseExistingServer: false,
     timeout: 30_000,

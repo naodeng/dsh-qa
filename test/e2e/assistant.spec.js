@@ -43,7 +43,7 @@ test.describe('DSH 测试对话页', () => {
     await expect(page.locator('.brand-copy')).toContainText('QA Workbench');
     await page.locator('#st-close').click();
     await page.getByRole('button', { name: 'DSH Test Chat' }).click();
-    await expect(page.locator('#chat-head .chat-kicker')).toContainText('Test Mode');
+    await expect(page.locator('#chat-head .chat-mode-label')).toContainText('Test Mode');
     await page.locator('#btn-settings').click();
     await page.locator('[data-settings-lang="zh"]').click();
     await expect(page.locator('.brand-copy')).toContainText('QA 工作台');

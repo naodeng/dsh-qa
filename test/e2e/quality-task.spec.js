@@ -15,6 +15,12 @@ test('项目详情可以创建质量任务并在刷新后保留', async ({ page 
   await page.getByRole('button', { name: '创建任务' }).click();
   await expect(page.getByText('支付回调风险')).toBeVisible();
   await expect(page.getByText('结果来源：人工录入')).toBeVisible();
+  const acceptanceHeading = page.locator('.quality-task-card h4');
+  await expect(acceptanceHeading).toHaveText('验收标准');
+  await expect.poll(() => acceptanceHeading.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { fontSize: style.fontSize, fontWeight: style.fontWeight, letterSpacing: style.letterSpacing };
+  })).toEqual({ fontSize: '14px', fontWeight: '600', letterSpacing: 'normal' });
   await page.reload();
   await page.getByRole('button', { name: '项目看板' }).click();
   await page.locator('.card').filter({ hasText: projectTitle }).click();

@@ -238,6 +238,7 @@ import { filterSlashCapabilities } from './slash-search.js';
     document.body.classList.toggle('rail-collapsed', state.layout.railCollapsed);
     document.body.classList.toggle('cases-collapsed', state.layout.casesCollapsed);
     document.body.classList.toggle('context-collapsed', state.layout.contextCollapsed);
+    syncAssistantPanelAccessibility();
     const controls = [
       ['#rail-resizer', 'rail', state.layout.railCollapsed],
       ['#case-resizer', 'cases', state.layout.casesCollapsed],
@@ -266,6 +267,31 @@ import { filterSlashCapabilities } from './slash-search.js';
   function toggleLayoutPane(key) {
     const collapsedKey = `${key}Collapsed`;
     applyLayout({ [collapsedKey]: !state.layout[collapsedKey] });
+  }
+  function syncAssistantPanelAccessibility() {
+    const isNarrow = window.matchMedia('(max-width: 767px)').matches;
+    const panels = [
+      { key: 'cases', button: $('#btn-mobile-cases'), panel: $('#case-sidebar'), openClass: 'mobile-cases-open' },
+      { key: 'context', button: $('#btn-mobile-context'), panel: $('#context-panel'), openClass: 'mobile-context-open' },
+    ];
+    for (const item of panels) {
+      if (!item.button || !item.panel) continue;
+      const open = isNarrow && document.body.classList.contains(item.openClass) && !state.layout[`${item.key}Collapsed`];
+      const hidden = state.layout[`${item.key}Collapsed`] || (isNarrow && !open);
+      item.button.setAttribute('aria-expanded', String(open));
+      item.panel.setAttribute('aria-hidden', String(hidden));
+      item.panel.toggleAttribute('inert', hidden);
+    }
+  }
+  function closeMobileAssistantPanels(restoreFocus = false) {
+    const casesWereOpen = document.body.classList.contains('mobile-cases-open');
+    const contextWasOpen = document.body.classList.contains('mobile-context-open');
+    document.body.classList.remove('mobile-cases-open', 'mobile-context-open');
+    syncAssistantPanelAccessibility();
+    if (restoreFocus) {
+      const trigger = casesWereOpen ? $('#btn-mobile-cases') : contextWasOpen ? $('#btn-mobile-context') : null;
+      trigger?.focus();
+    }
   }
   function bindSplitter(selector, key, direction = 1) {
     const el = $(selector);
@@ -325,12 +351,12 @@ import { filterSlashCapabilities } from './slash-search.js';
   }
   function emptyHtml(text) { return `<div class="empty-tip">${esc(text)}</div>`; }
   const tinyIcon = (kind) => kind === 'milestone'
-    ? '<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 3h6"/></svg>'
+    ? '<svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 3h6"/></svg>'
     : kind === 'gate'
-      ? '<svg viewBox="0 0 24 24"><path d="M12 3 4 7v5c0 5 3.4 8 8 9 4.6-1 8-4 8-9V7l-8-4Z"/><path d="m9 12 2 2 4-4"/></svg>'
+      ? '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3 4 7v5c0 5 3.4 8 8 9 4.6-1 8-4 8-9V7l-8-4Z"/><path d="m9 12 2 2 4-4"/></svg>'
       : kind === 'workflow'
-        ? '<svg viewBox="0 0 24 24"><path d="M5 5h14M5 12h14M5 19h14"/><path d="m3 5 .5.5L4.5 4M3 12l.5.5 1-1.5M3 19l.5.5 1-1.5"/></svg>'
-        : '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>';
+        ? '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 5h14M5 12h14M5 19h14"/><path d="m3 5 .5.5L4.5 4M3 12l.5.5 1-1.5M3 19l.5.5 1-1.5"/></svg>'
+        : '<svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>';
 
   // ---------- navigation ----------
   function renderSkills() {
@@ -350,7 +376,7 @@ import { filterSlashCapabilities } from './slash-search.js';
         if (!groupRows.length) return '';
         return `<div class="skill-subcategory"><h3>${esc(group[currentLang()] || group.en)}</h3><div class="skill-grid">${groupRows.map(renderCard).join('')}</div></div>`;
       }).join('');
-      return `<section class="skill-category"><div class="skill-category-head"><div><p class="eyebrow">Skills</p><h2>${esc(category[currentLang()] || category.en)}</h2></div><span>${rows.length}</span></div>${sections}</section>`;
+      return `<section class="skill-category"><div class="skill-category-head"><h2>${esc(category[currentLang()] || category.en)}</h2><span>${rows.length}</span></div>${sections}</section>`;
     }).join('') : emptyHtml(t('skills.empty'));
   }
   async function loadSkillCatalog() {
@@ -379,7 +405,13 @@ import { filterSlashCapabilities } from './slash-search.js';
     if (!['dashboard', 'assistant', 'board', 'calendar', 'skills', 'project-detail'].includes(view)) return;
     state.view = view;
     $$('.view').forEach((el) => el.classList.toggle('active', el.id === `view-${view}`));
-    $$('.nav-item').forEach((el) => el.classList.toggle('active', el.dataset.view === view));
+    const activeNavView = view === 'project-detail' ? state.detailReturnView : view;
+    $$('.nav-item').forEach((el) => {
+      const isCurrent = el.dataset.view === activeNavView;
+      el.classList.toggle('active', isCurrent);
+      if (isCurrent) el.setAttribute('aria-current', 'page');
+      else el.removeAttribute('aria-current');
+    });
     if (view === 'dashboard') renderDashboard();
     if (view === 'board') renderBoard();
     if (view === 'calendar') renderCalendars();
@@ -407,10 +439,10 @@ import { filterSlashCapabilities } from './slash-search.js';
   function renderMetrics() {
     const s = state.stats || {};
     const metrics = [
-      [t('metric.activeProjects'), s.activeProjects ?? 0, t('metric.total', { n: s.totalProjects ?? 0 }), 'blue', '<svg viewBox="0 0 24 24"><path d="M4 7h6l2 2h8v10H4z"/><path d="M4 7V5h6l2 2"/></svg>'],
-      [t('metric.dueSoon'), s.dueSoonMilestones ?? 0, t('metric.dueSoonTip'), 'amber', '<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 3h6"/></svg>'],
-      [t('metric.overdue'), s.overdueMilestones ?? 0, s.overdueMilestones ? t('metric.overdueTip') : t('metric.overdueClean'), 'red', '<svg viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5M12 17h.01"/></svg>'],
-      [t('metric.openDefects'), s.openDefects ?? 0, t('metric.openDefectsTip'), 'teal', '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7"/></svg>'],
+      [t('metric.activeProjects'), s.activeProjects ?? 0, t('metric.total', { n: s.totalProjects ?? 0 }), 'blue', '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h6l2 2h8v10H4z"/><path d="M4 7V5h6l2 2"/></svg>'],
+      [t('metric.dueSoon'), s.dueSoonMilestones ?? 0, t('metric.dueSoonTip'), 'amber', '<svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 3h6"/></svg>'],
+      [t('metric.overdue'), s.overdueMilestones ?? 0, s.overdueMilestones ? t('metric.overdueTip') : t('metric.overdueClean'), 'red', '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5M12 17h.01"/></svg>'],
+      [t('metric.openDefects'), s.openDefects ?? 0, t('metric.openDefectsTip'), 'teal', '<svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7"/></svg>'],
     ];
     $('#metric-cards').innerHTML = metrics.map(([label, value, note, color, icon]) => `
       <div class="metric-card"><div class="metric-copy"><small>${label}</small><strong>${value}</strong><em>${note}</em></div><span class="metric-icon ${color}">${icon}</span></div>`).join('');
@@ -550,7 +582,8 @@ import { filterSlashCapabilities } from './slash-search.js';
   function renderDashboard() {
     const now = new Date();
     const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
-    $('#today-label').textContent = currentLang() === 'en' ? now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' }) : `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 · 星期${weekdays[now.getDay()]}`;
+    $('#today-label').dateTime = localDate(now);
+    $('#today-label').textContent = currentLang() === 'en' ? now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' }) : `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日，星期${weekdays[now.getDay()]}`;
     $('.welcome-row h1').textContent = currentLang() === 'en' ? 'Good day. Where shall we start?' : `${now.getHours() < 12 ? '上午' : now.getHours() < 18 ? '下午' : '晚上'}好，今天从哪里开始？`;
     renderMetrics();
     renderReminders();
@@ -590,7 +623,7 @@ import { filterSlashCapabilities } from './slash-search.js';
     $$('.mini-day', $('#mini-calendar')).forEach((button) => button.addEventListener('click', () => { state.selectedDate = button.dataset.date; renderMiniCalendar(); }));
     const selected = itemsOn(state.selectedDate);
     $('#mini-agenda').innerHTML = (selected.length ? selected.slice(0, 2).map((item) => `
-      <div class="mini-agenda-item" data-project-id="${item.projectId}"><i style="background:${item.type === 'milestone' ? 'var(--amber)' : 'var(--blue)'}"></i><div><b>${esc(item.title)}</b><span>${esc(item.projectTitle)}</span></div></div>`).join('') : `<div class="mini-agenda-item"><i style="background:#cbd3d9"></i><div><b>${fmtDate(state.selectedDate)}${t('calendar.none')}</b><span>${t('calendar.noneTip')}</span></div></div>`) + `<button class="mini-agenda-add" type="button">${t('calendar.add')}</button>`;
+      <div class="mini-agenda-item" data-project-id="${item.projectId}"><i style="background:${item.type === 'milestone' ? 'var(--amber)' : 'var(--blue)'}"></i><div><b>${esc(item.title)}</b><span>${esc(item.projectTitle)}</span></div></div>`).join('') : `<div class="mini-agenda-item"><i style="background:var(--color-rule)"></i><div><b>${fmtDate(state.selectedDate)}${t('calendar.none')}</b><span>${t('calendar.noneTip')}</span></div></div>`) + `<button class="mini-agenda-add" type="button">${t('calendar.add')}</button>`;
     $$('.mini-agenda-item[data-project-id]', $('#mini-agenda')).forEach((el) => el.addEventListener('click', () => openProject(el.dataset.projectId)));
     $('.mini-agenda-add', $('#mini-agenda')).addEventListener('click', () => openScheduleModal(state.selectedDate));
   }
@@ -1510,16 +1543,16 @@ import { filterSlashCapabilities } from './slash-search.js';
   // ---------- drawer ----------
   const TABS = [['overview', 'drawer.tab.overview', '项'], ['qualityTasks', 'drawer.tab.qualityTasks', '质'], ['requirements', 'drawer.tab.requirements', '需'], ['testcases', 'drawer.tab.testcases', '例'], ['defects', 'drawer.tab.defects', '缺'], ['milestones', 'drawer.tab.milestones', '里'], ['reports', 'drawer.tab.reports', '报'], ['knowledge', 'drawer.tab.knowledge', '知'], ['minutes', 'drawer.tab.minutes', '纪'], ['gates', 'drawer.tab.gates', '审']];
   const TAB_META = {
-    overview: ['drawer.overview.kicker', 'drawer.tab.overview', 'drawer.overview.sub'],
-    qualityTasks: ['drawer.qualityTasks.kicker', 'drawer.tab.qualityTasks', 'drawer.qualityTasks.sub'],
-    requirements: ['drawer.requirements.kicker', 'drawer.tab.requirements', 'drawer.requirements.sub'],
-    testcases: ['drawer.testcases.kicker', 'drawer.tab.testcases', 'drawer.testcases.sub'],
-    defects: ['drawer.defects.kicker', 'drawer.tab.defects', 'drawer.defects.sub'],
-    milestones: ['drawer.milestones.kicker', 'drawer.tab.milestones', 'drawer.milestones.sub'],
-    reports: ['drawer.reports.kicker', 'drawer.tab.reports', 'drawer.reports.sub'],
-    knowledge: ['drawer.knowledge.kicker', 'drawer.tab.knowledge', 'drawer.knowledge.sub'],
-    minutes: ['drawer.minutes.kicker', 'drawer.tab.minutes', 'drawer.minutes.sub'],
-    gates: ['drawer.gates.kicker', 'drawer.tab.gates', 'drawer.gates.sub'],
+    overview: ['drawer.tab.overview', 'drawer.overview.sub'],
+    qualityTasks: ['drawer.tab.qualityTasks', 'drawer.qualityTasks.sub'],
+    requirements: ['drawer.tab.requirements', 'drawer.requirements.sub'],
+    testcases: ['drawer.tab.testcases', 'drawer.testcases.sub'],
+    defects: ['drawer.tab.defects', 'drawer.defects.sub'],
+    milestones: ['drawer.tab.milestones', 'drawer.milestones.sub'],
+    reports: ['drawer.tab.reports', 'drawer.reports.sub'],
+    knowledge: ['drawer.tab.knowledge', 'drawer.knowledge.sub'],
+    minutes: ['drawer.tab.minutes', 'drawer.minutes.sub'],
+    gates: ['drawer.tab.gates', 'drawer.gates.sub'],
   };
   async function openDrawer(id) {
     state.drawerTab = 'overview';
@@ -1539,10 +1572,9 @@ import { filterSlashCapabilities } from './slash-search.js';
         <div class="sidebar-facts"><div><span>对象类型</span><b>${KIND_CN[p.kind] || esc(p.kind)}</b></div><div><span>被测产品</span><b>${esc(p.product || '尚未填写')}</b></div><div><span>测试负责人</span><b>${esc(p.owner || '尚未填写')}</b></div><div><span>DSH 协作</span><b>${p.assistant?.enabled === false ? '已关闭' : MODE_CN[p.assistant?.mode] || '全流程辅助'}</b></div></div>`;
       $('#btn-drawer-folder').textContent = p.workspacePath ? '打开项目文件' : '创建项目文件';
       $('#tabs').classList.add('hidden');
-      $('#drawer-section-kicker').textContent = currentLang() === 'en' ? 'QUICK PREVIEW' : '快速预览';
       $('#drawer-section-title').textContent = currentLang() === 'en' ? 'Project snapshot' : '项目概览';
       $('#drawer-section-subtitle').textContent = currentLang() === 'en' ? 'Key status and risks at a glance' : '快速查看状态、门禁、风险和近期数据';
-      $('#tab-body').innerHTML = `<div class="overview-metrics"><div><span>${currentLang() === 'en' ? 'Requirements' : '需求范围'}</span><b>${p.requirements.length}</b></div><div><span>${currentLang() === 'en' ? 'Test cases' : '测试用例'}</span><b>${p.testcases.length}</b></div><div><span>${currentLang() === 'en' ? 'Open defects' : '未关闭缺陷'}</span><b>${p.defects.filter((item) => item.status !== 'closed').length}</b></div><div><span>${currentLang() === 'en' ? 'Evidence' : '证据包'}</span><b>${p.evidenceBundles?.filter((item) => item.state === 'ready').length || 0}</b></div></div><section class="detail-card"><div class="detail-card-head"><div><span>QUALITY SNAPSHOT</span><h3>${currentLang() === 'en' ? 'Quality status' : '质量状态'}</h3></div></div><div class="li-sub">${p.qualityTasks?.length || 0} ${currentLang() === 'en' ? 'quality tasks' : '个质量任务'} · ${p.regressionSets?.length || 0} ${currentLang() === 'en' ? 'regression sets' : '个回归集'} · ${p.gates?.filter((item) => item.status === 'pending').length || 0} ${currentLang() === 'en' ? 'pending gates' : '个待审批门禁'}</div></section>`;
+      $('#tab-body').innerHTML = `<div class="overview-metrics"><div><span>${currentLang() === 'en' ? 'Requirements' : '需求范围'}</span><b>${p.requirements.length}</b></div><div><span>${currentLang() === 'en' ? 'Test cases' : '测试用例'}</span><b>${p.testcases.length}</b></div><div><span>${currentLang() === 'en' ? 'Open defects' : '未关闭缺陷'}</span><b>${p.defects.filter((item) => item.status !== 'closed').length}</b></div><div><span>${currentLang() === 'en' ? 'Evidence' : '证据包'}</span><b>${p.evidenceBundles?.filter((item) => item.state === 'ready').length || 0}</b></div></div><section class="detail-card"><div class="detail-card-head"><div><h3>${currentLang() === 'en' ? 'Quality status' : '质量状态'}</h3></div></div><div class="li-sub">${p.qualityTasks?.length || 0} ${currentLang() === 'en' ? 'quality tasks' : '个质量任务'} · ${p.regressionSets?.length || 0} ${currentLang() === 'en' ? 'regression sets' : '个回归集'} · ${p.gates?.filter((item) => item.status === 'pending').length || 0} ${currentLang() === 'en' ? 'pending gates' : '个待审批门禁'}</div></section>`;
     } catch (error) { toast(error.message, 'err'); }
   }
   function renderTabs() {
@@ -1555,8 +1587,7 @@ import { filterSlashCapabilities } from './slash-search.js';
   }
   function renderTab(tab) {
     const p = state.drawerProject; if (!p) return;
-    const [kicker, title, subtitle] = (TAB_META[tab] || TAB_META.overview).map(t);
-    $('#drawer-section-kicker').textContent = kicker;
+    const [title, subtitle] = (TAB_META[tab] || TAB_META.overview).map(t);
     $('#drawer-section-title').textContent = title;
     $('#drawer-section-subtitle').textContent = subtitle;
     ({ overview: renderOverview, qualityTasks: renderQualityTasks, requirements: renderRequirements, testcases: renderTestcases, defects: renderDefects, milestones: renderMilestones, reports: renderReports, knowledge: renderKnowledge, minutes: renderMinutes, gates: renderGates }[tab])($('#tab-body'), p);
@@ -1587,8 +1618,7 @@ import { filterSlashCapabilities } from './slash-search.js';
   }
   function renderProjectDetailTab(tab) {
     const p = state.detailProject; if (!p) return;
-    const [kicker, title, subtitle] = (TAB_META[tab] || TAB_META.overview).map(t);
-    $('#project-detail-kicker').textContent = kicker;
+    const [title, subtitle] = (TAB_META[tab] || TAB_META.overview).map(t);
     $('#project-detail-title').textContent = title;
     $('#project-detail-subtitle').textContent = subtitle;
     ({ overview: renderOverview, qualityTasks: renderQualityTasks, requirements: renderRequirements, testcases: renderTestcases, defects: renderDefects, milestones: renderMilestones, reports: renderReports, knowledge: renderKnowledge, minutes: renderMinutes, gates: renderGates }[tab])($('#project-detail-body'), p);
@@ -1616,7 +1646,7 @@ import { filterSlashCapabilities } from './slash-search.js';
     const analyses = p.failureAnalyses || [];
     const regressions = p.regressionSets || [];
     const evidenceState = (item) => ({ ready: q('已验证', 'Verified'), finalizing: q('处理中', 'Finalizing'), expired: q('已过期', 'Expired'), 'integrity-failed': q('完整性失败', 'Integrity failed') }[item.state] || item.state || q('未知', 'Unknown'));
-    body.innerHTML = `<section class="detail-card" id="quality-gate-summary"><div class="detail-card-head"><div><span>QUALITY GATE</span><h3>${q('质量门禁', 'Quality gate')}</h3></div><span class="badge">${q('计算中', 'Checking')}</span></div><div class="li-sub">${q('正在检查测试运行、证据包和高风险项。', 'Checking test runs, evidence bundles, and high risks.')}</div></section><section class="detail-card quality-assets"><div class="detail-card-head"><div><span>QUALITY EVIDENCE</span><h3>${q('质量证据', 'Quality evidence')}</h3></div></div><div class="radar-grid"><div class="radar-stat"><b>${evidence.filter((item) => item.state === 'ready' && item.integrity === 'verified').length}</b><span>${q('就绪证据包', 'Ready bundles')}</span></div><div class="radar-stat"><b>${analyses.length}</b><span>${q('故障分析', 'Failure analyses')}</span></div><div class="radar-stat"><b>${regressions.length}</b><span>${q('回归集', 'Regression sets')}</span></div><div class="radar-stat"><b>${(p.testruns || []).length}</b><span>${q('测试运行', 'Test runs')}</span></div></div><div class="list quality-asset-list"><div class="list-item"><div class="li-title">${q('证据包', 'Evidence bundles')}</div><div class="li-sub">${evidence.map((item) => `${esc(item.id)} · ${esc(evidenceState(item))}`).join('、') || q('暂无证据包', 'No evidence bundles')}</div>${evidenceItems ? `<div class="li-meta evidence-items">${evidenceItems}</div>` : ''}</div><div class="list-item"><div class="li-title">${q('故障分析', 'Failure analyses')}</div><div class="li-sub">${analyses.map((item) => `${esc(item.summary || item.id)} · ${esc(item.status || 'proposed')}${item.failureStep ? ` · ${esc(item.failureStep)}` : ''}${item.confidence === null || item.confidence === undefined ? '' : ` · ${Math.round(Number(item.confidence) * 100)}%`}`).join('、') || q('暂无故障分析', 'No failure analyses')}</div></div><div class="list-item"><div class="li-title">${q('回归集', 'Regression sets')}</div><div class="li-sub">${regressions.map((item) => { const total = item.cases?.length || item.testCaseIds?.length || 0; const included = item.cases ? item.cases.filter((entry) => entry.included !== false).length : total; return `${esc(item.name || item.id)} · ${esc(item.status || 'manual')} · ${included}/${total} ${q('个用例', 'cases')}`; }).join('、') || q('暂无回归集', 'No regression sets')}</div></div><div class="list-item"><div class="li-title">${q('修复前后对比', 'Before/after comparison')}</div><div class="li-sub">${q('选择同一测试计划的两个终态运行进行对比。', 'Compare two terminal runs from the same test plan.')}</div></div></div></section><div class="tab-toolbar"><div><b>${q('质量任务', 'Quality tasks')}</b><span>${q('记录验收标准、风险、测试范围和分析决策', 'Track acceptance criteria, risks, scope, and analysis decisions')}</span></div><button class="btn primary sm" id="qt-add" type="button">＋ ${q('新建质量任务', 'New quality task')}</button></div><div class="list">${tasks.map((task) => `<article class="list-item quality-task-card"><div class="li-title">${esc(task.title)} <span class="badge">v${task.version || 1}</span></div><div class="li-meta">${q('阶段', 'Stage')}：${esc(task.stage || 'intake')} · ${q('结果来源', 'Origin')}：${task.analysisOrigin === 'agent' ? 'DSH 分析' : q('人工录入', 'Manual')}</div><h4>${q('验收标准', 'Acceptance criteria')}</h4><div class="li-sub">${task.acceptanceCriteria?.map((item) => esc(item.condition || item)).join('、') || q('暂无验收标准', 'No acceptance criteria')}</div></article>`).join('') || emptyHtml(q('暂无质量任务', 'No quality tasks'))}</div><section class="detail-card execution-card"><div class="detail-card-head"><div><span>LOCAL EXECUTION</span><h3>${q('执行配置', 'Execution profiles')}</h3></div><button class="btn primary sm" id="ep-add" type="button">＋ ${q('新建执行配置', 'New execution profile')}</button></div><div class="list">${(p.executionProfiles || []).map((profile) => `<div class="list-item"><div class="li-title">${esc(profile.name)} · v${profile.currentVersion || profile.version || 1}</div></div>`).join('') || emptyHtml(q('暂无执行配置', 'No execution profiles'))}</div></section>`;
+    body.innerHTML = `<section class="detail-card" id="quality-gate-summary"><div class="detail-card-head"><div><h3>${q('质量门禁', 'Quality gate')}</h3></div><span class="badge">${q('计算中', 'Checking')}</span></div><div class="li-sub">${q('正在检查测试运行、证据包和高风险项。', 'Checking test runs, evidence bundles, and high risks.')}</div></section><section class="detail-card quality-assets"><div class="detail-card-head"><div><h3>${q('质量证据', 'Quality evidence')}</h3></div></div><div class="radar-grid"><div class="radar-stat"><b>${evidence.filter((item) => item.state === 'ready' && item.integrity === 'verified').length}</b><span>${q('就绪证据包', 'Ready bundles')}</span></div><div class="radar-stat"><b>${analyses.length}</b><span>${q('故障分析', 'Failure analyses')}</span></div><div class="radar-stat"><b>${regressions.length}</b><span>${q('回归集', 'Regression sets')}</span></div><div class="radar-stat"><b>${(p.testruns || []).length}</b><span>${q('测试运行', 'Test runs')}</span></div></div><div class="list quality-asset-list"><div class="list-item"><div class="li-title">${q('证据包', 'Evidence bundles')}</div><div class="li-sub">${evidence.map((item) => `${esc(item.id)} · ${esc(evidenceState(item))}`).join('、') || q('暂无证据包', 'No evidence bundles')}</div>${evidenceItems ? `<div class="li-meta evidence-items">${evidenceItems}</div>` : ''}</div><div class="list-item"><div class="li-title">${q('故障分析', 'Failure analyses')}</div><div class="li-sub">${analyses.map((item) => `${esc(item.summary || item.id)} · ${esc(item.status || 'proposed')}${item.failureStep ? ` · ${esc(item.failureStep)}` : ''}${item.confidence === null || item.confidence === undefined ? '' : ` · ${Math.round(Number(item.confidence) * 100)}%`}`).join('、') || q('暂无故障分析', 'No failure analyses')}</div></div><div class="list-item"><div class="li-title">${q('回归集', 'Regression sets')}</div><div class="li-sub">${regressions.map((item) => { const total = item.cases?.length || item.testCaseIds?.length || 0; const included = item.cases ? item.cases.filter((entry) => entry.included !== false).length : total; return `${esc(item.name || item.id)} · ${esc(item.status || 'manual')} · ${included}/${total} ${q('个用例', 'cases')}`; }).join('、') || q('暂无回归集', 'No regression sets')}</div></div><div class="list-item"><div class="li-title">${q('修复前后对比', 'Before/after comparison')}</div><div class="li-sub">${q('选择同一测试计划的两个终态运行进行对比。', 'Compare two terminal runs from the same test plan.')}</div></div></div></section><div class="tab-toolbar"><div><b>${q('质量任务', 'Quality tasks')}</b><span>${q('记录验收标准、风险、测试范围和分析决策', 'Track acceptance criteria, risks, scope, and analysis decisions')}</span></div><button class="btn primary sm" id="qt-add" type="button">＋ ${q('新建质量任务', 'New quality task')}</button></div><div class="list">${tasks.map((task) => `<article class="list-item quality-task-card"><div class="li-title">${esc(task.title)} <span class="badge">v${task.version || 1}</span></div><div class="li-meta">${q('阶段', 'Stage')}：${esc(task.stage || 'intake')} · ${q('结果来源', 'Origin')}：${task.analysisOrigin === 'agent' ? 'DSH 分析' : q('人工录入', 'Manual')}</div><h4>${q('验收标准', 'Acceptance criteria')}</h4><div class="li-sub">${task.acceptanceCriteria?.map((item) => esc(item.condition || item)).join('、') || q('暂无验收标准', 'No acceptance criteria')}</div></article>`).join('') || emptyHtml(q('暂无质量任务', 'No quality tasks'))}</div><section class="detail-card execution-card"><div class="detail-card-head"><div><h3>${q('执行配置', 'Execution profiles')}</h3></div><button class="btn primary sm" id="ep-add" type="button">＋ ${q('新建执行配置', 'New execution profile')}</button></div><div class="list">${(p.executionProfiles || []).map((profile) => `<div class="list-item"><div class="li-title">${esc(profile.name)} · v${profile.currentVersion || profile.version || 1}</div></div>`).join('') || emptyHtml(q('暂无执行配置', 'No execution profiles'))}</div></section>`;
     const hostProfileVersion = (profile) => profile.versions?.find((item) => item.version === (profile.currentVersion || profile.version)) || profile;
     const hostStatusLabel = (status) => status ? t(`host.${status}`) : t('host.noExecution');
     const hostEvidenceStatus = (execution) => {
@@ -1646,7 +1676,7 @@ import { filterSlashCapabilities } from './slash-search.js';
       const version = hostProfileVersion(profile);
       return `<article class="list-item host-profile-card" data-host-profile-id="${esc(profile.id)}"><div class="li-title">${esc(version.name || profile.name)} · v${esc(version.version || profile.currentVersion || 1)} <span class="badge">${esc(version.provider)}</span></div><p class="field-note">${q('请先创建质量任务，再开始 Host 执行。', 'Create a quality task before starting a Host execution.')}</p></article>`;
     }).join('');
-    const hostSection = `<section class="detail-card execution-card host-execution-card" id="host-execution-card"><div class="detail-card-head"><div><span>HOST EXECUTION</span><h3>${q('Host 执行配置', 'Host execution profiles')}</h3><p class="field-note">${q('由宿主能力执行受控目标；结果和证据由服务端确认。', 'Run controlled targets through host capabilities; the server confirms results and evidence.')}</p></div><button class="btn primary sm" id="host-ep-add" type="button">＋ ${q('新建 Host 配置', 'New Host profile')}</button></div><div class="list">${hostCards || emptyHtml(q('暂无 Host 执行配置', 'No Host execution profiles yet'))}</div><p class="field-note host-evidence-note">${q('首页不把 Host 返回当作最终交付结论；证据包必须经过服务端校验。', 'The dashboard does not treat a Host response as a final delivery verdict; evidence must pass server-side verification.')}</p></section>`;
+    const hostSection = `<section class="detail-card execution-card host-execution-card" id="host-execution-card"><div class="detail-card-head"><div><h3>${q('Host 执行配置', 'Host execution profiles')}</h3><p class="field-note">${q('由宿主能力执行受控目标；结果和证据由服务端确认。', 'Run controlled targets through host capabilities; the server confirms results and evidence.')}</p></div><button class="btn primary sm" id="host-ep-add" type="button">＋ ${q('新建 Host 配置', 'New Host profile')}</button></div><div class="list">${hostCards || emptyHtml(q('暂无 Host 执行配置', 'No Host execution profiles yet'))}</div><p class="field-note host-evidence-note">${q('首页不把 Host 返回当作最终交付结论；证据包必须经过服务端校验。', 'The dashboard does not treat a Host response as a final delivery verdict; evidence must pass server-side verification.')}</p></section>`;
     body.insertAdjacentHTML('beforeend', hostSection);
     $('.execution-card:not(.host-execution-card) .list', body).innerHTML = (p.executionProfiles || []).filter((profile) => profile.kind !== 'host').map((profile) => `<div class="list-item"><div class="li-title">${esc(profile.name)} · v${profile.currentVersion || profile.version || 1}</div></div>`).join('') || emptyHtml(q('暂无执行配置', 'No execution profiles'));
     const runHostExecution = async (profile, qualityTaskId, targetValue, capability, action = 'start', card) => {
@@ -1711,7 +1741,7 @@ import { filterSlashCapabilities } from './slash-search.js';
         : q('暂无门禁趋势。', 'No gate trend yet.');
       const delivery = document.createElement('section');
       delivery.className = 'detail-card';
-      delivery.innerHTML = `<div class="detail-card-head"><div><span>DELIVERY</span><h3>${q('交付报告', 'Delivery report')}</h3></div><button class="btn sm" id="gate-exception" type="button">${q('添加门禁例外', 'Add gate exception')}</button></div><div class="li-sub" id="gate-report">${reportText}</div><div class="detail-card-head"><div><span>TREND</span><h3>${q('门禁趋势', 'Gate trends')}</h3></div></div><div class="li-sub" id="gate-trend">${trendText}</div>`;
+      delivery.innerHTML = `<div class="detail-card-head"><div><h3>${q('交付报告', 'Delivery report')}</h3></div><button class="btn sm" id="gate-exception" type="button">${q('添加门禁例外', 'Add gate exception')}</button></div><div class="li-sub" id="gate-report">${reportText}</div><div class="detail-card-head"><div><h3>${q('门禁趋势', 'Gate trends')}</h3></div></div><div class="li-sub" id="gate-trend">${trendText}</div>`;
       gateCard.after(delivery);
       $('#gate-exception', delivery).addEventListener('click', async () => {
         try {
@@ -1814,20 +1844,20 @@ import { filterSlashCapabilities } from './slash-search.js';
       if (!task) return toast(q('请先创建质量任务', 'Create a quality task first'), 'err');
       try { const result = await api(`api/projects/${p.id}/quality-tasks/${task.id}/gates/evaluate`, { method: 'POST', body: {} }); const [report, trend] = await Promise.all([api(`api/projects/${p.id}/quality-tasks/${task.id}/reports`), api(`api/projects/${p.id}/quality-tasks/${task.id}/gate-trends`)]); $('#gate-report', body).textContent = `${report.report.verdict} · ${report.report.checks.map((check) => check.explanation).join('；')}`; $('#gate-trend', body).textContent = trend.trend.series.map((point) => point.verdict).join(' → '); toast(`${q('门禁结论', 'Gate verdict')}：${result.gate.verdict}`, result.gate.verdict === 'BLOCK' ? 'err' : 'ok'); } catch (error) { toast(error.message, 'err'); }
     });
-    api(`api/projects/${p.id}/quality-gate`).then(({ gate }) => { const card = $('#quality-gate-summary', body); if (!card) return; card.innerHTML = `<div class="detail-card-head"><div><span>QUALITY GATE</span><h3>质量门禁</h3></div><span class="badge ${gate.status === 'blocked' ? 'danger' : ''}">${gate.status === 'blocked' ? '阻断' : '通过'}</span><button class="btn primary sm" id="gate-evaluate" type="button">${q('评估质量门禁', 'Evaluate quality gate')}</button></div><div class="li-sub">${gate.blockers.length ? `阻断原因：${gate.blockers.map(esc).join('、')}` : '当前检查项均已满足。'}</div>`; card.querySelector('#gate-evaluate')?.addEventListener('click', async () => { const task = tasks[0]; if (!task) return toast(q('请先创建质量任务', 'Create a quality task first'), 'err'); try { const result = await api(`api/projects/${p.id}/quality-tasks/${task.id}/gates/evaluate`, { method: 'POST', body: {} }); const [report, trend] = await Promise.all([api(`api/projects/${p.id}/quality-tasks/${task.id}/reports`), api(`api/projects/${p.id}/quality-tasks/${task.id}/gate-trends`)]); $('#gate-report', body).textContent = `${report.report.verdict} · ${report.report.checks.map((check) => check.explanation).join('；')}`; $('#gate-trend', body).textContent = trend.trend.series.map((point) => point.verdict).join(' → '); toast(`${q('门禁结论', 'Gate verdict')}：${result.gate.verdict}`, result.gate.verdict === 'BLOCK' ? 'err' : 'ok'); } catch (error) { toast(error.message, 'err'); } }); }).catch(() => {});
+    api(`api/projects/${p.id}/quality-gate`).then(({ gate }) => { const card = $('#quality-gate-summary', body); if (!card) return; card.innerHTML = `<div class="detail-card-head"><div><h3>质量门禁</h3></div><span class="badge ${gate.status === 'blocked' ? 'danger' : ''}">${gate.status === 'blocked' ? '阻断' : '通过'}</span><button class="btn primary sm" id="gate-evaluate" type="button">${q('评估质量门禁', 'Evaluate quality gate')}</button></div><div class="li-sub">${gate.blockers.length ? `阻断原因：${gate.blockers.map(esc).join('、')}` : '当前检查项均已满足。'}</div>`; card.querySelector('#gate-evaluate')?.addEventListener('click', async () => { const task = tasks[0]; if (!task) return toast(q('请先创建质量任务', 'Create a quality task first'), 'err'); try { const result = await api(`api/projects/${p.id}/quality-tasks/${task.id}/gates/evaluate`, { method: 'POST', body: {} }); const [report, trend] = await Promise.all([api(`api/projects/${p.id}/quality-tasks/${task.id}/reports`), api(`api/projects/${p.id}/quality-tasks/${task.id}/gate-trends`)]); $('#gate-report', body).textContent = `${report.report.verdict} · ${report.report.checks.map((check) => check.explanation).join('；')}`; $('#gate-trend', body).textContent = trend.trend.series.map((point) => point.verdict).join(' → '); toast(`${q('门禁结论', 'Gate verdict')}：${result.gate.verdict}`, result.gate.verdict === 'BLOCK' ? 'err' : 'ok'); } catch (error) { toast(error.message, 'err'); } }); }).catch(() => {});
   }
   function renderOverview(body, p) {
     const options = state.columns.map((column) => `<option value="${column.id}" ${p.status === column.id ? 'selected' : ''}>${esc(column.title)}</option>`).join('');
     const aiTitle = p.assistant?.enabled === false ? '自动辅助已关闭' : MODE_CN[p.assistant?.mode] || '全流程辅助';
     body.innerHTML = `<div class="overview-metrics"><div><span>需求范围</span><b>${p.requirements.length}</b></div><div><span>测试用例</span><b>${p.testcases.length}</b></div><div><span>缺陷</span><b>${p.defects.length}</b></div><div><span>测试报告</span><b>${p.reports.length}</b></div></div>
       <div class="detail-overview-grid">
-        <section class="detail-card case-info-card"><div class="detail-card-head"><div><span>PROJECT PROFILE</span><h3>项目基本信息</h3></div><button class="btn sm" id="ov-add-schedule" type="button">＋ 新增日程</button></div>
+        <section class="detail-card case-info-card"><div class="detail-card-head"><div><h3>项目基本信息</h3></div><button class="btn sm" id="ov-add-schedule" type="button">＋ 新增日程</button></div>
           <div class="detail-form-grid"><div class="field span-2"><label>项目名称</label><input id="ov-title" value="${esc(p.title)}"/></div><div class="field"><label>项目编号</label><input id="ov-number" value="${esc(p.projectKey)}" placeholder="如 PRJ-2026-001"/></div><div class="field"><label>测试阶段</label><select id="ov-status">${options}</select></div><div class="field"><label>被测产品</label><input id="ov-product" value="${esc(p.product)}" placeholder="尚未填写"/></div><div class="field"><label>测试负责人</label><input id="ov-owner" value="${esc(p.owner)}" placeholder="尚未填写"/></div><div class="field span-2"><label>项目摘要 / 测试范围</label><textarea id="ov-summary" rows="6" placeholder="记录测试范围、重点链路和当前进展">${esc(p.summary)}</textarea></div></div>
         </section>
-        <section class="detail-card ai-detail-card"><div class="detail-card-head"><div><span>DSH QA MODE</span><h3>DSH 协作策略</h3></div><i class="ai-state-dot ${p.assistant?.enabled === false ? 'off' : ''}"></i></div><strong>${aiTitle}</strong><p>${p.assistant?.enabled === false ? 'DSH 只回答问题，不主动登记或推进项目。' : MODE_DESC[p.assistant?.mode] || MODE_DESC.full}</p><div class="policy-facts"><span>自动提取 <b>${p.assistant?.autoExtract === false ? '关闭' : '开启'}</b></span><span>流程提醒 <b>${p.assistant?.reminders === 'off' ? '关闭' : p.assistant?.reminders === 'milestones' ? '仅里程碑' : '全部'}</b></span><span>对话模式 <b>DSH 测试模式</b></span></div><button class="btn sm wide" id="ov-policy" type="button">调整协作策略 <span>→</span></button></section>
-        <section class="detail-card"><div class="detail-card-head"><div><span>TEAM</span><h3>项目成员</h3></div><span class="card-counter">${p.members.length} 人</span></div><div class="party-list">${p.members.map((member) => `<div class="party-row"><span class="party-avatar">${esc((member.name || '?').slice(0, 1))}</span><div><b>${esc(member.name)}</b><span>${ROLE_CN[member.role] || esc(member.role)}${member.contact ? ` · ${esc(member.contact)}` : ''}</span></div></div>`).join('') || emptyHtml('暂无成员信息')}</div></section>
-        <section class="detail-card workspace-card"><div class="detail-card-head"><div><span>LOCAL FILES</span><h3>本地项目文件</h3></div></div><div class="folder-visual"><span>▰</span><div><b>${p.workspacePath ? esc(p.workspacePath.split('/').pop()) : '尚未创建项目目录'}</b><p>${p.workspacePath ? esc(p.workspacePath) : '自动生成需求、计划、用例、数据、执行、缺陷、报告和归档目录。'}</p></div></div><button class="btn sm wide" id="ov-workspace" type="button">${p.workspacePath ? '在 Finder 中打开' : '创建标准项目目录'} <span>→</span></button></section>
-        <section class="detail-card timeline-card span-2"><div class="detail-card-head"><div><span>PROJECT TIMELINE</span><h3>阶段时间线</h3></div></div><div class="case-timeline">${p.history.slice(-8).reverse().map((h) => `<div class="timeline-row"><i></i><div><b>${esc(h.from ? columnOf({ status: h.from })?.title : '创建项目')} → ${esc(columnOf({ status: h.to })?.title || h.to)}</b><span>${h.by === 'ai' ? 'AI 自动推进' : h.by === 'seed' ? '系统示例' : '负责人操作'} · ${fmtDateFull(h.at)}</span></div></div>`).join('') || emptyHtml('暂无阶段记录')}</div></section>
+        <section class="detail-card ai-detail-card"><div class="detail-card-head"><div><h3>DSH 协作策略</h3></div><i class="ai-state-dot ${p.assistant?.enabled === false ? 'off' : ''}"></i></div><strong>${aiTitle}</strong><p>${p.assistant?.enabled === false ? 'DSH 只回答问题，不主动登记或推进项目。' : MODE_DESC[p.assistant?.mode] || MODE_DESC.full}</p><div class="policy-facts"><span>自动提取 <b>${p.assistant?.autoExtract === false ? '关闭' : '开启'}</b></span><span>流程提醒 <b>${p.assistant?.reminders === 'off' ? '关闭' : p.assistant?.reminders === 'milestones' ? '仅里程碑' : '全部'}</b></span><span>对话模式 <b>DSH 测试模式</b></span></div><button class="btn sm wide" id="ov-policy" type="button">调整协作策略 <span>→</span></button></section>
+        <section class="detail-card"><div class="detail-card-head"><div><h3>项目成员</h3></div><span class="card-counter">${p.members.length} 人</span></div><div class="party-list">${p.members.map((member) => `<div class="party-row"><span class="party-avatar">${esc((member.name || '?').slice(0, 1))}</span><div><b>${esc(member.name)}</b><span>${ROLE_CN[member.role] || esc(member.role)}${member.contact ? ` · ${esc(member.contact)}` : ''}</span></div></div>`).join('') || emptyHtml('暂无成员信息')}</div></section>
+        <section class="detail-card workspace-card"><div class="detail-card-head"><div><h3>本地项目文件</h3></div></div><div class="folder-visual"><span>▰</span><div><b>${p.workspacePath ? esc(p.workspacePath.split('/').pop()) : '尚未创建项目目录'}</b><p>${p.workspacePath ? esc(p.workspacePath) : '自动生成需求、计划、用例、数据、执行、缺陷、报告和归档目录。'}</p></div></div><button class="btn sm wide" id="ov-workspace" type="button">${p.workspacePath ? '在 Finder 中打开' : '创建标准项目目录'} <span>→</span></button></section>
+        <section class="detail-card timeline-card span-2"><div class="detail-card-head"><div><h3>阶段时间线</h3></div></div><div class="case-timeline">${p.history.slice(-8).reverse().map((h) => `<div class="timeline-row"><i></i><div><b>${esc(h.from ? columnOf({ status: h.from })?.title : '创建项目')} → ${esc(columnOf({ status: h.to })?.title || h.to)}</b><span>${h.by === 'ai' ? 'AI 自动推进' : h.by === 'seed' ? '系统示例' : '负责人操作'} · ${fmtDateFull(h.at)}</span></div></div>`).join('') || emptyHtml('暂无阶段记录')}</div></section>
       </div>
       <div class="detail-action-bar"><button class="btn sm" id="ov-new-chat" type="button">新建 DSH 对话</button><button class="btn sm danger" id="ov-delete" type="button">删除项目记录</button><span></span><button class="btn primary" id="ov-save" type="button">保存项目信息</button></div>`;
     $('#ov-save', body).addEventListener('click', async () => { try {
@@ -1857,8 +1887,8 @@ import { filterSlashCapabilities } from './slash-search.js';
     const milestones = [...p.milestones].sort((a, b) => a.dueDate.localeCompare(b.dueDate));
     const events = [...p.events].sort((a, b) => a.date.localeCompare(b.date));
     body.innerHTML = `<div class="tab-toolbar"><div><b>共 ${milestones.length + events.length} 个时间节点</b><span>日程和里程碑会同步进入日历排期</span></div><button class="btn primary sm" id="dl-add" type="button">＋ 新增日程</button></div>
-      <section class="record-section"><h3>里程碑与截止日 <span>${milestones.length}</span></h3><div class="list">${milestones.map((m) => { const days = Math.round((new Date(m.dueDate + 'T00:00:00') - today) / 86400000); const badge = m.done ? '<span class="badge">已完成</span>' : days < 0 ? `<span class="badge danger">逾期 ${-days} 天</span>` : days <= 7 ? `<span class="badge warn">${days === 0 ? '今天' : days + '天后'}到期</span>` : `<span class="badge">${days} 天后</span>`; return `<div class="list-item"><div class="li-title">${esc(m.title)} ${badge}</div><div class="li-meta"><span>截止日 ${esc(m.dueDate)}</span><span>${MS_KIND_CN[m.kind] || m.kind}</span>${m.basis ? `<span>依据 ${esc(m.basis)}</span>` : ''}</div></div>`; }).join('') || emptyHtml('暂无里程碑')}</div></section>
-      <section class="record-section"><h3>会议与工作日程 <span>${events.length}</span></h3><div class="list">${events.map((event) => `<div class="list-item"><div class="li-title">${esc(event.title)} <span class="badge doc">${EVENT_KIND_CN[event.kind] || '日程'}</span></div><div class="li-meta"><span>${esc(event.date)}</span>${event.note ? `<span>${esc(event.note)}</span>` : ''}</div></div>`).join('') || emptyHtml('暂无日程')}</div></section>`;
+      <section class="record-section"><div class="record-section-head"><h3>里程碑与截止日</h3><span class="record-section-count">${milestones.length}</span></div><div class="list">${milestones.map((m) => { const days = Math.round((new Date(m.dueDate + 'T00:00:00') - today) / 86400000); const badge = m.done ? '<span class="badge">已完成</span>' : days < 0 ? `<span class="badge danger">逾期 ${-days} 天</span>` : days <= 7 ? `<span class="badge warn">${days === 0 ? '今天' : days + '天后'}到期</span>` : `<span class="badge">${days} 天后</span>`; return `<div class="list-item"><div class="li-title">${esc(m.title)} ${badge}</div><div class="li-meta"><span>截止日 ${esc(m.dueDate)}</span><span>${MS_KIND_CN[m.kind] || m.kind}</span>${m.basis ? `<span>依据 ${esc(m.basis)}</span>` : ''}</div></div>`; }).join('') || emptyHtml('暂无里程碑')}</div></section>
+      <section class="record-section"><div class="record-section-head"><h3>会议与工作日程</h3><span class="record-section-count">${events.length}</span></div><div class="list">${events.map((event) => `<div class="list-item"><div class="li-title">${esc(event.title)} <span class="badge doc">${EVENT_KIND_CN[event.kind] || '日程'}</span></div><div class="li-meta"><span>${esc(event.date)}</span>${event.note ? `<span>${esc(event.note)}</span>` : ''}</div></div>`).join('') || emptyHtml('暂无日程')}</div></section>`;
     $('#dl-add', body).addEventListener('click', () => openScheduleModal(localDate(new Date()), p.id));
   }
   function renderReports(body, p) {
@@ -2212,9 +2242,9 @@ import { filterSlashCapabilities } from './slash-search.js';
       <section class="settings-section settings-appearance" aria-labelledby="settings-appearance-title">
         <div class="settings-section-head"><div><h4 id="settings-appearance-title">${esc(t('settings.appearance'))}</h4><p>${esc(t('settings.appearanceTip'))}</p></div></div>
         <div class="theme-options" role="radiogroup" aria-label="${esc(t('settings.appearance'))}">
-          <button class="theme-option ${theme === 'light' ? 'active' : ''}" id="st-theme-light" data-theme-option="light" role="radio" aria-checked="${theme === 'light'}" type="button"><span class="theme-option-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg></span><strong>${esc(t('settings.themeLight'))}</strong><small>${esc(t('settings.themeLightTip'))}</small></button>
-          <button class="theme-option ${theme === 'dark' ? 'active' : ''}" id="st-theme-dark" data-theme-option="dark" role="radio" aria-checked="${theme === 'dark'}" type="button"><span class="theme-option-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.5 14.3A8.5 8.5 0 0 1 9.7 3.5a8.5 8.5 0 1 0 10.8 10.8Z"/></svg></span><strong>${esc(t('settings.themeDark'))}</strong><small>${esc(t('settings.themeDarkTip'))}</small></button>
-          <button class="theme-option ${theme === 'system' ? 'active' : ''}" id="st-theme-system" data-theme-option="system" role="radio" aria-checked="${theme === 'system'}" type="button"><span class="theme-option-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><strong>${esc(t('settings.themeSystem'))}</strong><small>${esc(t('settings.themeSystemTip'))}</small></button>
+          <button class="theme-option ${theme === 'light' ? 'active' : ''}" id="st-theme-light" data-theme-option="light" role="radio" aria-checked="${theme === 'light'}" type="button"><span class="theme-option-icon" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg></span><strong>${esc(t('settings.themeLight'))}</strong><small>${esc(t('settings.themeLightTip'))}</small></button>
+          <button class="theme-option ${theme === 'dark' ? 'active' : ''}" id="st-theme-dark" data-theme-option="dark" role="radio" aria-checked="${theme === 'dark'}" type="button"><span class="theme-option-icon" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20.5 14.3A8.5 8.5 0 0 1 9.7 3.5a8.5 8.5 0 1 0 10.8 10.8Z"/></svg></span><strong>${esc(t('settings.themeDark'))}</strong><small>${esc(t('settings.themeDarkTip'))}</small></button>
+          <button class="theme-option ${theme === 'system' ? 'active' : ''}" id="st-theme-system" data-theme-option="system" role="radio" aria-checked="${theme === 'system'}" type="button"><span class="theme-option-icon" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><strong>${esc(t('settings.themeSystem'))}</strong><small>${esc(t('settings.themeSystemTip'))}</small></button>
         </div>
       </section>
       <section class="settings-section" aria-labelledby="settings-presets-title">
@@ -2401,7 +2431,7 @@ import { filterSlashCapabilities } from './slash-search.js';
       '#view-dashboard .ai-control-panel p': ['需求、用例、缺陷、里程碑与报告提醒都由你决定是否启用。', 'You decide which requirements, cases, defects, milestones and report reminders are enabled.'],
       '#view-dashboard .activity-panel h2': ['最近动态', 'Recent activity'],
       '#view-dashboard .activity-panel p': ['测试材料与 DSH 操作留痕', 'Test materials and DSH actions'],
-      '#chat-head .chat-kicker': ['DSH 测试模式 · 项目协作空间', 'DSH Test Mode · Project collaboration space'],
+      '#chat-head .chat-kicker': ['DSH 测试模式', 'DSH Test Mode'],
       '#context-panel .context-head b': ['项目雷达', 'Project radar'],
       '#context-panel .context-head span:not(.live-dot)': ['随对话实时更新', 'Updates live with the chat'],
       '.context-section-title': ['材料动态', 'Materials'],
@@ -2505,10 +2535,20 @@ import { filterSlashCapabilities } from './slash-search.js';
       if (!state.dshEmbedded) toast('请从 DSH 侧边栏的工作台面板中返回', 'err');
     });
     $('#btn-collapse-rail').addEventListener('click', () => toggleLayoutPane('rail'));
-    $('#btn-collapse-cases').addEventListener('click', () => { toggleLayoutPane('cases'); document.body.classList.remove('mobile-cases-open'); });
-    $('#btn-collapse-context').addEventListener('click', () => { toggleLayoutPane('context'); document.body.classList.remove('mobile-context-open'); });
-    $('#btn-mobile-cases').addEventListener('click', () => { document.body.classList.toggle('mobile-cases-open'); document.body.classList.remove('mobile-context-open'); });
-    $('#btn-mobile-context').addEventListener('click', () => { document.body.classList.toggle('mobile-context-open'); document.body.classList.remove('mobile-cases-open'); });
+    $('#btn-collapse-cases').addEventListener('click', () => { toggleLayoutPane('cases'); closeMobileAssistantPanels(); });
+    $('#btn-collapse-context').addEventListener('click', () => { toggleLayoutPane('context'); closeMobileAssistantPanels(); });
+    $('#btn-mobile-cases').addEventListener('click', () => {
+      const shouldOpen = !document.body.classList.contains('mobile-cases-open');
+      document.body.classList.toggle('mobile-cases-open', shouldOpen);
+      document.body.classList.remove('mobile-context-open');
+      syncAssistantPanelAccessibility();
+    });
+    $('#btn-mobile-context').addEventListener('click', () => {
+      const shouldOpen = !document.body.classList.contains('mobile-context-open');
+      document.body.classList.toggle('mobile-context-open', shouldOpen);
+      document.body.classList.remove('mobile-cases-open');
+      syncAssistantPanelAccessibility();
+    });
     bindSplitter('#rail-resizer', 'rail', 1);
     bindSplitter('#case-resizer', 'cases', 1);
     bindSplitter('#context-resizer', 'context', -1);
@@ -2545,7 +2585,15 @@ import { filterSlashCapabilities } from './slash-search.js';
       } catch (error) { toast(error.message, 'err'); }
     });
     $('#search').addEventListener('input', (event) => { state.search = event.target.value; renderCaseList(); });
-    $$('.case-filter button').forEach((button) => button.addEventListener('click', () => { state.caseFilter = button.dataset.caseFilter; $$('.case-filter button').forEach((el) => el.classList.toggle('active', el === button)); renderCaseList(); }));
+    $$('.case-filter button').forEach((button) => button.addEventListener('click', () => {
+      state.caseFilter = button.dataset.caseFilter;
+      $$('.case-filter button').forEach((el) => {
+        const isSelected = el === button;
+        el.classList.toggle('active', isSelected);
+        el.setAttribute('aria-pressed', String(isSelected));
+      });
+      renderCaseList();
+    }));
     $('#cal-prev-mini').addEventListener('click', () => moveMonth(-1)); $('#cal-next-mini').addEventListener('click', () => moveMonth(1)); $('#cal-today-mini').addEventListener('click', goToday);
     $('#cal-prev').addEventListener('click', () => moveMonth(-1)); $('#cal-next').addEventListener('click', () => moveMonth(1)); $('#cal-today').addEventListener('click', goToday);
     $('#cal-year').addEventListener('change', () => { state.calendarCursor = new Date(Number($('#cal-year').value), state.calendarCursor.getMonth(), 1); renderCalendars(); });
@@ -2553,8 +2601,26 @@ import { filterSlashCapabilities } from './slash-search.js';
     $('#cal-date-jump').addEventListener('change', () => { if ($('#cal-date-jump').value) selectCalendarDate($('#cal-date-jump').value); });
     $('#btn-add-schedule').addEventListener('click', () => openScheduleModal(state.selectedDate));
     $('#btn-add-selected').addEventListener('click', () => openScheduleModal(state.selectedDate));
-    document.addEventListener('click', (event) => { if (!event.target.closest('.composer-wrap')) $('#slash-suggestions').classList.add('hidden'); });
-    document.addEventListener('keydown', (event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); switchView('assistant'); $('#search').focus(); } if (event.key === 'Escape') { closeModal(); closeDrawer(); $('#slash-suggestions').classList.add('hidden'); } });
+    document.addEventListener('click', (event) => {
+      if (!event.target.closest('.composer-wrap')) $('#slash-suggestions').classList.add('hidden');
+      if (!window.matchMedia('(max-width: 767px)').matches) return;
+      const casesOpen = document.body.classList.contains('mobile-cases-open');
+      const contextOpen = document.body.classList.contains('mobile-context-open');
+      if (casesOpen && !event.target.closest('#case-sidebar, #btn-mobile-cases')) closeMobileAssistantPanels();
+      else if (contextOpen && !event.target.closest('#context-panel, #btn-mobile-context')) closeMobileAssistantPanels();
+    });
+    window.addEventListener('resize', syncAssistantPanelAccessibility);
+    document.addEventListener('keydown', (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); switchView('assistant'); $('#search').focus(); }
+      if (event.key === 'Escape') {
+        if (document.body.classList.contains('mobile-cases-open') || document.body.classList.contains('mobile-context-open')) {
+          event.preventDefault();
+          closeMobileAssistantPanels(true);
+          return;
+        }
+        closeModal(); closeDrawer(); $('#slash-suggestions').classList.add('hidden');
+      }
+    });
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshBoard(false); });
   }
   async function init() {
