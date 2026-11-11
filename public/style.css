@@ -102,7 +102,6 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .skill-card { color: var(--color-ink); min-height: 176px; display: flex; flex-direction: column; padding: var(--space-md); background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
 .skill-card-head { display: flex; gap: var(--space-sm); align-items: center; }
 .skill-mark { width: 30px; height: 30px; display: grid; place-items: center; flex: none; color: var(--blue); background: var(--blue-soft); border-radius: 9px; font-weight: 600; }
-.skill-card h3 { font-size: 14px; line-height: 1.35; }
 .skill-card code { color: var(--muted); font-size: 11px; }
 .skill-card p { flex: 1; margin: var(--space-md) 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
 .skill-intro { display: block; margin: calc(-1 * var(--space-2xs)) 0 var(--space-sm); color: var(--faint); font-size: 11px; line-height: 1.55; }
@@ -1956,6 +1955,12 @@ body { font-size: var(--text-body); font-weight: 400; line-height: 1.6; }
   letter-spacing: normal;
 }
 .brand-copy b { font-size: var(--text-label); }
+.skill-card h3, .quality-task-card h4 {
+  font-size: var(--text-label);
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: normal;
+}
 .skill-card code, .slash-suggestion code, .capability-row code, code, pre {
   font-family: var(--font-code);
   font-size: var(--text-code);

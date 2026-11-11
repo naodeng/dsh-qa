@@ -66,6 +66,14 @@ test.describe('首页', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     expect(await readTypography()).toEqual(lightTypography);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+
+    await page.locator('[data-view="skills"]').click();
+    const skillHeading = page.locator('.skill-card h3').first();
+    await expect(skillHeading).toBeVisible();
+    await expect.poll(() => skillHeading.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { fontSize: style.fontSize, fontWeight: style.fontWeight, letterSpacing: style.letterSpacing };
+    })).toEqual({ fontSize: '14px', fontWeight: '600', letterSpacing: 'normal' });
   });
 
   test('项目阶段标签在明暗主题中保持中性颜色', async ({ page }) => {
