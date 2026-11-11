@@ -27,6 +27,36 @@ test.describe('首页', () => {
     await expect(page.getByRole('heading', { name: '需要你处理' })).toBeVisible();
   });
 
+  test('项目阶段标签在明暗主题中保持中性颜色', async ({ page }) => {
+    await page.goto('/');
+    const stagePill = page.locator('#dashboard-cases .stage-pill').first();
+    await expect(stagePill).toBeVisible();
+
+    const usesNeutralTokens = () => stagePill.evaluate((element) => {
+      const resolveToken = (property, token) => {
+        const probe = document.createElement('span');
+        probe.style.setProperty(property, `var(${token})`);
+        document.body.append(probe);
+        const value = getComputedStyle(probe).getPropertyValue(property);
+        probe.remove();
+        return value;
+      };
+      const style = getComputedStyle(element);
+      return style.color === resolveToken('color', '--color-muted')
+        && style.backgroundColor === resolveToken('background-color', '--color-paper-3');
+    });
+
+    await page.locator('#btn-settings').click();
+    await page.locator('#st-theme-light').click();
+    await page.locator('#st-close').click();
+    expect(await usesNeutralTokens()).toBe(true);
+
+    await page.locator('#btn-settings').click();
+    await page.locator('#st-theme-dark').click();
+    await page.locator('#st-close').click();
+    expect(await usesNeutralTokens()).toBe(true);
+  });
+
   test('首页可以创建项目和迭代', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('#metric-cards')).toBeVisible();

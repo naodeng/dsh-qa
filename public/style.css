@@ -73,7 +73,6 @@ body { background: var(--color-surface-page); color: var(--color-text-primary); 
 .panel, .metric-card, .drawer, .modal { color: var(--color-ink); background: var(--color-surface-panel); }
 .btn.primary, .btn.dark { color: var(--color-ink); border-color: var(--color-rule); background: var(--color-paper-2); box-shadow: none; }
 .risk-badge.alert, .attention-item.danger .attention-time { color: var(--color-state-danger); }
-.stage-pill { color: var(--color-state-success); }
 :where(button, input, textarea, select):focus-visible { outline: 2px solid var(--color-action-primary); outline-offset: 2px; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [role="button"]:focus-visible {
   outline: 3px solid var(--color-focus);
@@ -907,7 +906,6 @@ body { color: var(--ink); background: var(--page); font-family: var(--font-ui); 
 .mini-day.selected:not(.today) { color: var(--teal); background: var(--teal-soft); }
 .case-table-head { color: var(--faint); background: var(--surface-soft); border-bottom-color: var(--line-soft); }
 .case-overview-row:hover { background: var(--surface-soft); }
-.stage-pill { color: var(--teal); background: var(--teal-soft); }
 .risk-badge { color: var(--muted); background: var(--surface-soft); }
 .risk-badge.alert { color: var(--danger); background: var(--danger-soft); }
 .ai-control-panel { background: var(--surface); }
@@ -1684,7 +1682,6 @@ html[data-theme="system"] #topbar { background: var(--surface);  color: var(--co
 .col, .ai-control-panel, .case-sidebar, .context-panel { background: var(--surface-soft); border-color: var(--line);  color: var(--color-ink);}
 .case-table-head, .chat-msgs, .composer-wrap { background: var(--surface-soft); }
 .case-overview-row, .attention-item, .activity-item { border-color: var(--line-soft); }
-.stage-pill { color: var(--muted); background: var(--surface-soft); }
 .stage-track i.done, .sidebar-stage .stage-track i { background: var(--blue); }
 .ci-dot, .col-dot { background: var(--blue); }
 .card { border-radius: 12px; }
@@ -1888,7 +1885,7 @@ body { color: var(--color-ink); background: var(--color-paper); font: var(--text
 .record-section-count { color: var(--blue); background: transparent; font-size: var(--text-label); }
 .attention-meta { margin-top: var(--space-2xs); }
 .attention-mark, .metric-icon, .activity-icon, .ai-orb { color: var(--muted); background: transparent; box-shadow: none; }
-.stage-pill, .badge.doc, .about-status:not(.outdated), .host-run-status .badge.verified {
+.badge.doc, .about-status:not(.outdated), .host-run-status .badge.verified {
   color: var(--success);
   background: var(--success-soft);
   border-color: var(--line);
