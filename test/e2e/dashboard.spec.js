@@ -85,17 +85,17 @@ test.describe('首页', () => {
     await page.locator('#st-theme-dark').click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await expect(page.locator('#st-theme-dark')).toHaveAttribute('aria-checked', 'true');
-    await expect.poll(() => page.locator('#main-content').evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(25, 30, 33)');
+    await expect.poll(() => page.locator('#main-content').evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(28, 32, 35)');
     await page.locator('#st-close').click();
     await page.locator('[data-view-jump="board"]').click();
-    await expect.poll(() => page.locator('#view-board .card').first().evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(35, 42, 46)');
+    await expect.poll(() => page.locator('#view-board .card').first().evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(39, 44, 48)');
     await page.locator('[data-view="calendar"]').click();
-    await expect.poll(() => page.locator('#view-calendar .calendar-toolbar').evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(35, 42, 46)');
+    await expect.poll(() => page.locator('#view-calendar .calendar-toolbar').evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(39, 44, 48)');
     await page.locator('[data-view="dashboard"]').click();
     await page.locator('#btn-settings').click();
     await page.locator('#st-theme-light').click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-    await expect.poll(() => page.locator('#main-content').evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(241, 242, 239)');
+    await expect.poll(() => page.locator('#main-content').evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(244, 243, 240)');
     await page.locator('#st-theme-system').click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'system');
     await expect(page.locator('#settings-modal [data-layout-preset]')).toHaveCount(0);
@@ -137,7 +137,7 @@ test.describe('首页', () => {
       return { color: style.color, background: style.backgroundColor };
     });
     expect(colors.color).not.toBe('rgb(255, 255, 255)');
-    expect(colors.background).toBe('rgb(251, 251, 249)');
+    expect(colors.background).toBe('rgb(252, 252, 250)');
   });
 
   test('共享弹窗支持对话框语义、Escape 关闭和触发按钮焦点恢复', async ({ page }) => {
@@ -265,7 +265,7 @@ test.describe('首页', () => {
         return { color: style.color, background: style.backgroundColor };
       });
       expect(settingsColors.color).not.toBe('rgb(255, 255, 255)');
-      expect(settingsColors.background).toBe('rgb(251, 251, 249)');
+      expect(settingsColors.background).toBe('rgb(252, 252, 250)');
     }
   });
 });
