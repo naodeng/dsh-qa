@@ -119,7 +119,18 @@ test('project detail refreshes open views after a domain tool mutation', () => {
 
 test('a historical non-QA session is preserved while the project gets a fresh QA session', () => {
   assert.doesNotMatch(app, /catch \{ needsNewSession = true; \}/);
-  assert.match(app, /原会话已保留；为避免历史丢失，未自动新建会话/);
+  assert.match(app, /new DshSessionRecoveryError\('missing'/);
+  assert.match(app, /new DshSessionRecoveryError\('unavailable'/);
+  assert.match(app, /initializeDshChat\(\{ initialize: true, allowSessionChanges: false \}\)/);
+  assert.match(app, /if \(!sessionId && !allowSessionChanges\)/);
+  assert.match(app, /binding\.action !== 'reuse'/);
+  assert.match(app, /本项目尚未绑定 DSH 会话/);
+  assert.match(app, /async function readDshSessionList\(\)/);
+  assert.match(app, /function findBoundDshSession\(sessionItems, sessionId\)/);
+  assert.match(app, /async function checkDshSessionRecovery\(project\)/);
+  assert.match(app, /error instanceof DshSessionRecoveryError \? error : await checkDshSessionRecovery\(project\)/);
+  assert.match(app, /archivedHistoryUnavailable && container\.querySelector\('\.msg-wrap'\)/);
+  assert.match(app, /原会话没有被删除/);
   assert.match(app, /planDshSessionBinding\(\{ linked, qaPresetId: qaPreset\.id \}\)/);
   assert.match(app, /replacedIncompatibleSession/);
   assert.match(app, /原 DSH 会话已保留，已新建并绑定 DSH/);

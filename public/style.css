@@ -397,6 +397,27 @@ body.dsh-busy .model-reminder { color: var(--blue); background: var(--blue-soft)
 .chat-empty .ai-orb { margin: 0 auto var(--space-sm); }
 .chat-empty h3 { font-size: 18px; line-height: 1.35; }
 .chat-empty p { max-width: 420px; margin: var(--space-xs) auto var(--space-md); color: var(--muted); font-size: 14px; }
+.dsh-session-recovery {
+  width: min(100%, 620px);
+  margin: var(--space-xl) auto var(--space-sm);
+  padding: var(--space-lg);
+  color: var(--ink);
+  background: color-mix(in srgb, var(--danger-soft) 72%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--danger) 72%, var(--line));
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.dsh-recovery-title-row { display: flex; align-items: flex-start; gap: var(--space-sm); }
+.dsh-recovery-icon { width: 26px; height: 26px; flex: none; display: grid; place-items: center; color: var(--danger); border: 1px solid var(--danger); border-radius: 50%; font-size: 14px; font-weight: 750; }
+.dsh-recovery-copy { min-width: 0; flex: 1; }
+.dsh-recovery-copy h3 { margin: 0 0 var(--space-2xs); color: var(--ink); font-size: var(--text-section); font-weight: 600; line-height: 1.35; }
+.dsh-recovery-copy p { color: var(--muted); font-size: var(--text-body); line-height: 1.55; }
+.dsh-recovery-actions { margin-top: var(--space-md); display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+.dsh-recovery-actions .btn { min-height: 38px; }
+.dsh-recovery-footnote { margin-top: var(--space-sm); color: var(--muted); font-size: var(--text-label); line-height: 1.55; }
+.dsh-recovery-detail { margin-top: var(--space-sm); color: var(--muted); font-size: var(--text-label); line-height: 1.55; }
+.dsh-recovery-detail summary { width: fit-content; cursor: pointer; }
+.dsh-recovery-detail p { margin-top: var(--space-xs); overflow-wrap: anywhere; }
 .prompt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-xs); text-align: left; }
 .prompt-chip { padding: var(--space-sm) var(--space-sm); border: 1px solid var(--line); border-radius: 9px; background: var(--color-paper-2); color: var(--color-muted); font-size: 12px; }
 .prompt-chip:hover { border-color: var(--color-rule-soft); background: var(--color-paper-2); }
@@ -1319,6 +1340,9 @@ html[data-theme="dark"] .detail-action-bar { background: var(--surface);  color:
   .mobile-pane-actions .icon-btn { width: 30px; height: 30px; }
   .chat-msgs { padding: var(--space-md) var(--space-sm); }
   .msg-wrap.dsh { width: 100%; max-width: 100%; }
+  .dsh-session-recovery { margin-top: var(--space-lg); padding: var(--space-md); }
+  .dsh-recovery-actions { gap: var(--space-xs); }
+  .dsh-recovery-actions .btn { flex: 1 1 auto; }
   .msg-dsh-head { padding-inline: var(--space-sm); }
   .msg-content { padding: var(--space-md) var(--space-sm) var(--space-md); }
   .msg-markdown { font-size: 14px; }

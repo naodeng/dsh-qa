@@ -32,9 +32,14 @@ typography:
   display:
     fontFamily: "var(--dsw-font-family, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif)"
     fontSize: 1.75rem
-    fontWeight: 680
-    lineHeight: 1.2
-    letterSpacing: "-0.025em"
+    fontWeight: 600
+    lineHeight: 1.3
+    letterSpacing: normal
+  section:
+    fontFamily: "var(--dsw-font-family, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif)"
+    fontSize: 1.125rem
+    fontWeight: 600
+    lineHeight: 1.35
   body:
     fontFamily: "var(--dsw-font-family, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif)"
     fontSize: 1rem
@@ -115,7 +120,7 @@ The workbench supports light, dark, and system themes. Dark mode uses charcoal s
 
 ## Typography
 
-Use the DSH host font token when available, with the platform sans stack for Chinese and English as the standalone fallback. Use the code stack only for code and terminal output. Keep ordinary interface and supporting copy at 16px, labels and secondary metadata at 14px, section headings at 18px, and page titles at 28px. Risk lists, tables, forms, and metadata use the same sans family and body size so long work sessions remain easy to read.
+Use the DSH host font token when available, with the platform sans stack for Chinese and English as the standalone fallback. Use the code stack only for code and terminal output. Keep ordinary interface copy at 16px, labels and secondary metadata at 14px, section headings at 18px, and page titles at 28px. Use regular (400) for body copy, medium (500) for controls and secondary emphasis, and semibold (600) for headings and key values. Keep tracking neutral on Chinese text; reserve tight tracking for numeric data. Risk lists, tables, and forms use the same sans family and role-appropriate sizes so long work sessions remain easy to read.
 
 ## Layout
 
