@@ -1,0 +1,276 @@
+<!doctype html>
+<!-- Three structural variants for the DSH session error recovery state, switchable with ?variant= and a floating bar. Prototype only; no live DSH calls. -->
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DSH 会话错误恢复 · 原型</title>
+  <link rel="stylesheet" href="./style.css">
+  <style>
+    :root { color-scheme: dark; }
+    body { min-width: 760px; background: var(--page); color: var(--ink); }
+    .prototype-note { min-height: 44px; padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; color: var(--muted); background: var(--surface); border-bottom: 1px solid var(--line); font-size: 12px; }
+    .prototype-note strong { color: var(--teal); font-size: 12px; letter-spacing: .08em; }
+    .demo-shell { height: calc(100vh - 100px); display: grid; grid-template-columns: 206px minmax(0, 1fr); overflow: hidden; }
+    .demo-side { padding: 16px 11px; background: var(--surface); border-right: 1px solid var(--line); }
+    .demo-side-title { margin: 0 8px 13px; color: var(--ink); font-size: 15px; font-weight: 700; }
+    .demo-side small { display: block; margin: 0 8px 8px; color: var(--muted); font-size: 15px; }
+    .demo-project { width: 100%; margin: 4px 0; padding: 9px; display: flex; align-items: center; gap: 8px; color: var(--ink); background: transparent; border: 1px solid transparent; border-radius: var(--radius); text-align: left; font-size: 15px; }
+    .demo-project.active { background: var(--surface-soft); border-color: var(--line-strong); }
+    .demo-project i { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--danger); }
+    #chat-pane { min-width: 0; height: 100%; display: flex; flex-direction: column; background: var(--surface); }
+    .chat-head { min-height: 63px; padding: 9px 15px; background: var(--surface); border-color: var(--line); }
+    .chat-title-block h2 { color: var(--ink); font-size: 18px; font-weight: 600; }
+    .chat-kicker { color: var(--faint); }
+    .chat-head-actions { color: var(--muted); font-size: 15px; }
+    .chat-head-actions .btn { font-size: 15px; }
+    .demo-model { padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius); }
+    .model-reminder { min-height: 36px; padding: 5px 14px; color: var(--teal); background: var(--teal-soft); border-color: var(--line); font-size: 15px; }
+    .legal-mode-badge { padding: 3px 7px; color: var(--teal); border-color: var(--teal); background: var(--teal-soft); }
+    .legal-mode-badge i { box-shadow: none; }
+    .demo-chat { position: relative; min-height: 0; flex: 1; padding: 22px 24px 18px; overflow: auto; background: var(--page); }
+    .demo-history { max-width: 800px; margin: 0 auto; color: var(--muted); font-size: 15px; }
+    .demo-history p { margin: 0 0 10px; }
+    .demo-history .status { color: var(--faint); font-size: 15px; }
+    .error-host { display: none; }
+    .error-card { color: var(--ink); background: var(--danger-soft); border: 1px solid var(--danger); border-radius: var(--radius); }
+    .error-card h3 { margin: 0 0 5px; color: var(--ink); font-size: 18px; font-weight: 600; line-height: 1.35; }
+    .error-card p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.55; }
+    .error-title-row { display: flex; align-items: center; gap: 8px; }
+    .error-icon { width: 20px; height: 20px; flex: none; display: grid; place-items: center; color: var(--danger); border: 1px solid var(--danger); border-radius: 50%; font-size: 12px; font-weight: 700; }
+    .error-copy { min-width: 0; flex: 1; }
+    .error-actions { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+    .error-actions button { min-height: 36px; padding: 0 11px; border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--ink); background: var(--surface); font-size: 15px; font-weight: 600; }
+    .error-actions button.primary { color: #fff; border-color: var(--teal-strong); background: var(--teal-strong); }
+    .error-actions button.primary:hover { filter: brightness(.92); }
+    .error-actions button:hover { filter: brightness(1.12); }
+    .error-footnote { margin-top: 8px !important; color: var(--muted) !important; font-size: 15px !important; }
+    .error-detail { margin-top: 8px; color: var(--muted); font-size: 15px; }
+    .error-detail summary { cursor: pointer; }
+    .error-detail code { color: var(--ink); background: var(--surface); }
+    .variant-a .error-host { display: block; margin: 0 auto 10px; max-width: 800px; }
+    .variant-a .error-card { padding: 11px 12px; }
+    .variant-b .demo-history { margin-top: 20px; text-align: center; }
+    .variant-b .error-host { display: block; margin: 30px auto 0; width: min(100%, 620px); }
+    .variant-b .error-card { padding: 22px; border-radius: var(--radius); }
+    .variant-b .error-title-row { align-items: flex-start; }
+    .variant-b .error-icon { width: 26px; height: 26px; font-size: 15px; }
+    .variant-b .error-card h3 { font-size: 18px; }
+    .variant-b .error-card p { font-size: 15px; }
+    .variant-b .error-actions { margin-top: 16px; }
+    .variant-b .error-actions button { min-height: 38px; font-size: 15px; }
+    .variant-c #header-error { display: flex; }
+    .header-error { min-height: 43px; padding: 5px 13px; display: none; align-items: center; gap: 8px; color: var(--ink); background: var(--danger-soft); border-bottom: 1px solid var(--danger); font-size: 15px; }
+    .header-error strong { color: var(--ink); font-size: 15px; font-weight: 600; }
+    .header-error span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .header-error button { min-height: 30px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--ink); background: var(--surface); font-size: 15px; }
+    .header-error button.primary { color: #fff; border-color: var(--teal-strong); background: var(--teal-strong); }
+    .variant-c .error-host { display: block; margin: 0 auto 10px; max-width: 800px; }
+    .variant-c .error-card { display: none; }
+    .composer-wrap { padding: 8px 20px 9px; background: var(--surface); border-color: var(--line); }
+    .composer-tools { max-width: 800px; color: var(--muted); font-size: 15px; }
+    .composer-tools button { color: var(--teal); font-size: 15px; }
+    .composer { max-width: 800px; min-height: 46px; padding: 5px; gap: 6px; color: var(--ink); background: var(--surface); border-color: var(--line); box-shadow: none; }
+    .composer:focus-within { border-color: var(--teal); box-shadow: none; outline: 2px solid var(--teal); outline-offset: 1px; }
+    .composer textarea { min-width: 0; min-height: 32px; flex: 1; padding: 5px 8px; resize: none; outline: 0; color: var(--ink); background: transparent; border: 0; font-size: 15px; }
+    .composer-icon, .send-btn { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border: 0; border-radius: var(--radius); }
+    .composer-icon { color: var(--faint); background: transparent; }
+    .composer-icon svg, .send-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .send-btn { color: #fff; background: var(--teal-strong); }
+    .draft-note { max-width: 800px; margin: 4px auto 0; color: var(--muted); font-size: 12px; }
+    .prototype-switcher { position: fixed; left: 50%; bottom: 9px; z-index: 20; transform: translateX(-50%); min-height: 42px; padding: 4px 6px; display: flex; align-items: center; gap: 7px; border: 1px solid var(--line-strong); border-radius: 999px; color: var(--ink); background: var(--surface); font-size: 12px; }
+    .prototype-switcher button, .prototype-switcher select { height: 32px; padding: 0 8px; color: inherit; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-soft); font-size: 12px; }
+    .prototype-switcher button.arrow { width: 36px; height: 36px; padding: 0; }
+    .prototype-switcher .variant-name { min-width: 0; flex: 1; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .prototype-switcher select { max-width: 150px; }
+    .prototype-switcher .prototype-label { color: var(--teal); font-size: 12px; font-weight: 700; letter-spacing: .07em; }
+    .action-state { position: fixed; left: 50%; bottom: 60px; z-index: 19; transform: translateX(-50%); max-width: 560px; padding: 9px 12px; color: var(--ink); background: var(--surface-soft); border: 1px solid var(--line-strong); border-radius: var(--radius); font-size: 12px; }
+    .action-state[hidden] { display: none; }
+    @media (max-width: 820px) {
+      body { min-width: 0; }
+      .demo-shell { grid-template-columns: minmax(0, 1fr); }
+      .demo-side { display: none; }
+      .chat-head { min-height: 60px; }
+      .chat-head-actions { display: none; }
+      .prototype-switcher { width: calc(100% - 12px); justify-content: space-between; border-radius: var(--radius); }
+      .prototype-switcher .variant-name { min-width: 0; }
+      .prototype-switcher select { max-width: 125px; }
+      .composer-wrap { padding-inline: 10px; }
+      .variant-b .error-host { margin-top: 28px; }
+    }
+  </style>
+</head>
+<body class="dsh-connected">
+  <div class="prototype-note"><strong>原型 · 仅本地预览</strong><span>比较 DSH 会话恢复提示的位置与操作层级；不会调用真实 DSH</span></div>
+  <div class="demo-shell">
+    <aside class="demo-side">
+      <div class="demo-side-title">项目与迭代</div>
+      <small>4 个工作空间</small>
+      <button class="demo-project active"><i></i>本地测试项目</button>
+      <button class="demo-project">订单域 3 月迭代</button>
+      <button class="demo-project">电商中台订单服务</button>
+    </aside>
+    <main id="chat-pane">
+      <header class="chat-head">
+        <div class="chat-title-block">
+          <div class="chat-kicker">DSH 测试模式 · 项目协作空间</div>
+          <h2>本地测试项目</h2>
+          <div id="chat-head-meta"><span>PRJ-2026-003</span><span class="status-pill" style="background:var(--danger-soft);color:var(--danger)">缺陷回归</span></div>
+        </div>
+        <div class="chat-head-actions"><span class="demo-model">DSH 模型　DeepSeek</span><button class="btn subtle sm" type="button">项目详情</button><button class="btn subtle sm" type="button">项目文件夹</button></div>
+      </header>
+      <div class="model-reminder">
+        <span class="legal-mode-badge"><i></i>测试模式</span>
+        <span>DSH 测试模式 · deepseek-flash · 174 个技能 · 5 个命令</span>
+      </div>
+      <div class="header-error" id="header-error" role="alert"></div>
+      <section class="demo-chat" id="demo-chat">
+        <div class="demo-history" id="demo-history">
+          <p class="status">最近会话</p>
+          <p>在当前项目中维护测试需求、用例和执行记录。</p>
+        </div>
+        <div class="error-host" id="error-host"></div>
+      </section>
+      <footer class="composer-wrap">
+        <div class="composer-tools"><span>全流程辅助</span><button type="button">调整辅助策略</button></div>
+        <div class="error-host" id="composer-error"></div>
+        <div class="composer">
+          <button class="composer-icon" type="button" aria-label="添加附件"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg></button>
+          <textarea aria-label="消息草稿" rows="1">/re'q</textarea>
+          <button class="send-btn" type="button" aria-label="发送"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 2 11 13" /><path d="m22 2-7 20-4-9-9-4 20-7Z" /></svg></button>
+        </div>
+        <p class="draft-note">输入未发送，仍保留在草稿中。会话恢复后可重试。</p>
+      </footer>
+    </main>
+  </div>
+  <nav class="prototype-switcher" aria-label="原型切换">
+    <span class="prototype-label">PROTOTYPE</span>
+    <button class="arrow" id="previous" type="button" aria-label="上一个方案">←</button>
+    <span class="variant-name" id="variant-name"></span>
+    <button class="arrow" id="next" type="button" aria-label="下一个方案">→</button>
+    <select id="scenario" aria-label="错误情景">
+      <option value="missing">绑定会话未找到</option>
+      <option value="unavailable">会话列表暂不可读</option>
+    </select>
+  </nav>
+  <div class="action-state" id="action-state" role="status" aria-live="polite" hidden></div>
+  <template id="error-template">
+    <article class="error-card" role="alert">
+      <div class="error-title-row">
+        <span class="error-icon" aria-hidden="true">!</span>
+        <div class="error-copy"><h3></h3><p></p></div>
+      </div>
+      <div class="error-actions">
+        <button class="primary" type="button" data-action="retry">重新检查</button>
+        <button type="button" data-action="new-session">新建 DSH 对话</button>
+      </div>
+      <p class="error-footnote">当前输入未发送，项目绑定未更改。</p>
+      <details class="error-detail"><summary>了解更多</summary><p></p></details>
+    </article>
+  </template>
+  <script>
+    const variants = [
+      { key: 'a', label: 'A · 输入框上方提示' },
+      { key: 'b', label: 'B · 对话区恢复卡' },
+      { key: 'c', label: 'C · 页头状态条' },
+    ];
+    const scenarios = {
+      missing: {
+        title: '未找到本项目绑定的 DSH 会话',
+        body: '当前 DSH 会话列表中没有这条绑定会话。原记录可能仍在其他 DSH 配置或历史中。',
+        detail: '已读取 DSH 会话列表，但没有匹配到项目保存的绑定 ID。检查是否连接了原来的 DSH Desktop 配置。',
+        summary: '当前 DSH 会话列表中未找到绑定会话',
+      },
+      unavailable: {
+        title: '暂时无法读取 DSH 会话列表',
+        body: 'DSH 目前没有返回可用的会话列表，暂时无法判断项目绑定的会话是否存在。',
+        detail: '会话列表请求未成功。检查 DSH 是否已启动、当前项目是否仍连接到原来的 DSH Desktop 配置，再重新检查。',
+        summary: 'DSH 会话列表暂不可读',
+      },
+    };
+    const params = new URLSearchParams(location.search);
+    let variant = variants.some((item) => item.key === params.get('variant')) ? params.get('variant') : 'a';
+    let scenario = scenarios[params.get('scenario')] ? params.get('scenario') : 'missing';
+    const shell = document.querySelector('#chat-pane');
+    const template = document.querySelector('#error-template');
+    const scenarioSelect = document.querySelector('#scenario');
+    function updateUrl() {
+      const query = new URLSearchParams({ variant, scenario });
+      history.replaceState({}, '', `${location.pathname}?${query}`);
+    }
+    function makeError() {
+      const card = template.content.firstElementChild.cloneNode(true);
+      const copy = scenarios[scenario];
+      card.querySelector('h3').textContent = copy.title;
+      card.querySelector('.error-copy p').textContent = copy.body;
+      card.querySelector('.error-detail p').textContent = copy.detail;
+      card.querySelector('[data-action="retry"]').addEventListener('click', () => {
+        const state = document.querySelector('#action-state');
+        state.textContent = '原型演示：将重新读取 DSH 会话列表；不会新建或改绑会话。';
+        state.hidden = false;
+      });
+      card.querySelector('[data-action="new-session"]').addEventListener('click', () => {
+        const state = document.querySelector('#action-state');
+        state.textContent = '原型演示：下一步会先确认，再新建会话并保留旧历史。';
+        state.hidden = false;
+      });
+      return card;
+    }
+    function render() {
+      shell.className = `dsh-connected variant-${variant}`;
+      document.querySelector('#variant-name').textContent = variants.find((item) => item.key === variant).label;
+      scenarioSelect.value = scenario;
+      document.querySelector('#demo-history').hidden = false;
+      document.querySelector('#error-host').replaceChildren();
+      document.querySelector('#composer-error').replaceChildren();
+      document.querySelector('#header-error').replaceChildren();
+      const card = makeError();
+      if (variant === 'a') document.querySelector('#composer-error').append(card);
+      if (variant === 'b') document.querySelector('#error-host').append(card);
+      if (variant === 'c') {
+        const bar = document.querySelector('#header-error');
+        const summary = document.createElement('strong');
+        summary.textContent = scenarios[scenario].summary;
+        const explanation = document.createElement('span');
+        explanation.textContent = '当前输入未发送 · 项目绑定未更改';
+        const retry = document.createElement('button');
+        retry.className = 'primary';
+        retry.textContent = '重新检查';
+        retry.addEventListener('click', () => {
+          const state = document.querySelector('#action-state');
+          state.textContent = '原型演示：将重新读取 DSH 会话列表；不会新建或改绑会话。';
+          state.hidden = false;
+        });
+        const newSession = document.createElement('button');
+        newSession.textContent = '新建对话';
+        newSession.addEventListener('click', () => {
+          const state = document.querySelector('#action-state');
+          state.textContent = '原型演示：下一步会先确认，再新建会话并保留旧历史。';
+          state.hidden = false;
+        });
+        bar.append(summary, explanation, retry, newSession);
+      }
+      updateUrl();
+    }
+    function move(delta) {
+      const index = variants.findIndex((item) => item.key === variant);
+      variant = variants[(index + delta + variants.length) % variants.length].key;
+      document.querySelector('#action-state').hidden = true;
+      render();
+    }
+    document.querySelector('#previous').addEventListener('click', () => move(-1));
+    document.querySelector('#next').addEventListener('click', () => move(1));
+    scenarioSelect.addEventListener('change', () => {
+      scenario = scenarioSelect.value;
+      document.querySelector('#action-state').hidden = true;
+      render();
+    });
+    window.addEventListener('keydown', (event) => {
+      if (event.target.matches('input, textarea, select, [contenteditable="true"]')) return;
+      if (event.key === 'ArrowLeft') move(-1);
+      if (event.key === 'ArrowRight') move(1);
+    });
+    render();
+  </script>
+</body>
+</html>
