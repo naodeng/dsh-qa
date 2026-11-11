@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+## 0.7.5 - 2026-11-11
+
+## 中文
+
+### 新功能
+
+- 接入 QA Skills 仓库目录，展示中英文技能说明，并识别安装状态、支持安装和卸载。
+- 为 DSH 原生对话增加图片附件添加、预览、校验和发送能力。
+- 增加 DSH 会话恢复交互，并改进斜杠命令搜索和 Markdown 消息呈现。
+
+### 改进
+
+- 优化工作台首页、项目侧栏和对话区域的布局、字体层级与视觉一致性。
+- 扩充浏览器和 API 自动化覆盖，并隔离 E2E 测试数据。
+
+### 验证
+
+- `npm test`：303 个单元/API 测试和 71 个 Chromium E2E 测试通过。
+- `npm pack --dry-run` 与 `git diff --check`：通过。
+
+## English
+
+### Features
+
+- Integrate the QA Skills catalog with bilingual descriptions, installed-state detection, and install/uninstall actions.
+- Add image attachment selection, preview, validation, and sending to native DSH conversations.
+- Add DSH session recovery interactions and improve slash-command search and Markdown message rendering.
+
+### Improvements
+
+- Refine the workbench home, project sidebar, and conversation layout, typography, and visual consistency.
+- Expand browser and API automation coverage and isolate E2E test data.
+
+### Verification
+
+- `npm test`: 303 unit/API tests and 71 Chromium E2E tests passed.
+- `npm pack --dry-run` and `git diff --check`: passed.
+
 ## 0.7.3 - 2026-10-20
 
 ## 中文

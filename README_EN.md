@@ -3,7 +3,7 @@
 # dsh-qa · QA Workbench
 
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-0.7.3-informational)]()
+[![Version](https://img.shields.io/badge/version-0.7.5-informational)]()
 [![Zero Runtime Dependencies](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)]()
 [![DSH qa Host Smoke](https://img.shields.io/badge/DSH-qa%20Host%20Smoke%206%20passed-0A7EA4)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.0-rc.2)
 
