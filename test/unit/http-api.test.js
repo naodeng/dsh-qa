@@ -7,8 +7,38 @@ import path from 'node:path';
 
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-qa-api-'));
 const skillsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-qa-skills-'));
+const skillCatalogRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-qa-skill-catalog-'));
+const skillSiteRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-qa-skill-site-'));
 process.env.QA_DATA_DIR = dataDir;
 process.env.DSH_SKILLS_DIR = skillsDir;
+process.env.QA_SKILLS_ROOT = skillCatalogRoot;
+process.env.QA_SKILLS_SITE_ROOT = skillSiteRoot;
+
+const fixtureSkills = [
+  ['testing-types', 'requirements-analysis'],
+  ['testing-types', 'test-case-writing'],
+  ['testing-types', 'api-test-bruno'],
+  ['skill-engineering', 'requirements-analysis-plus'],
+  ['skill-engineering', 'test-case-reviewer-plus'],
+  ['skill-engineering', 'test-strategy-plus'],
+  ['skill-engineering', 'testcase-writer-plus'],
+];
+for (const lang of ['zh', 'en']) {
+  for (const [category, name] of fixtureSkills) {
+    const skillDir = path.join(skillCatalogRoot, 'skills', lang, category, name);
+    fs.mkdirSync(skillDir, { recursive: true });
+    fs.writeFileSync(path.join(skillDir, 'SKILL.md'), `---\nname: ${name}\ndescription: ${name} fixture\n---\n`);
+  }
+}
+const skillSiteContent = path.join(skillSiteRoot, 'src', 'content', 'qaskills');
+for (const [locale, heading, section, intro] of [
+  ['zh-cn', '需求分析', '何时使用', '输入需求文档并识别信息缺口。'],
+  ['en', 'Requirements analysis', 'When to Use', 'Provide requirements and identify coverage gaps.'],
+]) {
+  const localizedDir = path.join(skillSiteContent, locale);
+  fs.mkdirSync(localizedDir, { recursive: true });
+  fs.writeFileSync(path.join(localizedDir, 'requirements-analysis.md'), `# ${heading}\n\n## ${section}\n\n- ${intro}\n`);
+}
 const { startQaBench, closeQaBench } = await import('../../server/index.js');
 const store = await import('../../server/store.js');
 const { ActionQueueSourceError } = await import('../../server/action-queue.js');
@@ -36,7 +66,11 @@ const started = await startQaBench({
 });
 const base = `http://127.0.0.1:${started.server.address().port}`;
 
-test.after(async () => { await new Promise((resolve) => setTimeout(resolve, 100)); await closeQaBench(started.server); fs.rmSync(dataDir, { recursive: true, force: true }); fs.rmSync(skillsDir, { recursive: true, force: true }); });
+test.after(async () => {
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  await closeQaBench(started.server);
+  for (const dir of [dataDir, skillsDir, skillCatalogRoot, skillSiteRoot]) fs.rmSync(dir, { recursive: true, force: true });
+});
 
 test('app info exposes the installed version, compatibility, links, and descending release history', async () => {
   const response = await fetch(`${base}/api/app-info`);

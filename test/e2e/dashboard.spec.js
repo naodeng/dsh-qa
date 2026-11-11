@@ -27,6 +27,47 @@ test.describe('首页', () => {
     await expect(page.getByRole('heading', { name: '需要你处理' })).toBeVisible();
   });
 
+  test('首页字体层级统一，中文标题字距中性且主题切换后不变', async ({ page }) => {
+    await page.goto('/');
+    const readTypography = () => page.evaluate(() => {
+      const read = (selector) => {
+        const style = getComputedStyle(document.querySelector(selector));
+        return { fontSize: style.fontSize, fontWeight: style.fontWeight, letterSpacing: style.letterSpacing };
+      };
+      return {
+        body: read('body'),
+        title: read('.welcome-row h1'),
+        section: read('.panel-head h2'),
+        supporting: read('.welcome-row p'),
+        compact: read('#dashboard-cases .stage-pill'),
+        control: read('.btn'),
+        metric: read('.metric-card strong'),
+      };
+    });
+    const lightTypography = await readTypography();
+
+    expect(lightTypography.body).toEqual({ fontSize: '16px', fontWeight: '400', letterSpacing: 'normal' });
+    expect(lightTypography.title).toEqual({ fontSize: '28px', fontWeight: '600', letterSpacing: 'normal' });
+    expect(lightTypography.section).toEqual({ fontSize: '18px', fontWeight: '600', letterSpacing: 'normal' });
+    expect(lightTypography.supporting.fontSize).toBe('14px');
+    expect(lightTypography.supporting.fontWeight).toBe('400');
+    expect(lightTypography.compact.fontSize).toBe('12px');
+    expect(lightTypography.control.fontSize).toBe('16px');
+    expect(lightTypography.control.fontWeight).toBe('500');
+    expect(lightTypography.metric.fontSize).toBe('28px');
+    expect(lightTypography.metric.fontWeight).toBe('600');
+    expect(lightTypography.metric.letterSpacing).not.toBe('normal');
+
+    await page.locator('#btn-settings').click();
+    await page.locator('#st-theme-dark').click();
+    await page.locator('#st-close').click();
+    expect(await readTypography()).toEqual(lightTypography);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await readTypography()).toEqual(lightTypography);
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  });
+
   test('项目阶段标签在明暗主题中保持中性颜色', async ({ page }) => {
     await page.goto('/');
     const stagePill = page.locator('#dashboard-cases .stage-pill').first();
