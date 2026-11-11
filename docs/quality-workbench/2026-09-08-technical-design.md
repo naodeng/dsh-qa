@@ -83,11 +83,10 @@ test/e2e/onboarding.spec.js
 
 | 环境变量 | 含义 |
 | --- | --- |
-| `QA_SKILLS_ROOT` | awesome-qa-skills 仓库根（其下 `skills/`） |
-| `QA_SKILLS_SITE_ROOT` | 技能站点内容根（可选） |
-| `DSH_SKILLS_DIR` | 已安装技能目录，默认 `~/.dsh/skills` |
+| `~/.agents/skills` | 官方 Skills CLI 全局技能目录，也是安装按钮的目标 |
+| `DSH_SKILLS_DIR` | 可选的旧 DSH 技能目录覆盖，默认 `~/.dsh/skills`；保留识别与卸载旧安装 |
 
-`GET /api/skills`：若 catalog 根不存在，返回 `200` + 空列表并带 `warning`，或 `503` + 明确 `code`（二选一，计划中锁定一种并测稳）。禁止依赖未文档化的 `~/awsomeCode/...` 作为唯一成功路径——保留为未设置环境变量时的 **legacy fallback**，但 README 必须写「请设置 `QA_SKILLS_ROOT`」。
+`GET /api/skills?lang=zh|en`：从 QA Skills 官网对应语言页面读取卡片标题、简介、分类和详情链接，与 `~/.agents/skills` 和旧 DSH 目录中的已安装技能合并。安装可用性由 GitHub `naodeng/awesome-qa-skills` 文件树决定；官网卡片展示与安装来源分离。目录或仓库不可用时保留本机已安装技能并返回 `catalogUnavailable: true`。安装通过固定参数调用官方 Skills CLI：`npx --yes skills add <repo-language-url> --skill <name> --global --agent codex --yes`；同名技能已安装时跳过。卸载 `.agents` 技能也通过 Skills CLI，旧 DSH 目录中的技能由工作台删除；不依赖技能仍出现在官网或仓库目录中。
 
 ## 4. `0.7` 对话建议与快捷条
 

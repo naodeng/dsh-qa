@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/e2e-test.js';
 
 test.describe('项目看板页', () => {
   test('看板页可以访问并显示看板', async ({ page }) => {
@@ -59,6 +59,53 @@ test.describe('项目看板页', () => {
       await page.locator('#ov-save').click();
       await expect(page.locator('.toast.ok')).toContainText('项目信息已保存');
     } finally {
+      await page.request.delete(`/api/projects/${project.id}`);
+    }
+  });
+
+  test('详情首次读取延迟时仍接收更新，迟到的旧响应不能覆盖新标题', async ({ page }) => {
+    const eventsConnected = page.waitForResponse((response) => new URL(response.url()).pathname.endsWith('/api/events') && response.status() === 200);
+    await page.goto('/');
+    await eventsConnected;
+    const title = `详情并发更新回归-${Date.now()}`;
+    const createdResponse = await page.request.post('/api/projects', { data: { title, createWorkspace: false } });
+    expect(createdResponse.ok()).toBe(true);
+    const { project } = await createdResponse.json();
+    const staleResponse = await page.request.get(`/api/projects/${project.id}`);
+    expect(staleResponse.ok()).toBe(true);
+    const stalePayload = await staleResponse.json();
+    let detailGets = 0;
+    let releaseStaleResponse;
+    let initialReadStarted;
+    const initialRead = new Promise((resolve) => { initialReadStarted = resolve; });
+
+    await page.route(`**/api/projects/${encodeURIComponent(project.id)}`, async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      detailGets += 1;
+      if (detailGets === 1) {
+        initialReadStarted();
+        await new Promise((resolve) => { releaseStaleResponse = resolve; });
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(stalePayload) });
+      }
+      return route.continue();
+    });
+
+    try {
+      await page.getByRole('button', { name: '项目看板' }).click();
+      await page.locator('.card').filter({ hasText: title }).click();
+      await initialRead;
+
+      const updatedTitle = `${title}-已更新`;
+      const readsBeforeUpdate = detailGets;
+      const updatedResponse = await page.request.patch(`/api/projects/${project.id}`, { data: { title: updatedTitle } });
+      expect(updatedResponse.ok()).toBe(true);
+      await expect.poll(() => detailGets).toBeGreaterThan(readsBeforeUpdate);
+      await expect(page.locator('#project-detail-meta')).toContainText(updatedTitle);
+
+      releaseStaleResponse();
+      await expect(page.locator('#project-detail-meta')).toContainText(updatedTitle);
+    } finally {
+      releaseStaleResponse?.();
       await page.request.delete(`/api/projects/${project.id}`);
     }
   });

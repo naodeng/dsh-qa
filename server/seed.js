@@ -1,6 +1,15 @@
 // 启动种子数据：首次运行创建示例测试项目/迭代，展示看板形态
 import * as store from './store.js';
 
+const LEGACY_SAMPLE_PROJECTS = new Map([
+  ['PRJ-2026-001', '【示例】电商中台订单服务 2026 上半年测试项目'],
+  ['ITER-2026-0301', '【示例】订单域 3 月迭代（v1.2.0）'],
+]);
+
+export function isSampleProject(project) {
+  return project.isSample === true || LEGACY_SAMPLE_PROJECTS.get(project.projectKey) === project.title;
+}
+
 // 相对今天的日期偏移，保证示例数据始终有临期/逾期/未来三种状态
 function dayOffset(n) {
   const d = new Date();
@@ -10,7 +19,7 @@ function dayOffset(n) {
 }
 
 export function seedIfEmpty() {
-  if (store.listProjects().length > 0) return;
+  if (store.listProjects().length > 0 || store.hasClearedSampleData()) return;
 
   const p1 = store.createProject({
     kind: 'project',
@@ -26,6 +35,7 @@ export function seedIfEmpty() {
       { id: store.uid('member'), name: '王产品', role: 'pm', contact: '' },
     ],
   });
+  p1.isSample = true;
   p1.requirements = [
     { id: store.uid('req'), title: '订单创建（含幂等）', kind: 'functional', statement: '用户提交订单后生成唯一订单号，重复提交需幂等。', acceptance: '同一请求重复提交只生成一个订单', links: [], at: store.now() },
     { id: store.uid('req'), title: '支付回调处理', kind: 'functional', statement: '支付网关回调需验签并按订单状态流转。', acceptance: '验签失败拒绝处理并告警', links: [], at: store.now() },
@@ -89,6 +99,7 @@ export function seedIfEmpty() {
     summary: '本期聚焦退款重构与对账补偿链路，属于主项目下的迭代。',
     members: [{ id: store.uid('member'), name: '张测试', role: 'owner', contact: '' }],
   });
+  p2.isSample = true;
   p2.requirements = [
     { id: store.uid('req'), title: '退款状态机重构', kind: 'functional', statement: '退款状态机支持 待处理/处理中/成功/失败/需人工介入 五态。', acceptance: '状态流转符合状态机定义', links: [], at: store.now() },
   ];

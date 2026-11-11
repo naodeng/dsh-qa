@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/e2e-test.js';
 
 const SESSION_ID = 'attachment-session';
 const ONE_PIXEL_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==';
@@ -233,8 +233,10 @@ test('reloading the current project during a turn releases the busy state', asyn
 test('passes attachments to declaring commands and renders their chips for the current run', async ({ page }) => {
   const fixture = await createEmbeddedFixture(page, {
     commands: [{ name: 'with-files', input: { attachments: true } }],
+    holdSkillCatalog: true,
   });
   const frame = fixture.frame;
+  await expect.poll(() => typeof fixture.releaseSkillCatalog).toBe('function');
 
   await frame.locator('#chat-input').fill('/with-files review');
   await frame.locator('#chat-file-input').setInputFiles({
@@ -244,6 +246,10 @@ test('passes attachments to declaring commands and renders their chips for the c
 
   await expect.poll(() => fixture.commands.length).toBe(1);
   expect(fixture.commands[0].submittedAttachments).toEqual([{ type: 'file', receiptId: 'receipt-1' }]);
+  await expect.poll(() => fixture.commandResponses).toBe(1);
+  fixture.releaseSkillCatalog();
+  await expect(page.locator('body')).toHaveClass(/dsh-connected/);
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await expect(frame.locator('#chat-attachments .attachment-chip')).toHaveCount(0);
   await expect(frame.locator('.msg-wrap.user .attachment-chip')).toContainText('command.txt');
 
@@ -367,6 +373,11 @@ test('shows recovery when a connected session disappears before sending', async 
   await expect(frame.locator('.dsh-session-recovery')).toHaveCount(0);
   await expect(frame.locator('.msg-wrap.user')).toContainText('已连接会话里的历史需求');
 
+  fixture.holdNextHistorySnapshot = true;
+  await page.locator('[data-view="dashboard"]').click();
+  await page.locator('[data-view="assistant"]').click();
+  await expect.poll(() => typeof fixture.releaseHistorySnapshot).toBe('function');
+
   fixture.sessionListMode = 'missing';
   const initialSessionListReads = fixture.sessionListReads;
   await frame.locator('#chat-input').fill('新提问草稿');
@@ -376,6 +387,8 @@ test('shows recovery when a connected session disappears before sending', async 
   await frame.locator('#btn-send').click();
 
   await expect.poll(() => fixture.sessionListReads).toBe(initialSessionListReads + 1);
+  await expect(frame.locator('.dsh-session-recovery')).toContainText('未找到本项目绑定的 DSH 会话');
+  fixture.releaseHistorySnapshot();
   await expect(frame.locator('.dsh-session-recovery')).toContainText('未找到本项目绑定的 DSH 会话');
   await expect(frame.locator('.msg-wrap.user')).toHaveCount(1);
   await expect(frame.locator('.msg-wrap.user')).toContainText('已连接会话里的历史需求');
@@ -592,6 +605,9 @@ async function createEmbeddedFixture(page, options = {}) {
     modelCatalogHoldRead: 0,
     modelCatalogErrorResponses: 0,
     releaseModelCatalog: null,
+    holdSkillCatalog: Boolean(options.holdSkillCatalog),
+    releaseSkillCatalog: null,
+    targetCommandsListRead: false,
     createSessionCalls: 0,
     createdSessionIds: [],
     sessionCreateRequests: [],
@@ -603,6 +619,8 @@ async function createEmbeddedFixture(page, options = {}) {
     failArchivedHistoryAfterNewSession: Boolean(options.failArchivedHistoryAfterNewSession),
     failFirstPromptAsNotStaged: Boolean(options.failFirstPromptAsNotStaged),
     rejectNextPromptAsMissing: Boolean(options.rejectNextPromptAsMissing),
+    holdNextHistorySnapshot: false,
+    releaseHistorySnapshot: null,
     holdNextPrompt: Boolean(options.holdPrompt),
     holdNextCommand: Boolean(options.holdCommand),
     commandDefinitions: options.commands || [],
@@ -696,6 +714,7 @@ async function createEmbeddedFixture(page, options = {}) {
     else if (method === 'session/cancel') fixture.cancelCalls += 1;
     else if (method === 'skills/list') value = { skills: [] };
     else if (method === 'commands/list') {
+      if (payload.args?.agentId === SESSION_ID) fixture.targetCommandsListRead = true;
       value = fixture.commandDefinitions;
     }
     else if (method === 'session/prompt') {
@@ -753,6 +772,12 @@ async function createEmbeddedFixture(page, options = {}) {
   await page.route('**/api/dsh-qa/workbench/**', async (route) => {
     const requestUrl = new URL(route.request().url());
     requestUrl.pathname = requestUrl.pathname.slice(embeddedPrefix.length) || '/';
+    if (requestUrl.pathname === '/api/skills' && fixture.holdSkillCatalog && fixture.targetCommandsListRead) {
+      fixture.holdSkillCatalog = false;
+      const targetUrl = requestUrl.toString();
+      fixture.releaseSkillCatalog = () => route.continue({ url: targetUrl });
+      return;
+    }
     await route.continue({ url: requestUrl.toString() });
   });
 
@@ -769,17 +794,25 @@ async function createEmbeddedFixture(page, options = {}) {
         return;
       }
       const records = fixture.recordsBySession.get(sessionId) || [];
-      socket.send(JSON.stringify({
-        type: 'item',
-        streamId: message.streamId,
-        value: { type: 'snapshot', snapshot: { records, cursor: records.length - 1 } },
-      }));
+      const sendSnapshot = () => {
+        socket.send(JSON.stringify({
+          type: 'item',
+          streamId: message.streamId,
+          value: { type: 'snapshot', snapshot: { records, cursor: records.length - 1 } },
+        }));
+      };
+      if (fixture.holdNextHistorySnapshot) {
+        fixture.holdNextHistorySnapshot = false;
+        fixture.releaseHistorySnapshot = sendSnapshot;
+        return;
+      }
+      sendSnapshot();
     });
   });
 
   await page.goto(`${embeddedPrefix}/`);
   const frame = await openEmbeddedProject(page, title);
-  await waitForEmbeddedChatReady(page, frame);
+  if (!options.holdSkillCatalog) await waitForEmbeddedChatReady(page, frame);
   fixture.projectSessionCreateCallsAtReady = projectSessionCreateCalls(fixture);
   fixture.frame = frame;
   return fixture;

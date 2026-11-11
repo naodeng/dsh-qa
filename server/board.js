@@ -1,5 +1,6 @@
 // 看板定义与卡片投影（QA 流水线）
 import { buildActionQueue, toLegacyReminders } from './action-queue.js';
+import { isSampleProject } from './seed.js';
 
 export const KANBAN_COLUMNS = [
   { id: 'intake',    title: '需求分析', titleEn: 'Requirements', color: '#64748b', hint: '需求梳理 · 范围确认' },
@@ -29,6 +30,7 @@ export function projectCard(p) {
     kind: p.kind,
     kindLabel: KIND_LABELS[p.kind] || p.kind,
     parentId: p.parentId,
+    isSample: isSampleProject(p),
     title: p.title,
     projectKey: p.projectKey,
     product: p.product,

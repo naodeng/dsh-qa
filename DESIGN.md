@@ -60,6 +60,7 @@ rounded:
   control-lg: 10px
   lg: 12px
   panel: 14px
+  panel-large: 16px
   pill: 999px
 spacing:
   3xs: 2px

@@ -1,7 +1,12 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/e2e-test.js';
 
 test.describe('Workbench follow reconnect', () => {
   test('failed local follow cleans up and a reload returns to a usable workbench', async ({ page }) => {
+    const projectResponse = await page.request.post('/api/projects', {
+      data: { title: `Workbench reconnect ${Date.now()}`, createWorkspace: false },
+    });
+    expect(projectResponse.ok()).toBeTruthy();
+
     await page.goto('/');
     const result = await page.evaluate(async () => {
       const { openFollowSnapshot } = await import('/dsh-rpc-contract.js');

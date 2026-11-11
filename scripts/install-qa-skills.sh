@@ -14,7 +14,7 @@
 #   --dry-run     仅预览，不写入
 #   -h, --help    帮助
 #
-# 目标目录: $HOME/.dsh/skills/（可用 DSH_SKILLS_DIR 覆盖）
+# 目标目录: $HOME/.agents/skills/（可用 AGENTS_SKILLS_DIR 或 DSH_SKILLS_DIR 覆盖）
 # =============================================================================
 set -euo pipefail
 
@@ -23,7 +23,7 @@ QA_SRC="${QA_SRC:-$DEFAULT_SRC}"
 QA_LANG="${QA_LANG:-zh}"
 QA_SKILL="${QA_SKILL:-all}"
 QA_DRY_RUN="${QA_DRY_RUN:-0}"
-QA_DEST="${DSH_SKILLS_DIR:-$HOME/.dsh/skills}"
+QA_DEST="${AGENTS_SKILLS_DIR:-${DSH_SKILLS_DIR:-$HOME/.agents/skills}}"
 
 usage() {
   sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'
@@ -75,10 +75,10 @@ echo "语言: ${QA_LANG} | 技能: ${QA_SKILL}"
 echo "----------------------------------------"
 
 case "${QA_LANG}" in
-  zh|all) install_dir "${QA_SRC}/skills/zh/testing-types"; install_dir "${QA_SRC}/skills/zh/testing-workflows" ;;
+  zh|all) install_dir "${QA_SRC}/skills/zh/testing-types"; install_dir "${QA_SRC}/skills/zh/testing-workflows"; install_dir "${QA_SRC}/skills/zh/skill-engineering" ;;
 esac
 case "${QA_LANG}" in
-  en|all) install_dir "${QA_SRC}/skills/en/testing-types"; install_dir "${QA_SRC}/skills/en/testing-workflows" ;;
+  en|all) install_dir "${QA_SRC}/skills/en/testing-types"; install_dir "${QA_SRC}/skills/en/testing-workflows"; install_dir "${QA_SRC}/skills/en/skill-engineering" ;;
 esac
 
 if [[ "$QA_DRY_RUN" == "1" ]]; then

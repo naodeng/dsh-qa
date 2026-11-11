@@ -46,8 +46,8 @@ import { filterSlashCapabilities } from './slash-search.js';
   };
   const langModeCN = (mode) => (currentLang() === 'en' ? MODE_CN_EN[mode] || mode : MODE_CN[mode] || mode);
   const langModeDesc = (mode) => (currentLang() === 'en' ? MODE_DESC_EN[mode] || MODE_DESC_EN.full : MODE_DESC[mode] || MODE_DESC.full);
-  const DEFAULT_LAYOUT = { rail: 184, cases: 220, context: 260, railCollapsed: false, casesCollapsed: false, contextCollapsed: false };
-  const LAYOUT_RANGES = { rail: [150, 280], cases: [180, 360], context: [220, 420] };
+  const DEFAULT_LAYOUT = { rail: 208, cases: 300, context: 260, railCollapsed: false, casesCollapsed: false, contextCollapsed: false };
+  const LAYOUT_RANGES = { rail: [208, 280], cases: [180, 360], context: [220, 420] };
   const RELEASE_PAGE_SIZE = 5;
   const RELEASE_SEEN_KEY = 'dsh-qa-release-seen';
   const THEME_KEY = 'dsh-qa-theme';
@@ -63,13 +63,13 @@ import { filterSlashCapabilities } from './slash-search.js';
 
   const state = {
     view: 'dashboard', columns: [], cards: new Map(), feed: [], schedule: [], reminders: [], actionQueue: [], actionQueueLoaded: false, actionQueueError: false, stats: {}, settings: {},
-    activeProjectId: null, activeProject: null, drawerProject: null, drawerTab: 'overview', detailProject: null, detailTab: 'overview', detailReturnView: 'board',
+    activeProjectId: null, activeProject: null, drawerProject: null, drawerTab: 'overview', detailProjectId: null, detailRequestToken: 0, detailProject: null, detailTab: 'overview', detailReturnView: 'board',
     streams: new Map(), evidenceRevisions: new Map(), busy: new Set(), justDragged: false, search: '', caseFilter: 'all',
     dshEmbedded: location.pathname.startsWith('/api/dsh-qa/workbench'),
     layout: { ...DEFAULT_LAYOUT },
     appInfo: { ...DEFAULT_APP_INFO }, appInfoStatus: 'idle', appInfoRequest: null, releasePage: 1,
     dsh: { projectId: null, sessionId: '', historySessionIds: [], skills: [], commands: [], models: null, qaPreset: null, busy: false, turnToken: 0, attachments: [], attachmentProjectId: '' },
-    skillCatalog: { lang: '', categories: [], groups: [], skills: [] }, skillSearch: '', installingSkill: '', uninstallingSkill: '',
+    skillCatalog: { lang: '', categories: [], skills: [], catalogUnavailable: false }, skillSearch: '', installingSkill: '', uninstallingSkill: '',
     calendarCursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), selectedDate: localDate(new Date()),
     refreshTimer: null, actionQueueRefreshTimer: null, sseReconnectTimer: null,
   };
@@ -250,15 +250,24 @@ import { filterSlashCapabilities } from './slash-search.js';
       el.setAttribute('aria-valuenow', collapsed ? '0' : String(state.layout[key]));
       el.setAttribute('aria-valuetext', collapsed ? '已收起' : `${state.layout[key]} 像素`);
     }
-    $('#btn-collapse-rail').textContent = state.layout.railCollapsed ? '›' : '‹';
-    $('#btn-collapse-rail').title = state.layout.railCollapsed ? '展开主导航' : '收起主导航';
-    $('#btn-collapse-cases').textContent = state.layout.casesCollapsed ? '›' : '‹';
-    $('#btn-collapse-context').textContent = state.layout.contextCollapsed ? '‹' : '›';
+    for (const [selector, key, label] of [
+      ['#btn-collapse-rail', 'railCollapsed', '主导航'],
+      ['#btn-collapse-cases', 'casesCollapsed', '项目栏'],
+      ['#btn-collapse-context', 'contextCollapsed', '项目雷达'],
+    ]) {
+      const button = $(selector);
+      const expanded = !state.layout[key];
+      const action = expanded ? '收起' : '展开';
+      button.title = `${action}${label}`;
+      button.setAttribute('aria-label', `${action}${label}`);
+      button.setAttribute('aria-expanded', String(expanded));
+    }
     if (persist) localStorage.setItem('dsh-qa-layout', JSON.stringify(state.layout));
   }
   function loadLayout() {
     try {
       const saved = JSON.parse(localStorage.getItem('dsh-qa-layout') || '{}');
+      if (saved.cases === 220) saved.cases = DEFAULT_LAYOUT.cases;
       const responsiveDefault = window.innerWidth <= 1180 ? { contextCollapsed: true } : {};
       applyLayout({ ...DEFAULT_LAYOUT, ...responsiveDefault, ...saved }, false);
     }
@@ -366,18 +375,21 @@ import { filterSlashCapabilities } from './slash-search.js';
     $('#skills-count').textContent = skills.length;
     const query = state.skillSearch.trim().toLowerCase();
     const filtered = skills.filter((skill) => !query || `${skill.name} ${skill.title} ${skill.description}`.toLowerCase().includes(query));
-    const renderCard = (skill) => `<article class="skill-card"><div class="skill-card-head"><span class="skill-mark">⌘</span><div><h3>${esc(skill.title)}</h3><code>${esc(skill.name)}</code></div></div><p>${esc(skill.description)}</p><div class="skill-card-foot"><span>${esc(skill.category)}</span><a class="skill-detail" href="${esc(skill.siteUrl)}" target="_blank" rel="noreferrer">${esc(t('skills.details'))} →</a>${skill.installed ? `<button class="btn subtle sm skill-uninstall" type="button" data-uninstall-skill="${esc(skill.name)}" ${state.uninstallingSkill === skill.name ? 'disabled' : ''}>${state.uninstallingSkill === skill.name ? esc(t('skills.installing')) : esc(t('skills.uninstall'))}</button>` : `<button class="btn primary sm skill-install" type="button" data-skill-name="${esc(skill.name)}" ${state.installingSkill === skill.name ? 'disabled' : ''}>${state.installingSkill === skill.name ? esc(t('skills.installing')) : esc(t('skills.install'))}</button>`}</div></article>`;
-    list.innerHTML = filtered.length ? state.skillCatalog.categories.map((category) => {
+    const renderCard = (skill) => {
+      const action = skill.installed
+        ? `<button class="btn subtle sm skill-uninstall" type="button" data-uninstall-skill="${esc(skill.name)}" ${state.uninstallingSkill === skill.name ? 'disabled' : ''}>${state.uninstallingSkill === skill.name ? esc(t('skills.uninstalling')) : esc(t('skills.uninstall'))}</button>`
+        : skill.availableInRepository !== true
+          ? `<button class="btn primary sm skill-install" type="button" disabled>${esc(t('skills.unavailableInstall'))}</button>`
+          : `<button class="btn primary sm skill-install" type="button" data-skill-name="${esc(skill.name)}" ${state.installingSkill === skill.name ? 'disabled' : ''}>${state.installingSkill === skill.name ? esc(t('skills.installing')) : esc(t('skills.install'))}</button>`;
+      return `<article class="skill-card"><div class="skill-card-head"><span class="skill-mark">⌘</span><div><h3>${esc(skill.title)}</h3><code>${esc(skill.name)}</code></div></div><p>${esc(skill.description)}</p><div class="skill-card-foot"><span>${esc(skill.category)}</span><a class="skill-detail" href="${esc(skill.siteUrl)}" target="_blank" rel="noreferrer">${esc(t('skills.details'))} →</a>${action}</div></article>`;
+    };
+    const catalog = filtered.length ? state.skillCatalog.categories.map((category) => {
       const rows = filtered.filter((skill) => skill.categoryId === category.id);
       if (!rows.length) return '';
-      const groups = category.id === 'testing-types' ? state.skillCatalog.groups || [] : [{ id: '', zh: '', en: '' }];
-      const sections = groups.map((group) => {
-        const groupRows = group.id ? rows.filter((skill) => skill.groupId === group.id) : rows;
-        if (!groupRows.length) return '';
-        return `<div class="skill-subcategory"><h3>${esc(group[currentLang()] || group.en)}</h3><div class="skill-grid">${groupRows.map(renderCard).join('')}</div></div>`;
-      }).join('');
-      return `<section class="skill-category"><div class="skill-category-head"><h2>${esc(category[currentLang()] || category.en)}</h2><span>${rows.length}</span></div>${sections}</section>`;
-    }).join('') : emptyHtml(t('skills.empty'));
+      return `<section class="skill-category"><div class="skill-category-head"><h2>${esc(category[currentLang()] || category.en)}</h2><span>${rows.length}</span></div><div class="skill-grid">${rows.map(renderCard).join('')}</div></section>`;
+    }).join('') : emptyHtml(state.skillCatalog.catalogUnavailable && !skills.length ? t('skills.catalogUnavailableEmpty') : t('skills.empty'));
+    const warning = state.skillCatalog.catalogUnavailable ? emptyHtml(t('skills.catalogUnavailable')) : '';
+    list.innerHTML = `${warning}${catalog}`;
   }
   async function loadSkillCatalog() {
     const lang = currentLang();
@@ -390,7 +402,11 @@ import { filterSlashCapabilities } from './slash-search.js';
   }
   async function installSkill(name) {
     state.installingSkill = name; renderSkills();
-    try { await api('api/skills/install', { method: 'POST', body: { lang: currentLang(), name } }); toast(t('skills.installDone'), 'ok'); }
+    try {
+      const result = await api('api/skills/install', { method: 'POST', body: { lang: currentLang(), name } });
+      toast(result.alreadyInstalled ? t('skills.alreadyInstalled') : t('skills.installDone'), 'ok');
+      await loadSkillCatalog();
+    }
     catch (error) { toast(error.message, 'err'); }
     finally { state.installingSkill = ''; renderSkills(); }
   }
@@ -425,6 +441,7 @@ import { filterSlashCapabilities } from './slash-search.js';
   async function openProjectDetail(id, returnView = state.view === 'project-detail' ? state.detailReturnView : state.view) {
     state.detailReturnView = ['dashboard', 'board', 'assistant'].includes(returnView) ? returnView : 'board';
     state.detailTab = 'overview';
+    state.detailProjectId = id;
     switchView('project-detail');
     await refreshProjectDetail(id);
   }
@@ -585,12 +602,28 @@ import { filterSlashCapabilities } from './slash-search.js';
     $('#today-label').dateTime = localDate(now);
     $('#today-label').textContent = currentLang() === 'en' ? now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' }) : `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日，星期${weekdays[now.getDay()]}`;
     $('.welcome-row h1').textContent = currentLang() === 'en' ? 'Good day. Where shall we start?' : `${now.getHours() < 12 ? '上午' : now.getHours() < 18 ? '下午' : '晚上'}好，今天从哪里开始？`;
+    const projects = [...state.cards.values()];
+    const hasSampleData = projects.some((project) => project.isSample);
+    const hasUserData = projects.some((project) => !project.isSample);
+    $('#sample-data-notice')?.classList.toggle('hidden', !hasSampleData || hasUserData);
     renderMetrics();
     renderReminders();
     renderDashboardCases();
     renderAiSummary();
     renderDashboardFeed();
     renderCalendars();
+  }
+  async function clearSampleData() {
+    if (!await confirmAction(t('sampleData.confirmMessage'), {
+      title: t('sampleData.confirmTitle'), confirmLabel: t('sampleData.clear'), danger: true,
+    })) return;
+    try {
+      const result = await api('api/sample-data', { method: 'DELETE' });
+      await refreshBoard(false);
+      toast(t('sampleData.cleared', { count: result.deleted }), 'ok');
+    } catch (error) {
+      toast(error.message, 'err');
+    }
   }
 
   // ---------- calendars ----------
@@ -868,6 +901,7 @@ import { filterSlashCapabilities } from './slash-search.js';
   }
   async function initializeDshChat(options = {}) {
     const { initialize = true, allowSessionChanges = true } = options;
+    const turnToken = state.dsh.turnToken;
     const project = state.activeProject;
     updateDshChrome();
     populateDshModelSelect(state.dsh.projectId === project?.id ? state.dsh.models : null);
@@ -882,9 +916,9 @@ import { filterSlashCapabilities } from './slash-search.js';
       await showDshSessionRecovery(error, project);
       return;
     }
-    if (state.activeProjectId === project.id && state.dsh.projectId === project.id) {
+    if (state.activeProjectId === project.id && state.dsh.projectId === project.id && turnToken === state.dsh.turnToken) {
       $('.dsh-session-recovery', $('#chat-msgs'))?.remove();
-      await renderDshHistory();
+      await renderDshHistory(turnToken);
     }
   }
   async function ensureDshProject(p = state.activeProject, { allowSessionChanges = true } = {}) {
@@ -1206,13 +1240,15 @@ import { filterSlashCapabilities } from './slash-search.js';
     for (const command of commands.values()) rows.push({ role: 'assistant', kind: 'command', text: `/${command.name} 正在执行…` });
     return rows;
   }
-  async function renderDshHistory() {
+  async function renderDshHistory(expectedTurnToken = state.dsh.turnToken) {
     if (!state.dsh.sessionId) return renderDshEmpty('尚未绑定 DSH 会话。');
     const container = $('#chat-msgs');
+    const projectId = state.dsh.projectId;
+    const sessionId = state.dsh.sessionId;
     let archivedHistoryUnavailable = false;
     const sessionIds = [...new Set([
       ...(state.dsh.historySessionIds || []),
-      state.dsh.sessionId,
+      sessionId,
     ])].filter(Boolean);
     const histories = await Promise.all(sessionIds.map(async (sessionId) => {
       try {
@@ -1223,6 +1259,7 @@ import { filterSlashCapabilities } from './slash-search.js';
         return { events: [] };
       }
     }));
+    if (projectId !== state.dsh.projectId || sessionId !== state.dsh.sessionId || expectedTurnToken !== state.dsh.turnToken || projectId !== state.activeProjectId) return;
     if (archivedHistoryUnavailable && container.querySelector('.msg-wrap')) return;
     const rows = histories.flatMap((history) => dshRows(history.events || []));
     if (!rows.length) return renderDshEmpty(`已绑定本项目文件夹。输入“/”可选择 ${state.dsh.skills.length} 个技能或 ${state.dsh.commands.length} 个命令。`);
@@ -1595,8 +1632,10 @@ import { filterSlashCapabilities } from './slash-search.js';
   }
 
   async function refreshProjectDetail(id) {
+    const requestToken = ++state.detailRequestToken;
     try {
       const { project: p } = await api(`api/projects/${id}`);
+      if (requestToken !== state.detailRequestToken || state.view !== 'project-detail' || state.detailProjectId !== id) return;
       state.detailProject = p;
       updateProjectDetailBackLabel();
       $('#project-detail-meta').textContent = `${p.title} · ${p.projectKey || (currentLang() === 'en' ? 'Unnumbered' : '未编号')} · ${columnOf(p)?.title || p.status}`;
@@ -1625,13 +1664,13 @@ import { filterSlashCapabilities } from './slash-search.js';
     applyStaticCopy();
   }
   async function refreshAfterMutation(id) {
-    if (state.view === 'project-detail' && state.detailProject?.id === id) return refreshProjectDetail(id);
+    if (state.view === 'project-detail' && state.detailProjectId === id) return refreshProjectDetail(id);
     return refreshDrawer(id);
   }
   function refreshOpenProject(id) {
     if (!id) return;
     if (state.drawerProject?.id === id) refreshDrawer(id).catch(() => {});
-    if (state.detailProject?.id === id) refreshProjectDetail(id).catch(() => {});
+    if (state.view === 'project-detail' && state.detailProjectId === id) refreshProjectDetail(id).catch(() => {});
   }
   function renderQualityTasks(body, p) {
     const q = (zh, en) => currentLang() === 'en' ? en : zh;
@@ -2370,13 +2409,13 @@ import { filterSlashCapabilities } from './slash-search.js';
       refreshOpenProject(update.project?.id);
       scheduleRefresh();
     });
-    events.addEventListener('project.created', (event) => { const card = JSON.parse(event.data).project; state.cards.set(card.id, card); renderRailCases(); renderCaseList(); scheduleRefresh(); });
+    events.addEventListener('project.created', (event) => { const card = JSON.parse(event.data).project; state.cards.set(card.id, card); renderRailCases(); renderCaseList(); renderDashboard(); scheduleRefresh(); });
     events.addEventListener('project.deleted', (event) => { removeCard(JSON.parse(event.data).projectId); scheduleRefresh(); });
     const qualityRefresh = (event) => {
       const update = JSON.parse(event.data);
       scheduleActionQueueRefresh();
       if (state.drawerProject?.id === update.projectId) refreshDrawer(update.projectId).catch(() => {});
-      if (state.detailProject?.id === update.projectId) refreshProjectDetail(update.projectId).catch(() => {});
+      if (state.view === 'project-detail' && state.detailProjectId === update.projectId) refreshProjectDetail(update.projectId).catch(() => {});
     };
     events.addEventListener('quality.task.updated', qualityRefresh);
     events.addEventListener('quality.test-run.updated', qualityRefresh);
@@ -2388,13 +2427,13 @@ import { filterSlashCapabilities } from './slash-search.js';
       if (Number(update.revision || 0) <= seen) return;
       state.evidenceRevisions.set(update.entityId, Number(update.revision));
       if (state.drawerProject?.id === update.projectId) refreshDrawer(update.projectId).catch(() => {});
-      if (state.detailProject?.id === update.projectId) refreshProjectDetail(update.projectId).catch(() => {});
+      if (state.view === 'project-detail' && state.detailProjectId === update.projectId) refreshProjectDetail(update.projectId).catch(() => {});
     });
     events.addEventListener('quality.gate.updated', (event) => {
       const update = JSON.parse(event.data);
       scheduleActionQueueRefresh();
       if (state.drawerProject?.id === update.projectId) refreshDrawer(update.projectId).catch(() => {});
-      if (state.detailProject?.id === update.projectId) refreshProjectDetail(update.projectId).catch(() => {});
+      if (state.view === 'project-detail' && state.detailProjectId === update.projectId) refreshProjectDetail(update.projectId).catch(() => {});
     });
     events.addEventListener('feed', (event) => { state.feed.unshift(JSON.parse(event.data).entry); state.feed = state.feed.slice(0, 100); renderFeed(); renderDashboardFeed(); });
     events.addEventListener('stats', (event) => { state.stats = JSON.parse(event.data); renderMetrics(); });
@@ -2511,7 +2550,7 @@ import { filterSlashCapabilities } from './slash-search.js';
     renderBoard(); renderRailCases(); renderCaseList(); renderDashboard(); renderCalendars();
     if (state.activeProject) { updateChatHead(state.activeProject); renderProjectRadar(state.activeProject); }
     if (state.drawerProject && !$('#drawer').classList.contains('hidden')) refreshDrawer(state.drawerProject.id);
-    if (state.detailProject && state.view === 'project-detail') refreshProjectDetail(state.detailProject.id);
+    if (state.detailProjectId && state.view === 'project-detail') refreshProjectDetail(state.detailProjectId);
     const skillSearch = $('#skills-search');
     if (skillSearch) skillSearch.placeholder = t('skills.search');
     if (state.view === 'skills') loadSkillCatalog();
@@ -2520,6 +2559,7 @@ import { filterSlashCapabilities } from './slash-search.js';
 
   function bind() {
     $$('.nav-item').forEach((button) => button.addEventListener('click', () => { switchView(button.dataset.view); applyStaticCopy(); if (button.dataset.view === 'assistant' && state.activeProject) initializeDshChat({ initialize: true }).then(() => applyStaticCopy()).catch((error) => toast(error.message, 'err')); }));
+    $('#btn-clear-sample-data').addEventListener('click', clearSampleData);
     $('#skills-search').addEventListener('input', (event) => { state.skillSearch = event.target.value; renderSkills(); });
     $('#skills-list').addEventListener('click', (event) => { const installButton = event.target.closest('[data-skill-name]'); if (installButton) installSkill(installButton.dataset.skillName); const uninstallButton = event.target.closest('[data-uninstall-skill]'); if (uninstallButton) uninstallSkill(uninstallButton.dataset.uninstallSkill); });
     $$('[data-view-jump]').forEach((button) => button.addEventListener('click', () => switchView(button.dataset.viewJump)));

@@ -9,7 +9,7 @@ const port = Number.isInteger(requestedPort) && requestedPort > 0 ? requestedPor
 console.log('  质量工作台 · QA Workbench（独立模式）');
 console.log('  插件模式请通过 dsh-qa 插件在 DeepSeek Harness 中使用\n');
 
-const { server } = await startQaBench({ port, openBrowser: true });
+const { server } = await startQaBench({ port, openBrowser: process.env.QA_OPEN_BROWSER !== '0' });
 
 function shutdown() {
   import('./index.js').then(({ closeQaBench }) => {

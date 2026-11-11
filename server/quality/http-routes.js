@@ -168,11 +168,9 @@ function findHostExecution(project, executionId) {
 
 function latestActiveAttempt(project, attemptGroupId) {
   if (!attemptGroupId) return undefined;
+  // hostExecutions 按创建顺序追加；时间戳可能碰撞，按记录顺序取最新尝试。
   return (project?.hostExecutions || [])
     .filter((item) => item.attemptGroupId === attemptGroupId && !item.supersededBy)
-    .sort((left, right) => String(left.updatedAt || '').localeCompare(String(right.updatedAt || ''))
-      || Number(left.revision || 0) - Number(right.revision || 0)
-      || String(left.id).localeCompare(String(right.id)))
     .at(-1);
 }
 
