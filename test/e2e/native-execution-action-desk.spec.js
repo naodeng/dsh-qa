@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/e2e-test.js';
 
 async function createHostFixture(page, title) {
   const projectResponse = await page.request.post('/api/projects', { data: { title, createWorkspace: false } });
@@ -185,11 +185,14 @@ test('首页 Action Desk 入口打开完整行动队列', async ({ page }) => {
     const response = await page.request.post('/api/projects', { data: { title, createWorkspace: false } });
     expect(response.ok()).toBeTruthy();
   }
+  const queueResponse = await page.request.get('/api/action-queue?limit=50');
+  expect(queueResponse.ok()).toBeTruthy();
+  const { items: queueItems } = await queueResponse.json();
 
   await page.goto('/');
   await expect(page.locator('#dashboard-reminders .action-item')).toHaveCount(5);
   await page.getByRole('button', { name: '打开行动台' }).click();
   await expect(page.locator('#action-desk-modal')).toBeVisible();
-  await expect(page.locator('#action-desk-modal .action-item').filter({ hasText: titles[0] })).toHaveCount(1);
-  await expect(page.locator('#action-desk-modal .action-item').filter({ hasText: titles[5] })).toHaveCount(1);
+  const actionIds = await page.locator('#action-desk-modal .action-item').evaluateAll((items) => items.map((item) => item.dataset.actionId));
+  expect(actionIds).toEqual(queueItems.map((item) => item.id));
 });

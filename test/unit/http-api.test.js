@@ -7,38 +7,58 @@ import path from 'node:path';
 
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-qa-api-'));
 const skillsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-qa-skills-'));
-const skillCatalogRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-qa-skill-catalog-'));
-const skillSiteRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-qa-skill-site-'));
 process.env.QA_DATA_DIR = dataDir;
 process.env.DSH_SKILLS_DIR = skillsDir;
-process.env.QA_SKILLS_ROOT = skillCatalogRoot;
-process.env.QA_SKILLS_SITE_ROOT = skillSiteRoot;
 
 const fixtureSkills = [
-  ['testing-types', 'requirements-analysis'],
-  ['testing-types', 'test-case-writing'],
-  ['testing-types', 'api-test-bruno'],
-  ['skill-engineering', 'requirements-analysis-plus'],
-  ['skill-engineering', 'test-case-reviewer-plus'],
-  ['skill-engineering', 'test-strategy-plus'],
-  ['skill-engineering', 'testcase-writer-plus'],
+  ['type', 'requirements-analysis', '需求分析', '输入需求文档或用户故事，输出信息缺口、业务规则、风险和测试范围。', 'Requirements Analysis', 'Turn requirements into gaps, business rules, risks, and test scope.'],
+  ['type', 'test-case-writing', '测试用例编写', '根据需求和风险生成结构清晰、可执行的测试用例。', 'Test Case Writing', 'Create clear, executable test cases from requirements and risks.'],
+  ['type', 'api-test-bruno', 'Bruno API 测试', '用 Bruno 编写和维护可重复执行的 API 测试。', 'API Test Bruno', 'Write and maintain repeatable API tests with Bruno.'],
+  ['workflow', 'daily-testing-workflow', '日常测试工作流程', '按一日 QA 节奏推进计划、执行、缺陷跟进和收口。', 'Daily Testing Workflow', 'Plan, execute, track defects, and wrap up a QA day.'],
+  ['plus', 'skill-creator', '技能创建', '设计并构建符合仓库约定的 QA Skill。', 'Skill Creator', 'Design and build a QA Skill that follows repository conventions.'],
 ];
-for (const lang of ['zh', 'en']) {
-  for (const [category, name] of fixtureSkills) {
-    const skillDir = path.join(skillCatalogRoot, 'skills', lang, category, name);
-    fs.mkdirSync(skillDir, { recursive: true });
-    fs.writeFileSync(path.join(skillDir, 'SKILL.md'), `---\nname: ${name}\ndescription: ${name} fixture\n---\n`);
-  }
-}
-const skillSiteContent = path.join(skillSiteRoot, 'src', 'content', 'qaskills');
-for (const [locale, heading, section, intro] of [
-  ['zh-cn', '需求分析', '何时使用', '输入需求文档并识别信息缺口。'],
-  ['en', 'Requirements analysis', 'When to Use', 'Provide requirements and identify coverage gaps.'],
-]) {
-  const localizedDir = path.join(skillSiteContent, locale);
-  fs.mkdirSync(localizedDir, { recursive: true });
-  fs.writeFileSync(path.join(localizedDir, 'requirements-analysis.md'), `# ${heading}\n\n## ${section}\n\n- ${intro}\n`);
-}
+const skillCategories = [
+  { id: 'type', zh: '测试类型', en: 'Testing types' },
+  { id: 'workflow', zh: '工作流', en: 'Workflows' },
+  { id: 'plus', zh: '加强版', en: 'Plus' },
+];
+const skillsService = {
+  async list(lang) {
+    const installed = fs.readdirSync(skillsDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(skillsDir, entry.name, 'SKILL.md')))
+      .map((entry) => entry.name);
+    const skills = fixtureSkills.map(([categoryId, name, titleZh, descriptionZh, titleEn, descriptionEn]) => ({
+      name,
+      title: lang === 'zh' ? titleZh : titleEn,
+      description: lang === 'zh' ? descriptionZh : descriptionEn,
+      lang, categoryId,
+      category: skillCategories.find((item) => item.id === categoryId)[lang],
+      siteUrl: `https://inaodeng.com/${lang === 'zh' ? 'zh-cn' : 'en'}/qaskills/${name}/`,
+      installed: installed.includes(name), installedOnly: false,
+      availableInRepository: true,
+    }));
+    const localOnly = installed.filter((name) => !fixtureSkills.some(([, skillName]) => skillName === name));
+    return {
+      categories: localOnly.length ? [...skillCategories, { id: 'dsh-installed', zh: 'DSH 已安装', en: 'Installed in DSH' }] : skillCategories,
+      skills: [...skills, ...localOnly.map((name) => ({ name, title: name, description: '', lang, categoryId: 'dsh-installed', category: lang === 'zh' ? 'DSH 已安装' : 'Installed in DSH', siteUrl: 'https://github.com/naodeng/awesome-qa-skills', installed: true, installedOnly: true }))],
+      catalogUnavailable: false,
+    };
+  },
+  async install(lang, name) {
+    if (!fixtureSkills.some(([, skillName]) => skillName === name)) return null;
+    const target = path.join(skillsDir, name, 'SKILL.md');
+    if (fs.existsSync(target)) return { name, installed: true, alreadyInstalled: true };
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, `---\nname: ${name}\n---\n`);
+    return { name, lang, installed: true, alreadyInstalled: false };
+  },
+  uninstall(name) {
+    const target = path.join(skillsDir, name, 'SKILL.md');
+    if (!fs.existsSync(target)) return false;
+    fs.rmSync(path.dirname(target), { recursive: true, force: true });
+    return true;
+  },
+};
 const { startQaBench, closeQaBench } = await import('../../server/index.js');
 const store = await import('../../server/store.js');
 const { ActionQueueSourceError } = await import('../../server/action-queue.js');
@@ -57,6 +77,7 @@ const started = await startQaBench({
   port: 0,
   openBrowser: false,
   hostAdapters,
+  skillsService,
   actionQueueSource: () => {
     if (actionQueueUnavailable) throw new ActionQueueSourceError('test source unavailable');
     return store.listProjects();
@@ -69,7 +90,7 @@ const base = `http://127.0.0.1:${started.server.address().port}`;
 test.after(async () => {
   await new Promise((resolve) => setTimeout(resolve, 100));
   await closeQaBench(started.server);
-  for (const dir of [dataDir, skillsDir, skillCatalogRoot, skillSiteRoot]) fs.rmSync(dir, { recursive: true, force: true });
+  for (const dir of [dataDir, skillsDir]) fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test('app info exposes the installed version, compatibility, links, and descending release history', async () => {
@@ -721,31 +742,29 @@ test('POST comparison accepts the documented otherRunId body', async () => {
   assert.equal((await response.json()).comparison.changedCases[0].classification, 'fixed');
 });
 
-test('skills API returns language-specific catalog in website category order', async () => {
+test('skills API returns localized website categories and concise metadata', async () => {
   const response = await fetch(`${base}/api/skills?lang=zh`);
   assert.equal(response.status, 200);
   const payload = await response.json();
   assert.equal(payload.lang, 'zh');
-  assert.ok(payload.skills.length > 0);
-  assert.deepEqual(payload.categories.slice(0, 3).map((category) => category.id), ['testing-types', 'testing-workflows', 'enhanced']);
-  assert.deepEqual(payload.groups.map((group) => group.zh), ['需求与策略', '用例与评审', '功能与兼容', '接口与自动化', '质量保障专项', '缺陷、报告与审查']);
-  assert.equal(payload.skills[0].categoryId, 'testing-types');
+  assert.equal(payload.skills.length, fixtureSkills.length);
+  assert.deepEqual(payload.categories.map((category) => category.id), ['type', 'workflow', 'plus']);
+  assert.equal(payload.skills[0].categoryId, 'type');
   assert.equal(payload.skills.find((skill) => skill.name === 'requirements-analysis').name, 'requirements-analysis');
-  assert.match(payload.skills.find((skill) => skill.name === 'requirements-analysis').description, /^输入需求文档/);
-  assert.doesNotMatch(payload.skills.find((skill) => skill.name === 'requirements-analysis').description, /^Use this skill/);
-  assert.match(payload.skills.find((skill) => skill.name === 'requirements-analysis').siteUrl, /inaodeng\.com\/zh-cn\/qaskills\/requirements-analysis/);
-  assert.ok(payload.skills.find((skill) => skill.name === 'requirements-analysis').intro);
-  assert.equal(payload.skills.findIndex((skill) => skill.name === 'requirements-analysis') < payload.skills.findIndex((skill) => skill.name === 'test-case-writing'), true);
+  assert.equal(payload.skills.find((skill) => skill.name === 'requirements-analysis').title, '需求分析');
+  assert.equal(payload.skills.find((skill) => skill.name === 'requirements-analysis').description, '输入需求文档或用户故事，输出信息缺口、业务规则、风险和测试范围。');
+  assert.match(payload.skills.find((skill) => skill.name === 'requirements-analysis').siteUrl, /inaodeng\.com\/zh-cn\/qaskills/);
   assert.ok(payload.skills.some((skill) => skill.name === 'api-test-bruno'));
-  assert.deepEqual(payload.skills.filter((skill) => skill.categoryId === 'enhanced').map((skill) => skill.name), ['requirements-analysis-plus', 'test-case-reviewer-plus', 'test-strategy-plus', 'testcase-writer-plus']);
+  assert.equal(payload.skills.find((skill) => skill.name === 'skill-creator').categoryId, 'plus');
 });
 
 test('skills API localizes card descriptions by language', async () => {
   const response = await fetch(`${base}/api/skills?lang=en`);
   const payload = await response.json();
   const skill = payload.skills.find((item) => item.name === 'requirements-analysis');
-  assert.match(skill.description, /^Provide requirements/);
-  assert.match(skill.siteUrl, /inaodeng\.com\/en\/qaskills\/requirements-analysis/);
+  assert.equal(skill.title, 'Requirements Analysis');
+  assert.equal(skill.description, 'Turn requirements into gaps, business rules, risks, and test scope.');
+  assert.match(skill.siteUrl, /inaodeng\.com\/en\/qaskills/);
 });
 
 test('skills API rejects unsupported language', async () => {
@@ -762,11 +781,27 @@ test('skills API reports whether a Skill is installed in the DSH directory', asy
   assert.equal(after.skills.find((skill) => skill.name === 'requirements-analysis').installed, true);
 });
 
+test('skills install API skips an existing DSH Skill instead of replacing it', async () => {
+  const body = JSON.stringify({ lang: 'zh', name: 'test-case-writing' });
+  const first = await fetch(`${base}/api/skills/install`, { method: 'POST', headers: { 'content-type': 'application/json' }, body });
+  assert.equal(first.status, 200);
+  assert.equal((await first.json()).alreadyInstalled, false);
+  const installedFile = path.join(skillsDir, 'test-case-writing', 'SKILL.md');
+  fs.writeFileSync(installedFile, 'keep existing content');
+
+  const repeated = await fetch(`${base}/api/skills/install`, { method: 'POST', headers: { 'content-type': 'application/json' }, body });
+  assert.equal(repeated.status, 200);
+  assert.equal((await repeated.json()).alreadyInstalled, true);
+  assert.equal(fs.readFileSync(installedFile, 'utf8'), 'keep existing content');
+});
+
 test('skills API uninstalls a Skill from the DSH directory', async () => {
-  const skillDir = path.join(skillsDir, 'test-case-writing');
+  const skillDir = path.join(skillsDir, 'local-only-api-skill');
   fs.mkdirSync(skillDir, { recursive: true });
-  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), '# Test case writing\n');
-  const response = await fetch(`${base}/api/skills/test-case-writing`, { method: 'DELETE' });
+  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), '# Local-only API skill\n');
+  const listed = await (await fetch(`${base}/api/skills?lang=zh`)).json();
+  assert.equal(listed.skills.find((skill) => skill.name === 'local-only-api-skill').installedOnly, true);
+  const response = await fetch(`${base}/api/skills/local-only-api-skill`, { method: 'DELETE' });
   assert.equal(response.status, 200);
   assert.equal(fs.existsSync(skillDir), false);
 });

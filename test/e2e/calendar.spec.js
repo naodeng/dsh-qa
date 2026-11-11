@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/e2e-test.js';
 
 test.describe('日历排期页', () => {
   test('日历页可以访问并显示日历', async ({ page }) => {

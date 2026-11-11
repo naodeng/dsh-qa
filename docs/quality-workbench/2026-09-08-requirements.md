@@ -51,7 +51,7 @@
 - 首页「需要你处理」统一队列：至少覆盖逾期/临期里程碑、待审批 approval gate、computed gate `BLOCK`/`WARN`、失败或中断的受控 run（以现有 `stats`/`reminders`/质量 API 可聚合的事实为准）。
 - 前端订阅并消费已有 SSE：`quality.task.updated`、`quality.test-run.updated`（以及既有 `quality.evidence.updated` / `quality.gate.updated`），减少手动刷新。
 - 项目详情提供一键跳转：打开 DSH 测试对话视图、定位门禁 Tab、定位证据/质量任务相关区域。
-- Skills 安装相关根路径改为环境变量配置（已有 `QA_SKILLS_ROOT` / `QA_SKILLS_SITE_ROOT` 时补齐默认文档与校验），去掉对个人机器目录硬编码的依赖假设；缺省路径行为需在文档中写清。
+- QA Skill 安装页从 QA Skills 官网对应语言页面读取标题、简介、分类和详情链接，并与 `~/.agents/skills` 及旧 `~/.dsh/skills` 中已安装技能合并；安装按钮调用官方 Skills CLI（`npx skills add`）全局安装到 `~/.agents/skills`。不依赖本地仓库副本；已安装时跳过安装，目录或仓库不可用时仍可查看和卸载本机已安装技能。
 
 ### 5.2 `0.7.0` 对话工作台
 

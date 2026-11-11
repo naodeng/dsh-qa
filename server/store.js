@@ -160,11 +160,16 @@ export function updateProject(id, patch) {
   return p;
 }
 
-export function deleteProject(id) {
+export function deleteProject(id, { removeWorkspace = false } = {}) {
   const i = db.projects.findIndex((p) => p.id === id);
   if (i < 0) return false;
   db.artifactCleanupJobs ||= [];
   const project = db.projects[i];
+  if (removeWorkspace && project.workspacePath) {
+    const workspaceRoot = path.resolve(DATA_DIR, 'project-workspaces');
+    const workspacePath = path.resolve(project.workspacePath);
+    if (workspacePath.startsWith(`${workspaceRoot}${path.sep}`)) fs.rmSync(workspacePath, { recursive: true, force: true });
+  }
   db.artifactCleanupJobs.push({ id: uid('cleanup'), projectId: project.id, artifactRoot: project.artifactRoot || '', status: 'queued', attempts: 0, createdAt: now() });
   db.projects.splice(i, 1);
   flush();
@@ -221,6 +226,11 @@ export function ensureProjectWorkspace(p) {
 
 // ---------- feed（实时材料流） ----------
 export function getFeed() { return db.feed; }
+export function removeFeedForProjects(projectIds) {
+  const ids = new Set(projectIds);
+  db.feed = db.feed.filter((entry) => !ids.has(entry.projectId));
+  persist();
+}
 export function addFeed(entry) {
   entry.id = uid('feed');
   entry.ts = now();

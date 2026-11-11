@@ -30,12 +30,7 @@ E2E 首次：
 npx playwright install chromium
 ```
 
-Skills 相关开发建议显式设置：
-
-```sh
-export QA_SKILLS_ROOT=/absolute/path/to/awesome-qa-skills
-export DSH_SKILLS_DIR=$HOME/.dsh/skills
-```
+Skills 安装按钮调用官方 Skills CLI（`npx skills add`），全局安装到 `~/.agents/skills`；页面同时识别旧的 `~/.dsh/skills` 安装并允许卸载。技能列表标题、简介和分类从 [QA Skills 官网](https://inaodeng.com/zh-cn/qaskills/) 的中英文页面读取，安装源为 GitHub 上的 `naodeng/awesome-qa-skills` 仓库，不需要本地仓库副本。
 
 质量/API 测试必须使用临时 `QA_DATA_DIR` 与随机端口；**在动态导入服务模块之前**设置 `QA_DATA_DIR`。
 

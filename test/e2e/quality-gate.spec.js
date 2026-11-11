@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/e2e-test.js';
 
 test('项目详情展示质量门禁的评估入口和交付依据区域', async ({ page }) => {
   const title = `门禁浏览器项目-${Date.now()}`;

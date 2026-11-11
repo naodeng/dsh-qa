@@ -193,8 +193,8 @@ npm start
 
 - DSH 对话、模型、命令、技能及权限策略均由 Harness 提供。
 - 每个项目使用自己的 DSH 会话；通过 AI 登记的资料会显示在项目详情和最近动态中。
-- 「QA Skill 安装」页面从本地 `awesome-qa-skills` 仓库读取目录，默认位置为 `~/awsomeCode/awesome-qa-skills`。仓库放在其他位置时，在启动工作台前设置 `QA_SKILLS_ROOT` 指向仓库根目录。
-- 在「QA Skill 安装」页面搜索所需技能并安装。技能会复制到 DSH 技能目录（默认 `~/.dsh/skills/`）；安装后重启 DSH，再在新会话中使用。也可在对话框输入 `/` 搜索已安装的技能或命令。
+- 「QA Skill 安装」页面从 [QA Skills 官网](https://inaodeng.com/zh-cn/qaskills/) 读取对应语言的标题、简介、分类和详情链接，并合并 DSH 已安装技能；读取官网目录需要网络连接。
+- 安装按钮调用官方 Skills CLI（`npx skills add`），全局安装到 `~/.agents/skills/`。页面会合并展示这个目录和旧 `~/.dsh/skills/` 中的技能；已安装时跳过重复安装，卸载时二次确认。安装后重启 DSH，再在新会话中使用；也可在对话框输入 `/` 搜索技能或命令。
 - DSH 会话可以协助分析和登记，但项目阶段、风险接受、缺陷确认、门禁审批和发布等决定仍由负责人把关。
 
 ### 界面偏好

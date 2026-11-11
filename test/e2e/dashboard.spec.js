@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/e2e-test.js';
 
 const releaseFixture = {
   ok: true,

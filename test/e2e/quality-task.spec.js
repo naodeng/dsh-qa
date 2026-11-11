@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/e2e-test.js';
 
 test('项目详情可以创建质量任务并在刷新后保留', async ({ page }) => {
   const projectTitle = `质量任务浏览器项目-${Date.now()}`;

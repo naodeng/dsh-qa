@@ -193,8 +193,8 @@ Provide the test scope, execution facts, failures, and anything not run. Then as
 
 - DSH provides chat, models, commands, Skills, and permission policies.
 - Each project uses its own DSH session. Materials registered through AI appear in Project Details and recent activity.
-- The **QA Skill Installer** reads the local `awesome-qa-skills` repository. Its default location is `~/awsomeCode/awesome-qa-skills`. If the repository is elsewhere, set `QA_SKILLS_ROOT` to its root before starting the workbench.
-- Search for and install a Skill from that page. Skills are copied to the DSH Skills directory (default `~/.dsh/skills/`). Restart DSH and use the Skill in a new session. You can also type `/` in chat to search installed Skills and commands.
+- The **QA Skill Installer** displays localized titles, concise descriptions, categories, and detail links from the [QA Skills website](https://inaodeng.com/en/qaskills/), then merges in Skills installed in DSH. It needs a network connection to load the website catalog.
+- The Install button runs the official Skills CLI (`npx skills add`) and installs globally to `~/.agents/skills/`. The page also lists Skills in the legacy `~/.dsh/skills/` directory; it skips duplicates and asks for confirmation before uninstalling. Restart DSH before using an installed Skill in a new session. You can also type `/` in chat to search installed Skills and commands.
 - DSH can help analyze and register materials, but owners remain responsible for project stage changes, risk acceptance, defect confirmation, gate approvals, and release decisions.
 
 ### Interface Preferences
