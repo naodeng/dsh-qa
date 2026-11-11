@@ -27,6 +27,22 @@ test.describe('首页', () => {
     await expect(page.getByRole('heading', { name: '需要你处理' })).toBeVisible();
   });
 
+  test('服务状态和 DSH 模式提示保留可读的垂直留白', async ({ page }) => {
+    await page.goto('/');
+    const statusPadding = await page.locator('#service-status').evaluate((element) => {
+      const style = getComputedStyle(element);
+      return [parseFloat(style.paddingTop), parseFloat(style.paddingBottom)];
+    });
+    expect(statusPadding.every((value) => value >= 8)).toBe(true);
+
+    await page.getByRole('button', { name: 'DSH 测试对话' }).click();
+    const reminderPadding = await page.locator('#model-reminder').evaluate((element) => {
+      const style = getComputedStyle(element);
+      return [parseFloat(style.paddingTop), parseFloat(style.paddingBottom)];
+    });
+    expect(reminderPadding.every((value) => value >= 8)).toBe(true);
+  });
+
   test('首页字体层级统一，中文标题字距中性且主题切换后不变', async ({ page }) => {
     await page.goto('/');
     const readTypography = () => page.evaluate(() => {

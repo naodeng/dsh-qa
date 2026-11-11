@@ -140,7 +140,7 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .global-search span { flex: 1; }
 .global-search kbd { border: 1px solid var(--line-strong); background: var(--color-paper-2); border-radius: 5px; padding: var(--space-2xs) var(--space-xs); color: var(--faint); font-size: 11px; box-shadow: 0 1px 1px var(--color-shadow-soft); }
 .top-actions { justify-self: end; display: flex; align-items: center; gap: var(--space-xs); }
-.service-status { display: inline-flex; align-items: center; gap: var(--space-xs); color: var(--muted); font-size: 12px; padding: var(--space-2xs) var(--space-xs); border: 1px solid var(--line); border-radius: 999px; }
+.service-status { display: inline-flex; align-items: center; gap: var(--space-xs); color: var(--muted); font-size: 12px; padding: var(--space-xs); border: 1px solid var(--line); border-radius: 999px; }
 .service-status i { width: 7px; height: 7px; border-radius: 50%; background: var(--color-success); }
 .service-status.offline i { background: var(--red); }
 .icon-btn { width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 9px; background: transparent; color: var(--muted); }
@@ -377,7 +377,7 @@ body.context-collapsed .splitter-context::after { content: "‹"; left: 0; borde
 .chat-head-actions { display: flex; align-items: center; gap: var(--space-xs); }
 .model-switch { height: 30px; padding: 0 var(--space-xs); display: flex; align-items: center; gap: var(--space-2xs); border: 1px solid var(--line); border-radius: 7px; background: var(--panel-soft); color: var(--faint); font-size: 9px; }
 .model-switch select { max-width: 125px; border: 0; outline: 0; background: transparent; color: var(--color-muted); font-size: 10px; }
-.model-reminder { min-height: 38px; padding: var(--space-2xs) var(--space-md); display: flex; align-items: center; gap: var(--space-xs); color: var(--color-muted); background: var(--color-paper-2); border-bottom: 1px solid var(--line); font-size: 9.5px; }
+.model-reminder { min-height: 38px; padding: var(--space-xs) var(--space-md); display: flex; align-items: center; gap: var(--space-xs); color: var(--color-muted); background: var(--color-paper-2); border-bottom: 1px solid var(--line); font-size: 9.5px; }
 .model-reminder { position: relative; }
 body.dsh-standalone .model-reminder { color: var(--amber); background: var(--amber-soft); }
 body.dsh-connected .model-reminder { color: var(--teal); background: var(--teal-soft); }
@@ -627,7 +627,7 @@ body.dsh-busy .model-reminder { color: var(--blue); background: var(--blue-soft)
 /* drawer, lists and forms */
 .backdrop { position: fixed; inset: 0; z-index: 70; background: var(--color-overlay); backdrop-filter: none; }
 .drawer { color: var(--color-ink); position: fixed; z-index: 71; top: 28px; right: 28px; bottom: 28px; width: min(1160px, calc(100% - 64px)); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--color-rule-soft); border-radius: 17px; background: var(--color-paper-2); box-shadow: 0 10px 18px -8px var(--color-shadow); animation: drawer-in .2s ease; }
-.project-detail-page { height: calc(100% - 28px); margin: var(--space-md); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--color-paper-2); box-shadow: 0 8px 16px -10px var(--color-shadow); }
+.project-detail-page { height: calc(100% - 28px); margin: var(--space-md); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-panel-large); background: var(--color-paper-2); box-shadow: 0 8px 16px -10px var(--color-shadow); }
 .project-detail-head { min-height: 84px; padding: var(--space-md) 20px; display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 20px; border-bottom: 1px solid var(--line); background: var(--color-paper-2); }
 .project-detail-head h1 { font: 600 22px/1.3 var(--font-ui); }
 .project-detail-head p:last-child { margin-top: var(--space-2xs); color: var(--faint); font-size: 10px; }
