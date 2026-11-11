@@ -64,8 +64,9 @@ test.describe('项目看板页', () => {
   });
 
   test('详情首次读取延迟时仍接收更新，迟到的旧响应不能覆盖新标题', async ({ page }) => {
+    const eventsConnected = page.waitForResponse((response) => new URL(response.url()).pathname.endsWith('/api/events') && response.status() === 200);
     await page.goto('/');
-    await page.waitForResponse((response) => new URL(response.url()).pathname.endsWith('/api/events') && response.status() === 200);
+    await eventsConnected;
     const title = `详情并发更新回归-${Date.now()}`;
     const createdResponse = await page.request.post('/api/projects', { data: { title, createWorkspace: false } });
     expect(createdResponse.ok()).toBe(true);

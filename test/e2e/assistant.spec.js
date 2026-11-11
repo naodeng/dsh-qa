@@ -50,9 +50,25 @@ test.describe('DSH 测试对话页', () => {
       const heights = await metadata.evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height));
       const lineHeight = await metadata.first().evaluate((element) => parseFloat(getComputedStyle(element).lineHeight));
       expect(heights.every((height) => height <= lineHeight + 1)).toBe(true);
+      const metadataTops = await metadata.evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().top));
+      expect(metadataTops.every((top) => Math.abs(top - metadataTops[0]) <= 1)).toBe(true);
     } finally {
       await page.request.delete(`/api/projects/${encodeURIComponent(created.project.id)}`);
     }
+  });
+
+  test('旧版默认项目栏宽度升级后能在一行展示项目元信息', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => localStorage.setItem('dsh-qa-layout', JSON.stringify({ cases: 220 })));
+    await page.reload();
+    await page.getByRole('button', { name: 'DSH 测试对话' }).click();
+
+    await expect(page.locator('#case-sidebar')).toHaveCSS('width', '300px');
+    await expect(page.locator('#case-list .case-item').first()).toBeVisible();
+    const metadata = page.locator('#case-list .case-item').first().locator('.ci-meta span');
+    const metadataTops = await metadata.evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().top));
+    expect(metadataTops.length).toBeGreaterThan(1);
+    expect(metadataTops.every((top) => Math.abs(top - metadataTops[0]) <= 1)).toBe(true);
   });
 
   test('启动时把已保存的过窄导航宽度恢复到可读下限', async ({ page }) => {

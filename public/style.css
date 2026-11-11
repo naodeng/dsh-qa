@@ -47,7 +47,7 @@
   --radius: var(--radius-panel);
   --shadow: var(--shadow-panel);
   --rail-w: 184px;
-  --case-sidebar-w: 220px;
+  --case-sidebar-w: 300px;
   --context-w: 260px;
   --color-surface-page: var(--color-paper);
   --color-surface-panel: var(--color-paper-2);

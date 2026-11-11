@@ -46,7 +46,7 @@ import { filterSlashCapabilities } from './slash-search.js';
   };
   const langModeCN = (mode) => (currentLang() === 'en' ? MODE_CN_EN[mode] || mode : MODE_CN[mode] || mode);
   const langModeDesc = (mode) => (currentLang() === 'en' ? MODE_DESC_EN[mode] || MODE_DESC_EN.full : MODE_DESC[mode] || MODE_DESC.full);
-  const DEFAULT_LAYOUT = { rail: 208, cases: 220, context: 260, railCollapsed: false, casesCollapsed: false, contextCollapsed: false };
+  const DEFAULT_LAYOUT = { rail: 208, cases: 300, context: 260, railCollapsed: false, casesCollapsed: false, contextCollapsed: false };
   const LAYOUT_RANGES = { rail: [208, 280], cases: [180, 360], context: [220, 420] };
   const RELEASE_PAGE_SIZE = 5;
   const RELEASE_SEEN_KEY = 'dsh-qa-release-seen';
@@ -267,6 +267,7 @@ import { filterSlashCapabilities } from './slash-search.js';
   function loadLayout() {
     try {
       const saved = JSON.parse(localStorage.getItem('dsh-qa-layout') || '{}');
+      if (saved.cases === 220) saved.cases = DEFAULT_LAYOUT.cases;
       const responsiveDefault = window.innerWidth <= 1180 ? { contextCollapsed: true } : {};
       applyLayout({ ...DEFAULT_LAYOUT, ...responsiveDefault, ...saved }, false);
     }
