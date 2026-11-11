@@ -81,7 +81,7 @@ test.describe('首页', () => {
     const stagePill = page.locator('#dashboard-cases .stage-pill').first();
     await expect(stagePill).toBeVisible();
 
-    const usesNeutralTokens = () => stagePill.evaluate((element) => {
+    const readNeutralColors = () => stagePill.evaluate((element) => {
       const resolveToken = (property, token) => {
         const probe = document.createElement('span');
         probe.style.setProperty(property, `var(${token})`);
@@ -91,19 +91,28 @@ test.describe('首页', () => {
         return value;
       };
       const style = getComputedStyle(element);
-      return style.color === resolveToken('color', '--color-muted')
-        && style.backgroundColor === resolveToken('background-color', '--color-paper-3');
+      return {
+        color: style.color,
+        expectedColor: resolveToken('color', '--color-muted'),
+        background: style.backgroundColor,
+        expectedBackground: resolveToken('background-color', '--color-paper-3'),
+        neutral: style.color === resolveToken('color', '--color-muted')
+          && style.backgroundColor === resolveToken('background-color', '--color-paper-3'),
+      };
     });
+    const expectNeutralColors = () => expect.poll(readNeutralColors).toMatchObject({ neutral: true });
 
     await page.locator('#btn-settings').click();
     await page.locator('#st-theme-light').click();
     await page.locator('#st-close').click();
-    expect(await usesNeutralTokens()).toBe(true);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await expectNeutralColors();
 
     await page.locator('#btn-settings').click();
     await page.locator('#st-theme-dark').click();
     await page.locator('#st-close').click();
-    expect(await usesNeutralTokens()).toBe(true);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expectNeutralColors();
   });
 
   test('首页可以创建项目和迭代', async ({ page }) => {

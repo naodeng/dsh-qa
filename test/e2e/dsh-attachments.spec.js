@@ -17,12 +17,16 @@ async function expectRetainedDraft(frame, text, fileName) {
 }
 
 async function confirmNewDshChat(page, frame, fixture) {
-  const previousCreateCalls = fixture.createSessionCalls;
+  const previousCreateCalls = projectSessionCreateCalls(fixture);
   await frame.locator('.dsh-session-recovery').getByRole('button', { name: '新建 DSH 对话' }).click();
   const dialog = page.locator('#modal-root .modal');
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: '新建对话', exact: true }).click();
-  await expect.poll(() => fixture.createSessionCalls).toBe(previousCreateCalls + 1);
+  await expect.poll(() => projectSessionCreateCalls(fixture)).toBe(previousCreateCalls + 1);
+}
+
+function projectSessionCreateCalls(fixture) {
+  return fixture.sessionCreateRequests.filter((request) => request.cwd === fixture.workspacePath).length;
 }
 
 test('standalone mode explains that native attachments require DSH', async ({ page }) => {
@@ -304,7 +308,7 @@ test('shows a recovery card when the bound DSH session is missing without losing
   await expectRetainedDraft(frame, '/qa-testcase-generator 新需求', '需求草稿.md');
   await expect(frame.locator('.msg-wrap.user')).toContainText('之前的需求讨论');
   await expect(frame.locator('.msg-wrap.dsh')).toContainText('之前的测试结论');
-  expect(fixture.createSessionCalls).toBe(0);
+  expect(projectSessionCreateCalls(fixture)).toBe(fixture.projectSessionCreateCallsAtReady);
   expect(fixture.prompts).toHaveLength(0);
   expect(fixture.commands).toHaveLength(0);
 
@@ -383,7 +387,7 @@ test('shows recovery when a connected session disappears before sending', async 
   await expect(frame.locator('.dsh-session-recovery')).toContainText('未找到本项目绑定的 DSH 会话');
   await expect(frame.locator('.msg-wrap.user')).toContainText('已连接会话里的历史需求');
   await expectRetainedDraft(frame, '新提问草稿', '新提问.md');
-  expect(fixture.createSessionCalls).toBe(0);
+  expect(projectSessionCreateCalls(fixture)).toBe(fixture.projectSessionCreateCallsAtReady);
 });
 
 test('retrying an unbound project never creates a DSH session without confirmation', async ({ page }) => {
@@ -406,13 +410,13 @@ test('retrying an unbound project never creates a DSH session without confirmati
   await expect.poll(() => fixture.sessionListReads).toBe(initialSessionListReads + 1);
   await expect(card).toContainText('本项目尚未绑定 DSH 会话');
   await expectRetainedDraft(frame, '尚未发送的需求', '未发送需求.md');
-  expect(fixture.createSessionCalls).toBe(0);
+  expect(projectSessionCreateCalls(fixture)).toBe(fixture.projectSessionCreateCallsAtReady);
 
   await frame.locator('#btn-send').click();
   await expect.poll(() => fixture.sessionListReads).toBe(initialSessionListReads + 2);
   await expect(card).toContainText('本项目尚未绑定 DSH 会话');
   await expectRetainedDraft(frame, '尚未发送的需求', '未发送需求.md');
-  expect(fixture.createSessionCalls).toBe(0);
+  expect(projectSessionCreateCalls(fixture)).toBe(fixture.projectSessionCreateCallsAtReady);
   expect(fixture.prompts).toHaveLength(0);
 
   await confirmNewDshChat(page, frame, fixture);
@@ -439,7 +443,7 @@ test('retrying an incompatible bound session does not replace it without confirm
   await expect.poll(() => fixture.sessionListReads).toBe(initialSessionListReads + 1);
   await expect(card).toContainText('当前 DSH 会话无法直接恢复');
   await expect(frame.locator('.msg-wrap.user')).toContainText('保留的旧会话历史');
-  expect(fixture.createSessionCalls).toBe(0);
+  expect(projectSessionCreateCalls(fixture)).toBe(fixture.projectSessionCreateCallsAtReady);
 
   await frame.locator('#chat-input').fill('不应自动替换旧会话');
   await frame.locator('#btn-send').click();
@@ -447,7 +451,7 @@ test('retrying an incompatible bound session does not replace it without confirm
   await expect(card).toContainText('当前 DSH 会话无法直接恢复');
   await expect(frame.locator('.msg-wrap.user')).toContainText('保留的旧会话历史');
   await expect(frame.locator('#chat-input')).toHaveValue('不应自动替换旧会话');
-  expect(fixture.createSessionCalls).toBe(0);
+  expect(projectSessionCreateCalls(fixture)).toBe(fixture.projectSessionCreateCallsAtReady);
   expect(fixture.prompts).toHaveLength(0);
 
   await confirmNewDshChat(page, frame, fixture);
@@ -508,7 +512,7 @@ test('distinguishes an unreadable DSH session list from a missing bound session'
   await expect(card).toContainText('暂时无法读取 DSH 会话列表');
   await expect(frame.locator('.msg-wrap.user')).toContainText('仍需保留的历史内容');
   await expectRetainedDraft(frame, '暂存中的提问', '会话列表故障草稿.md');
-  expect(fixture.createSessionCalls).toBe(0);
+  expect(projectSessionCreateCalls(fixture)).toBe(fixture.projectSessionCreateCallsAtReady);
   expect(fixture.prompts).toHaveLength(0);
 });
 
@@ -590,6 +594,7 @@ async function createEmbeddedFixture(page, options = {}) {
     releaseModelCatalog: null,
     createSessionCalls: 0,
     createdSessionIds: [],
+    sessionCreateRequests: [],
     commandResponses: 0,
     recordsBySession: new Map([[SESSION_ID, options.initialRecords || []]]),
     sessionListMode: options.sessionListMode || 'available',
@@ -684,6 +689,7 @@ async function createEmbeddedFixture(page, options = {}) {
       fixture.createSessionCalls += 1;
       const sessionId = `attachment-session-${fixture.createSessionCalls}-${Date.now()}`;
       fixture.createdSessionIds.push(sessionId);
+      fixture.sessionCreateRequests.push({ sessionId, cwd: payload.args?.request?.cwd || '' });
       sessionRecords(sessionId);
       value = { sessionId };
     }
@@ -756,7 +762,9 @@ async function createEmbeddedFixture(page, options = {}) {
       try { message = JSON.parse(String(raw)); } catch { return; }
       if (message.type !== 'open') return;
       const sessionId = sessionIdFromStreamOpen(message);
-      if (fixture.failArchivedHistoryAfterNewSession && fixture.createSessionCalls > 0 && sessionId === SESSION_ID) {
+      if (fixture.failArchivedHistoryAfterNewSession
+        && projectSessionCreateCalls(fixture) > fixture.projectSessionCreateCallsAtReady
+        && sessionId === SESSION_ID) {
         socket.send(JSON.stringify({ type: 'error', streamId: message.streamId, error: { message: '历史记录暂时不可读' } }));
         return;
       }
@@ -772,6 +780,7 @@ async function createEmbeddedFixture(page, options = {}) {
   await page.goto(`${embeddedPrefix}/`);
   const frame = await openEmbeddedProject(page, title);
   await waitForEmbeddedChatReady(page, frame);
+  fixture.projectSessionCreateCallsAtReady = projectSessionCreateCalls(fixture);
   fixture.frame = frame;
   return fixture;
 }
