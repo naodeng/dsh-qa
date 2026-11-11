@@ -1264,7 +1264,9 @@ import { filterSlashCapabilities } from './slash-search.js';
     retryButton.addEventListener('click', async () => {
       setRecoveryButtonsDisabled(true);
       try { await initializeDshChat({ initialize: true, allowSessionChanges: false }); }
-      catch (retryError) { toast(retryError.message, 'err'); }
+      catch (retryError) {
+        if (state.activeProjectId === project.id) toast(retryError.message, 'err');
+      }
       finally {
         setRecoveryButtonsDisabled(false);
       }
@@ -1325,7 +1327,8 @@ import { filterSlashCapabilities } from './slash-search.js';
     sendingMessage = true;
     updateChatUI();
     try {
-      const sessionId = await ensureDshProject();
+      const hasRecoveryCard = Boolean($('.dsh-session-recovery', $('#chat-msgs')));
+      const sessionId = await ensureDshProject(project, { allowSessionChanges: !hasRecoveryCard });
       if (token !== state.dsh.turnToken || projectId !== state.activeProjectId) return;
       const commandName = text.match(/^\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\s|$)/i)?.[1]?.toLowerCase();
       const command = commandName && state.dsh.commands.find((item) => item.name === commandName);

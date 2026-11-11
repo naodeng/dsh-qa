@@ -316,6 +316,42 @@ test('shows a recovery card when the bound DSH session is missing without losing
   await expectRetainedDraft(frame, '/qa-testcase-generator 新需求', '需求草稿.md');
 });
 
+test('does not show a stale recovery retry error after switching projects', async ({ page }) => {
+  const secondProjectTitle = `恢复重试第二项目 ${Date.now()}`;
+  const fixture = await createEmbeddedFixture(page, {
+    sessionListMode: 'unavailable',
+    secondProjectTitle,
+  });
+  const frame = fixture.frame;
+  const card = frame.locator('.dsh-session-recovery');
+  await expect(card).toContainText('暂时无法读取 DSH 会话列表');
+  await page.evaluate(() => {
+    window.__dshQaToastMessages = [];
+    const root = document.querySelector('#toast-root');
+    new MutationObserver(() => {
+      for (const toast of root.querySelectorAll('.toast')) {
+        if (!window.__dshQaToastMessages.includes(toast.textContent)) window.__dshQaToastMessages.push(toast.textContent);
+      }
+    }).observe(root, { childList: true, subtree: true, characterData: true });
+  });
+
+  fixture.sessionListMode = 'available';
+  fixture.modelCatalogHoldRead = fixture.modelCatalogReads + 1;
+  await card.getByRole('button', { name: '重新检查' }).click();
+  await expect.poll(() => Boolean(fixture.releaseModelCatalog)).toBe(true);
+
+  await page.locator('#case-list .case-item').filter({ hasText: secondProjectTitle }).click();
+  await expect(page.locator('#chat-head-title')).toHaveText(secondProjectTitle);
+  await waitForEmbeddedChatReady(page, frame);
+
+  fixture.releaseModelCatalog();
+  await expect.poll(() => fixture.modelCatalogErrorResponses).toBe(1);
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const toastMessages = await page.evaluate(() => window.__dshQaToastMessages);
+  expect(toastMessages).not.toContain('延迟的 DSH 模型目录错误');
+  await expect(frame.locator('.dsh-session-recovery')).toHaveCount(0);
+});
+
 test('shows recovery when a connected session disappears before sending', async ({ page }) => {
   const fixture = await createEmbeddedFixture(page, {
     initialRecords: [
@@ -372,6 +408,13 @@ test('retrying an unbound project never creates a DSH session without confirmati
   await expectRetainedDraft(frame, '尚未发送的需求', '未发送需求.md');
   expect(fixture.createSessionCalls).toBe(0);
 
+  await frame.locator('#btn-send').click();
+  await expect.poll(() => fixture.sessionListReads).toBe(initialSessionListReads + 2);
+  await expect(card).toContainText('本项目尚未绑定 DSH 会话');
+  await expectRetainedDraft(frame, '尚未发送的需求', '未发送需求.md');
+  expect(fixture.createSessionCalls).toBe(0);
+  expect(fixture.prompts).toHaveLength(0);
+
   await confirmNewDshChat(page, frame, fixture);
   await expect(frame.locator('.dsh-session-recovery')).toHaveCount(0);
   await expectRetainedDraft(frame, '尚未发送的需求', '未发送需求.md');
@@ -397,6 +440,15 @@ test('retrying an incompatible bound session does not replace it without confirm
   await expect(card).toContainText('当前 DSH 会话无法直接恢复');
   await expect(frame.locator('.msg-wrap.user')).toContainText('保留的旧会话历史');
   expect(fixture.createSessionCalls).toBe(0);
+
+  await frame.locator('#chat-input').fill('不应自动替换旧会话');
+  await frame.locator('#btn-send').click();
+  await expect.poll(() => fixture.sessionListReads).toBe(initialSessionListReads + 2);
+  await expect(card).toContainText('当前 DSH 会话无法直接恢复');
+  await expect(frame.locator('.msg-wrap.user')).toContainText('保留的旧会话历史');
+  await expect(frame.locator('#chat-input')).toHaveValue('不应自动替换旧会话');
+  expect(fixture.createSessionCalls).toBe(0);
+  expect(fixture.prompts).toHaveLength(0);
 
   await confirmNewDshChat(page, frame, fixture);
   await expect(frame.locator('.dsh-session-recovery')).toHaveCount(0);
@@ -532,6 +584,10 @@ async function createEmbeddedFixture(page, options = {}) {
     sessionListErrorResponses: 0,
     sessionListHoldRead: 0,
     releaseSessionList: null,
+    modelCatalogReads: 0,
+    modelCatalogHoldRead: 0,
+    modelCatalogErrorResponses: 0,
+    releaseModelCatalog: null,
     createSessionCalls: 0,
     createdSessionIds: [],
     commandResponses: 0,
@@ -614,7 +670,16 @@ async function createEmbeddedFixture(page, options = {}) {
       fixture.createdSessionIds.forEach((sessionId) => items.push({ sessionId, cwd: fixture.workspacePath, blank: true, projections: { values: { agentPreset: 'qa' } } }));
       value = { items };
     }
-    else if (method === 'session/modelCatalog') value = { default: { provider: 'deepseek', model: 'deepseek-chat' }, groups: [], routable: false };
+    else if (method === 'session/modelCatalog') {
+      fixture.modelCatalogReads += 1;
+      if (fixture.modelCatalogReads === fixture.modelCatalogHoldRead) {
+        await new Promise((resolve) => { fixture.releaseModelCatalog = resolve; });
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ rpcId, result: { ok: false, error: { code: 'model-catalog-unavailable', message: '延迟的 DSH 模型目录错误' } } }) });
+        fixture.modelCatalogErrorResponses += 1;
+        return;
+      }
+      value = { default: { provider: 'deepseek', model: 'deepseek-chat' }, groups: [], routable: false };
+    }
     else if (method === 'session/create') {
       fixture.createSessionCalls += 1;
       const sessionId = `attachment-session-${fixture.createSessionCalls}-${Date.now()}`;
