@@ -9,10 +9,11 @@ process.env.QA_DATA_DIR = dataDir;
 const { startQaBench, closeQaBench } = await import('../../server/index.js');
 const store = await import('../../server/store.js');
 const started = await startQaBench({ port: 0, openBrowser: false, log: () => {} });
+let activeServer = started.server;
 const base = `http://127.0.0.1:${started.server.address().port}`;
 
 test.after(async () => {
-  await closeQaBench(started.server);
+  await closeQaBench(activeServer);
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
 
@@ -60,4 +61,10 @@ test('示例数据清理会保护用户项目，并在纯示例数据时删除�
   assert.deepEqual(emptyBoard.projects, []);
   assert.ok(emptyBoard.feed.every((entry) => !sampleIds.includes(entry.projectId)));
   assert.ok(sampleWorkspacePaths.every((workspacePath) => !fs.existsSync(workspacePath)));
+
+  await closeQaBench(activeServer);
+  const restarted = await startQaBench({ port: 0, openBrowser: false, log: () => {} });
+  activeServer = restarted.server;
+  const restartedBase = `http://127.0.0.1:${restarted.server.address().port}`;
+  assert.deepEqual((await (await fetch(`${restartedBase}/api/board`)).json()).projects, []);
 });

@@ -19,7 +19,7 @@ function dayOffset(n) {
 }
 
 export function seedIfEmpty() {
-  if (store.listProjects().length > 0) return;
+  if (store.listProjects().length > 0 || store.hasClearedSampleData()) return;
 
   const p1 = store.createProject({
     kind: 'project',

@@ -87,6 +87,11 @@ function writeNow() {
 // ---------- projects ----------
 export function listProjects() { return db.projects; }
 export function listArtifactCleanupJobs() { return db.artifactCleanupJobs || []; }
+export function hasClearedSampleData() { return db.sampleDataCleared === true; }
+export function markSampleDataCleared() {
+  db.sampleDataCleared = true;
+  flush();
+}
 export function getProject(id) { return db.projects.find((p) => p.id === id) || null; }
 
 export function createProject(fields = {}) {

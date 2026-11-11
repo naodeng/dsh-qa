@@ -111,6 +111,7 @@ async function api(req, res, url, body, hostAdapters, eventBroadcast = broadcast
     const samples = projects.filter(isSampleProject);
     if (samples.length !== projects.length) return fail(res, 409, '存在用户项目，未清理示例数据');
     const ids = samples.map((project) => project.id);
+    store.markSampleDataCleared();
     store.removeFeedForProjects(ids);
     for (const project of samples) {
       store.deleteProject(project.id, { removeWorkspace: true });
