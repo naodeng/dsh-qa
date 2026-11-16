@@ -162,6 +162,13 @@ test('overview summarizes project signals and links to filtered source sections'
   });
   await openProjectFromBoard(page, project);
 
+  const actionQueuePrecedesMetrics = await page.locator('#project-detail-body').evaluate((body) => {
+    const queue = body.querySelector('#project-action-queue');
+    const metrics = body.querySelector('.overview-metrics');
+    return Boolean(queue && metrics && (queue.compareDocumentPosition(metrics) & Node.DOCUMENT_POSITION_FOLLOWING));
+  });
+  expect(actionQueuePrecedesMetrics).toBe(true);
+
   await expect(page.locator('[data-overview-metric="requirements"]')).toContainText(String(fullProject.requirements.length));
   await expect(page.locator('[data-overview-metric="testcases"]')).toContainText(String(fullProject.testcases.length + 1));
   await expect(page.locator('[data-overview-metric="testcases"]')).toContainText('未关联需求');
@@ -210,6 +217,48 @@ test('overview summarizes project signals and links to filtered source sections'
   await expect(page.locator('#detail-delivery-gates [data-gate-id]')).toHaveCount(1);
   await expect(page.locator('#detail-delivery-gates [data-gate-id="human-pending"]')).toBeVisible();
   await expect(page.locator('#detail-delivery-gates [data-gate-id="computed-gate"]')).toHaveCount(0);
+});
+
+test('defect details stay collapsed until expanded inline', async ({ page, request }) => {
+  const project = await seededProject(request);
+  await patchProjectResponse(page, project.id, (p) => {
+    p.defects = [{
+      id: 'defect-expandable',
+      title: '登录状态丢失',
+      status: 'open',
+      severity: 'major',
+      environment: 'Safari 18',
+      impact: '用户需要重新登录',
+      steps: '在新标签页刷新页面',
+      expected: '保持已登录状态',
+      actual: '跳转至登录页',
+      evidenceRefs: ['expandable-evidence'],
+    }];
+    p.evidenceBundles = [{ id: 'expandable-evidence', state: 'ready', integrity: 'verified', items: [] }];
+  });
+  await openProjectFromBoard(page, project);
+  await page.locator('[data-detail-tab="defectsRisks"]').click();
+
+  const defect = page.locator('[data-defect-id="defect-expandable"]');
+  const details = defect.locator('[data-defect-details]');
+  await expect(defect).toContainText('登录状态丢失');
+  await expect(defect).toContainText('Safari 18');
+  await expect(defect).toContainText('用户需要重新登录');
+  await expect(details).toHaveCount(1);
+  await expect(details).not.toHaveAttribute('open', '');
+  await expect(details.locator('.defect-details-content')).toBeHidden();
+
+  await details.locator('summary').click();
+  await expect(details).toHaveAttribute('open', '');
+  await expect(details.locator('.defect-details-content')).toBeVisible();
+  await expect(defect).toContainText('在新标签页刷新页面');
+  await expect(defect).toContainText('保持已登录状态');
+  await expect(defect).toContainText('跳转至登录页');
+  await expect(defect.locator('[data-open-defect-evidence="expandable-evidence"]')).toBeVisible();
+
+  await details.locator('summary').click();
+  await expect(details).not.toHaveAttribute('open', '');
+  await expect(details.locator('.defect-details-content')).toBeHidden();
 });
 
 test('traceability empty results show active conditions and can be cleared', async ({ page, request }) => {
@@ -625,7 +674,8 @@ test('empty records and first-load or stale Action Queue failures stay distinct'
   await page.route(queueRoute, async (route) => {
     if (failActionQueue) return route.fulfill({ status: 503, body: 'unavailable' });
     const response = await route.fetch();
-    return route.fulfill({ response });
+    const payload = await response.json();
+    return route.fulfill({ response, json: { ...payload, items: [] } });
   });
   await openProjectFromBoard(page, project);
   const actionQueue = page.locator('#project-action-queue');
@@ -640,6 +690,8 @@ test('empty records and first-load or stale Action Queue failures stay distinct'
   await page.getByRole('button', { name: '编辑项目' }).click();
   await page.locator('#ov-save').click();
   await expect(actionQueue).toContainText('上次成功读取');
+  await expect(actionQueue).toContainText('上次成功结果没有待处理事项，刷新失败，当前状态未知。');
+  await expect(actionQueue).not.toContainText('当前没有需要处理的项目行动');
 
   await page.locator('[data-detail-tab="defectsRisks"]').click();
   await expect(page.locator('#defect-records')).toContainText('暂无缺陷记录');
@@ -696,6 +748,7 @@ test('language changes preserve project, task, and defect-authored text', async 
   await expect(page.locator('#detail-activity-history')).toContainText('Requirements → Test Design');
   await page.locator('[data-detail-tab="defectsRisks"]').click();
   await expect(page.locator('[data-defect-id="defect-locale"]')).toContainText('交易项目状态异常');
+  await page.locator('[data-defect-id="defect-locale"] [data-defect-details] > summary').click();
   await expect(page.locator('[data-defect-id="defect-locale"]')).toContainText('项目状态的实际复现描述');
   await page.locator('[data-detail-tab="delivery"]').click();
   await expect(page.locator('[data-gate-id="gate-locale"]')).toContainText('项目详情');
@@ -913,6 +966,7 @@ test('defect evidence references open their matching delivery bundle', async ({ 
   });
   await openProjectFromBoard(page, project);
   await page.locator('[data-detail-tab="defectsRisks"]').click();
+  await page.locator('[data-defect-id="defect-evidence"] [data-defect-details] > summary').click();
   const evidenceLink = page.locator('[data-defect-id="defect-evidence"] [data-open-defect-evidence="evidence-for-defect"]');
   await expect(evidenceLink).toBeVisible();
   await evidenceLink.click();

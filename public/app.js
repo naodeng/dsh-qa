@@ -24,7 +24,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
   const ROLE_CN = { owner: '负责人', qa: '测试', dev: '开发', pm: '产品', other: '其他' };
   const ROLE_EN = { 负责人: 'owner', 测试: 'qa', 开发: 'dev', 产品: 'pm', 其他: 'other' };
   const TC_STATUS_CN = { draft: '草稿', reviewed: '已评审', executed: '已执行' };
-  const SEVERITY_CN = { critical: '致命', major: '严重', minor: '一般', trivial: '轻微' };
+  const SEVERITY_CN = { critical: '致命', high: '高', major: '严重', medium: '中', minor: '一般', low: '低', trivial: '轻微' };
   const DEFECT_STATUS_CN = { open: '待处理', fixing: '修复中', verify: '待验证', closed: '已关闭' };
   const TYPE_CN = { web: 'Web 应用', app: '移动 App', api: '接口服务', desktop: '桌面端', embedded: '嵌入式', data: '数据平台', other: '其他' };
   const KIND_CN = { project: '测试项目', iteration: '迭代' };
@@ -34,7 +34,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
   const EVENT_KIND_EN = { meeting: 'Meeting', release: 'Release', review: 'Review', other: 'Other event' };
   const ROLE_EN_LABEL = { owner: 'Owner', qa: 'QA', dev: 'Developer', pm: 'Product', other: 'Other' };
   const TC_STATUS_EN = { draft: 'Draft', reviewed: 'Reviewed', executed: 'Executed' };
-  const SEVERITY_EN = { critical: 'Critical', major: 'Major', minor: 'Minor', trivial: 'Trivial' };
+  const SEVERITY_EN = { critical: 'Critical', high: 'High', major: 'Major', medium: 'Medium', minor: 'Minor', low: 'Low', trivial: 'Trivial' };
   const DEFECT_STATUS_EN = { open: 'Open', fixing: 'Fixing', verify: 'Ready to verify', closed: 'Closed' };
   const TYPE_EN = { web: 'Web app', app: 'Mobile app', api: 'API service', desktop: 'Desktop', embedded: 'Embedded', data: 'Data platform', other: 'Other' };
   const KIND_EN = { project: 'Test project', iteration: 'Iteration' };
@@ -1986,9 +1986,10 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     const restItems = state.detailActionExpanded ? [] : items.slice(5);
     const suggestion = visible[0];
     const otherActions = visible.slice(1);
+    const emptyMessage = state.detailActionQueueError ? t('detail.actionQueue.staleEmpty') : t('detail.actionQueue.empty');
     section.innerHTML = `<div class="detail-card-head"><div><h3 id="project-action-queue-title">${q('建议下一步', 'Suggested next step')}</h3><p>${q('根据当前项目状态，优先处理最需要关注的一项。', 'Start with the item that needs attention most.')}</p></div>${items.length ? `<span class="card-counter">${items.length}</span>` : ''}</div>
       ${state.detailActionQueueError ? `<div class="action-queue-error" role="alert">${esc(t('detail.actionQueue.stale'))} <button class="btn sm" type="button" data-action-queue-retry>${esc(t('detail.actionQueue.retry'))}</button></div>` : ''}
-      ${suggestion ? `<div class="overview-next-step"><span class="overview-next-step-label">${q('优先处理', 'Priority')}</span>${actionItemMarkup(suggestion)}</div>` : `<div class="detail-action-empty">${esc(t('detail.actionQueue.empty'))}</div>`}
+      ${suggestion ? `<div class="overview-next-step"><span class="overview-next-step-label">${q('优先处理', 'Priority')}</span>${actionItemMarkup(suggestion)}</div>` : `<div class="detail-action-empty">${esc(emptyMessage)}</div>`}
       ${otherActions.length ? `<div class="overview-other-actions"><h4>${q('其他待处理事项', 'Other open actions')} <span>${otherActions.length}</span></h4><div class="detail-action-list">${otherActions.map(actionItemMarkup).join('')}</div></div>` : ''}
       ${restItems.length ? `<details class="overview-other-actions overview-more-actions"><summary>${q('其余待处理事项', 'More open actions')} <span>${restItems.length}</span></summary><div class="detail-action-list">${restItems.map(actionItemMarkup).join('')}</div></details><button class="btn sm detail-action-expand" type="button" data-action-expand>${esc(t('detail.actionQueue.showAll', { n: items.length }))}</button>` : ''}
       ${monitoring.length ? `<div id="project-action-monitoring" class="detail-action-monitoring"><h4>${esc(t('detail.actionQueue.monitoring'))}</h4>${monitoring.map(actionItemMarkup).join('')}</div>` : ''}`;
@@ -2196,7 +2197,19 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     const taskListMarkup = sortedTasks.length ? sortedTasks.map((task) => {
       const needsConfirmation = confirmationTaskIds.has(task.id);
       const selected = task.id === selectedTask?.id;
-      return `<button class="quality-task-choice${selected ? ' selected' : ''}" type="button" data-quality-task-select="${esc(task.id)}" aria-pressed="${selected}"><span class="quality-task-choice-title" data-user-content>${esc(task.title)}</span><span class="quality-task-choice-meta"><span data-user-content>${esc(task.stage || 'intake')}</span><span>${esc(fmtTime(task.updatedAt || task.createdAt))}</span></span>${needsConfirmation ? `<span class="badge warn">${t('detail.task.needsConfirmation')}</span>` : ''}</button>`;
+      const activeRisks = (task.risks || []).filter(isActiveQualityRisk);
+      const severityOrder = ['critical', 'high', 'major', 'medium', 'minor', 'low', 'trivial'];
+      const severityRank = (severity) => {
+        const rank = severityOrder.indexOf(severity);
+        return rank < 0 ? severityOrder.length : rank;
+      };
+      const primaryRisk = activeRisks.slice().sort((left, right) => severityRank(left.severity) - severityRank(right.severity))[0];
+      const riskTitle = primaryRisk && (primaryRisk.title || primaryRisk.description || primaryRisk.reason || q('未命名风险', 'Untitled risk'));
+      const riskSeverity = primaryRisk && ((currentLang() === 'en' ? SEVERITY_EN : SEVERITY_CN)[primaryRisk.severity] || primaryRisk.severity || q('未分级', 'Unrated'));
+      const riskMarkup = primaryRisk
+        ? `<span class="quality-task-choice-risk"><span class="badge ${['critical', 'high', 'major'].includes(primaryRisk.severity) ? 'danger' : 'warn'}">${esc(riskSeverity)}</span><span data-user-content>${esc(riskTitle)}</span>${activeRisks.length > 1 ? `<small>${esc(q(`另有 ${activeRisks.length - 1} 项`, `+${activeRisks.length - 1} more`))}</small>` : ''}</span>`
+        : `<span class="quality-task-choice-risk is-empty">${esc(q('暂无待处置风险', 'No open risks'))}</span>`;
+      return `<button class="quality-task-choice${selected ? ' selected' : ''}" type="button" data-quality-task-select="${esc(task.id)}" aria-pressed="${selected}"><span class="quality-task-choice-title" data-user-content>${esc(task.title)}</span><span class="quality-task-choice-meta"><span data-user-content>${esc(task.stage || 'intake')}</span><span>${esc(fmtTime(task.updatedAt || task.createdAt))}</span></span>${riskMarkup}${needsConfirmation ? `<span class="badge warn">${t('detail.task.needsConfirmation')}</span>` : ''}</button>`;
     }).join('') : `<div class="quality-task-list-empty">${projectDetailEmptyHtml(t('detail.task.empty'))}</div>`;
     const projectRecords = [
       ...projectRuns.map((run) => `<div class="list-item">${esc(`${q('测试运行', 'Test run')} · ${run.status || q('状态未知', 'Unknown status')} · ${run.summary || run.id}`)}</div>`),
@@ -2463,14 +2476,15 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
         <section class="detail-card workspace-card"><div class="detail-card-head"><div><h3>${q('本地项目文件', 'Project workspace')}</h3></div></div><div class="folder-visual"><span aria-hidden="true">▰</span><div><b data-user-content>${p.workspacePath ? esc(p.workspacePath.split('/').pop()) : q('尚未创建项目目录', 'No workspace created')}</b><p data-user-content>${p.workspacePath ? esc(p.workspacePath) : q('自动生成需求、计划、用例、数据、执行、缺陷、报告和归档目录。', 'Creates folders for requirements, plans, cases, data, execution, defects, reports, and archives.')}</p></div></div><button class="btn sm wide" id="ov-workspace" type="button">${p.workspacePath ? q('在 Finder 中打开', 'Open in Finder') : q('创建标准项目目录', 'Create standard workspace')} <span>→</span></button></section>
         <section class="detail-card timeline-card span-2"><div class="detail-card-head"><div><h3>${q('阶段时间线', 'Stage history')}</h3></div></div><div class="case-timeline">${historyRows}</div></section>
       </div><div class="detail-action-bar"><button class="btn sm" id="ov-new-chat" type="button">${q('新建 DSH 对话', 'New DSH chat')}</button><button class="btn sm danger" id="ov-delete" type="button">${q('删除项目记录', 'Delete project record')}</button><span></span><button class="btn primary" id="ov-save" type="button">${q('保存项目信息', 'Save project info')}</button></div>`;
-    body.innerHTML = `<div class="overview-metrics">
+    body.innerHTML = `<section id="project-action-queue" class="detail-card project-action-queue" aria-labelledby="project-action-queue-title"></section>
+      <div class="overview-metrics">
         <button type="button" class="overview-metric" data-overview-metric="requirements" data-overview-target="traceability" data-overview-traceability-filter="no-linked-cases"><span>${q('需求覆盖', 'Requirement coverage')}</span><b>${coveredRequirements}<small> / ${requirements.length}</small></b><em>${requirements.length - coveredRequirements} ${q('项需求未关联用例', 'requirements without linked cases')}</em></button>
         <button type="button" class="overview-metric" data-overview-metric="testcases" data-overview-target="traceability" data-overview-scroll-target="#requirement-matrix"><span>${q('测试用例', 'Test cases')}</span><b>${testcases.length}</b><em>${esc(testcases.length === 0 ? q('尚未登记测试用例', 'No test cases yet') : unlinkedTestcaseCount ? `${unlinkedTestcaseCount} ${q('个用例未关联需求', 'cases without linked requirements')}` : q('全部用例均已关联需求', 'All cases linked to requirements'))}</em></button>
         <button type="button" class="overview-metric" data-overview-metric="open-defects" data-overview-target="defectsRisks" data-overview-filter="open"><span>${q('未关闭缺陷', 'Open defects')}</span><b>${openDefectCount}</b><em>${(p.defects || []).filter((item) => isActiveProjectDefect(item) && ['critical', 'major'].includes(item.severity)).length} ${q('项高优先级待处理', 'high priority to review')}</em></button>
         <div class="overview-metric delivery-overview-metric"><button type="button" class="delivery-overview-main" data-overview-metric="pending-gates" data-overview-target="delivery" data-overview-focus="pendingGates" data-overview-scroll-target="#detail-delivery-gates"><span>${q('交付门禁', 'Delivery gate')}</span><b>${pendingGateCount ? `${pendingGateCount} ${q('项待审批', 'pending')}` : latestComputedGate?.verdict || q('待最终评估', 'Awaiting evaluation')}</b><em>${latestComputedGate?.verdict ? `${q('最近结论', 'Latest verdict')}: ${esc(latestComputedGate.verdict)}` : q('负责人审批与质量结论', 'Owner approval and quality verdict')}</em></button><button type="button" class="verified-evidence-link" data-overview-metric="verified-evidence" data-overview-target="delivery" data-overview-focus="verifiedEvidence" data-overview-scroll-target="#detail-delivery-evidence">${q('已验证证据', 'Verified evidence')} <b>${verifiedEvidenceCount}</b></button></div>
       </div>
       <div class="overview-main-grid">
-        <section class="overview-primary-column"><section id="project-action-queue" class="detail-card project-action-queue" aria-labelledby="project-action-queue-title"></section>
+        <section class="overview-primary-column">
           <section class="detail-card overview-coverage-panel"><div class="detail-card-head"><div><h3>${q('需求覆盖概览', 'Requirement coverage')}</h3><p>${q('从需求直接看到关联用例、评审状态和缺口。', 'Review linked cases and coverage gaps from each requirement.')}</p></div><button class="btn sm" type="button" data-overview-target="traceability">${q('打开追溯表', 'Open matrix')}　›</button></div><div class="coverage-list">${requirementRows || emptyHtml(q('暂无需求范围。', 'No requirements yet.'))}</div></section>
         </section>
         <aside class="overview-secondary-column"><section class="detail-card overview-quality-panel"><div class="detail-card-head"><div><h3>${q('质量任务', 'Quality tasks')}</h3><p>${q('按本轮变更跟踪风险、范围、运行与证据。', 'Track scope, risks, runs, and evidence for this change.')}</p></div><button class="btn sm" type="button" data-overview-target="qualityTasks">${q('全部', 'All')}　›</button></div><div class="overview-list">${qualityTaskRows || emptyHtml(q('暂无质量任务。', 'No quality tasks yet.'))}</div></section>
@@ -2746,16 +2760,19 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
         const label = `${ref} · ${evidenceStateLabel(bundle)}`;
         return `<button class="text-link defect-evidence-link" type="button" data-open-defect-evidence="${esc(ref)}" aria-label="${esc(t('detail.defects.evidence'))}: ${esc(label)}"><span data-user-content>${esc(ref)}</span><span>${esc(evidenceStateLabel(bundle))}</span></button>`;
       }).join('');
-      return `<div class="list-item" data-defect-id="${esc(defect.id)}">
+      const detailMarkup = [
+        defect.steps ? `<div class="tc-steps">${q('复现', 'Reproduction')}：<span data-user-content>${esc(defect.steps)}</span></div>` : '',
+        defect.expected ? `<div class="tc-steps">${q('预期', 'Expected')}：<span data-user-content>${esc(defect.expected)}</span></div>` : '',
+        defect.actual ? `<div class="tc-steps">${q('实际', 'Actual')}：<span data-user-content>${esc(defect.actual)}</span></div>` : '',
+        evidenceMarkup ? `<div class="defect-evidence"><b>${esc(t('detail.defects.evidence'))}</b>${evidenceMarkup}</div>` : '',
+      ].filter(Boolean).join('');
+      return `<article class="list-item" data-defect-id="${esc(defect.id)}">
         <div class="li-title"><span data-user-content>${esc(defect.title)}</span> <span class="badge ${defect.severity === 'critical' || defect.severity === 'major' ? 'danger' : ''}">${esc(severity || defect.severity || q('未分级', 'Unrated'))}</span></div>
         <div class="li-sub">${defect.environment ? `<span>${q('环境', 'Environment')}：<span data-user-content>${esc(defect.environment)}</span></span>` : ''}${defect.module ? `<span> · ${q('模块', 'Module')}：<span data-user-content>${esc(defect.module)}</span></span>` : ''}${defect.frequency ? `<span> · ${q('复现频率', 'Frequency')}：<span data-user-content>${esc(defect.frequency)}</span></span>` : ''}</div>
         ${defect.impact ? `<div class="li-meta">${q('影响', 'Impact')}：<span data-user-content>${esc(defect.impact)}</span></div>` : ''}
-        ${defect.steps ? `<div class="tc-steps">${q('复现', 'Reproduction')}：<span data-user-content>${esc(defect.steps)}</span></div>` : ''}
-        ${defect.expected ? `<div class="tc-steps">${q('预期', 'Expected')}：<span data-user-content>${esc(defect.expected)}</span></div>` : ''}
-        ${defect.actual ? `<div class="tc-steps">${q('实际', 'Actual')}：<span data-user-content>${esc(defect.actual)}</span></div>` : ''}
-        ${evidenceMarkup ? `<div class="defect-evidence"><b>${esc(t('detail.defects.evidence'))}</b>${evidenceMarkup}</div>` : ''}
+        ${detailMarkup ? `<details class="defect-details" data-defect-details="${esc(defect.id)}"><summary>${esc(t('detail.defects.expandDetails'))}</summary><div class="defect-details-content">${detailMarkup}</div></details>` : ''}
         <div class="li-meta"><select class="status-select" data-id="${esc(defect.id)}" aria-label="${esc(q(`${defect.title || '未命名缺陷'} 的状态`, `Status for ${defect.title || 'Untitled defect'}`))}"><option value="open" ${defect.status === 'open' ? 'selected' : ''}>${q('待处理', 'Open')}</option><option value="fixing" ${defect.status === 'fixing' ? 'selected' : ''}>${q('修复中', 'Fixing')}</option><option value="verify" ${defect.status === 'verify' ? 'selected' : ''}>${q('待验证', 'Ready to verify')}</option><option value="verified" ${defect.status === 'verified' ? 'selected' : ''}>${q('已验证', 'Verified')}</option><option value="closed" ${defect.status === 'closed' ? 'selected' : ''}>${q('已关闭', 'Closed')}</option></select></div>
-      </div>`;
+      </article>`;
     }).join('');
     const risksMarkup = risks.map((risk) => {
       const riskTitle = risk.title || risk.description || risk.reason || q('未命名风险', 'Untitled risk');

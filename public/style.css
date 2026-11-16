@@ -2197,6 +2197,10 @@ select:focus-visible, [role="button"]:focus-visible {
 .quality-task-choice.selected { border-color: var(--blue); background: var(--blue-soft); box-shadow: inset 3px 0 0 var(--blue); }
 .quality-task-choice-title { overflow-wrap: anywhere; font-size: 14px; font-weight: 600; line-height: 1.35; }
 .quality-task-choice-meta { display: flex; align-items: center; justify-content: space-between; gap: 7px; color: var(--muted); font-size: 14px; }
+.quality-task-choice-risk { min-width: 0; display: flex; align-items: flex-start; gap: 7px; color: var(--muted); font-size: 14px; line-height: 1.4; }
+.quality-task-choice-risk > span:not(.badge) { min-width: 0; overflow-wrap: anywhere; }
+.quality-task-choice-risk > small { flex: none; color: var(--faint); font-size: 14px; }
+.quality-task-choice-risk.is-empty { display: block; color: var(--faint); }
 .quality-task-choice .badge { width: fit-content; }
 .quality-task-list-empty { padding: 6px; }
 .quality-task-detail { min-width: 0; display: grid; align-content: start; gap: 14px; }
@@ -2397,6 +2401,13 @@ body.project-detail-open #rail .nav-item .nav-count { display: none; }
 .traceability-case-related-requirements > div { display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .defect-evidence { display: grid; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft); }
 .defect-evidence > b { color: var(--muted); font-size: 14px; }
+.defect-details { margin-top: 8px; }
+.defect-details > summary { display: inline-flex; align-items: center; min-height: 36px; color: var(--blue); font-size: 14px; font-weight: 600; cursor: pointer; list-style: none; }
+.defect-details > summary::-webkit-details-marker { display: none; }
+.defect-details > summary::before { content: '+'; width: 20px; height: 20px; display: inline-grid; place-items: center; margin-right: 6px; border: 1px solid var(--line); border-radius: 6px; font-size: 15px; line-height: 1; }
+.defect-details[open] > summary::before { content: '−'; }
+.defect-details-content { display: grid; gap: 8px; padding: 8px 0 2px; }
+.defect-details-content .tc-steps { margin: 0; }
 .defect-evidence-link { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-start; gap: 6px 10px; min-height: 36px; padding: 4px 0; text-align: left; }
 .defect-evidence-unavailable { color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
 .project-detail-layout { grid-template-columns: 222px minmax(0, 1fr); align-items: stretch; border-top: 1px solid var(--line); }
