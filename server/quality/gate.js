@@ -68,6 +68,7 @@ export function applyGateExceptions(result, exceptions = [], at = new Date()) {
 export function evaluateQualityGate(project) {
   const blockers = [];
   const runs = project.testruns || [];
+  const evidence = project.evidenceBundles || [];
   if (runs.some((run) => run.status === 'failed')) blockers.push('存在失败测试运行');
   if (runs.some((run) => !TERMINAL.has(run.status))) blockers.push('存在未完成测试运行');
   for (const run of runs.filter((item) => item.resultTrust === 'controlled-host')) {
@@ -75,7 +76,8 @@ export function evaluateQualityGate(project) {
     const matchingEvidence = (project.evidenceBundles || []).some((bundle) => bundle.testRunId === run.id && bundle.state === 'ready' && bundle.integrity === 'verified' && bundle.provenance?.hostExecutionId === run.provenance?.hostExecutionId && bundle.provenance?.hostResultDigest === run.provenance?.hostResultDigest);
     if (!completeHostRun || !matchingEvidence) blockers.push('Host 测试运行缺少已验证证据或未通过');
   }
-  if ((project.evidenceBundles || []).some((bundle) => bundle.state !== 'ready' || bundle.integrity !== 'verified')) blockers.push('存在未就绪证据包');
+  if (evidence.some((bundle) => bundle.state !== 'ready' || bundle.integrity !== 'verified')) blockers.push('存在未就绪证据包');
   if ((project.risks || []).some((risk) => risk.severity === 'high' && risk.status !== 'closed' && risk.status !== 'accepted')) blockers.push('存在未关闭高风险');
-  return { status: blockers.length ? 'blocked' : 'passed', blockers, evaluatedAt: new Date().toISOString() };
+  const status = blockers.length ? 'blocked' : runs.length ? 'passed' : 'not-evaluated';
+  return { status, blockers, evaluatedAt: new Date().toISOString() };
 }

@@ -207,6 +207,8 @@ test('action queue API returns bounded read-only canonical items', async () => {
   const project = store.createProject({ title: 'Action Queue API 项目' });
   project.milestones.push({ id: 'milestone_action_api', title: 'UAT', dueDate: '2030-04-20', done: false });
   project.gates.push({ id: 'gate_action_api', title: '发布门禁', status: 'pending', requestedAt: '2030-04-19T00:00:00.000Z' });
+  const foreign = store.createProject({ title: 'Action Queue 外部项目' });
+  foreign.gates.push({ id: 'gate_foreign_block', title: '外部阻塞门禁', verdict: 'BLOCK', status: 'evaluated', requestedAt: '2030-04-18T00:00:00.000Z' });
   store.flush();
   const dataPath = path.join(dataDir, 'data.json');
   const before = fs.statSync(dataPath).mtimeMs;
@@ -223,8 +225,24 @@ test('action queue API returns bounded read-only canonical items', async () => {
   const limited = await fetch(`${base}/api/action-queue?limit=1`);
   assert.equal(limited.status, 200);
   assert.equal((await limited.json()).items.length, 1);
+
+  const scoped = await fetch(`${base}/api/action-queue?projectId=${encodeURIComponent(project.id)}&limit=1`);
+  assert.equal(scoped.status, 200);
+  const scopedPayload = await scoped.json();
+  assert.deepEqual(scopedPayload.items.map((item) => item.id), [`gate_approval:${project.id}:gate_action_api`]);
+  assert.equal(scopedPayload.items.every((item) => item.projectId === project.id), true);
+
+  const unknown = await fetch(`${base}/api/action-queue?projectId=project_missing`);
+  assert.equal(unknown.status, 200);
+  assert.deepEqual((await unknown.json()).items, []);
+
   for (const limit of ['0', '51', '1.5', 'abc']) {
     const invalid = await fetch(`${base}/api/action-queue?limit=${limit}`);
+    assert.equal(invalid.status, 400);
+    assert.equal((await invalid.json()).ok, false);
+  }
+  for (const projectId of ['', 'x'.repeat(129)]) {
+    const invalid = await fetch(`${base}/api/action-queue?projectId=${encodeURIComponent(projectId)}`);
     assert.equal(invalid.status, 400);
     assert.equal((await invalid.json()).ok, false);
   }
@@ -597,7 +615,7 @@ test('quality APIs expose gate state and regression assets', async () => {
   assert.equal(excluded.status, 200);
   const gate = await fetch(`${base}/api/projects/${projectId}/quality-gate`);
   assert.equal(gate.status, 200);
-  assert.equal((await gate.json()).gate.status, 'passed');
+  assert.equal((await gate.json()).gate.status, 'not-evaluated');
 });
 
 test('calculated regression APIs persist and recalculate explainable sets', async () => {
@@ -637,7 +655,7 @@ test('quality HTTP API keeps task, regression, and gate contracts available', as
 
   const gateResponse = await fetch(`${base}/api/projects/${projectId}/quality-gate`);
   assert.equal(gateResponse.status, 200);
-  assert.equal((await gateResponse.json()).gate.status, 'passed');
+  assert.equal((await gateResponse.json()).gate.status, 'not-evaluated');
 });
 
 test('failure analysis API requires confirmation before defect promotion', async () => {
