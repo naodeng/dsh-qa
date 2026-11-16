@@ -2407,7 +2407,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
   }
   function projectQualitySignal(project) {
     const signals = [
-      ...(project.gates || []).filter((gate) => gate.kind === 'computed' && gate.verdict).map((gate) => ({ kind: 'gate', value: gate.verdict, at: gate.updatedAt || gate.createdAt || '', source: gate })),
+      ...(project.gates || []).filter((gate) => gate.kind === 'computed' && gate.verdict).map((gate) => ({ kind: 'gate', value: gate.verdict, at: gate.updatedAt || gate.createdAt || gate.calculatedAt || '', source: gate })),
       ...(project.testruns || []).map((run) => ({ kind: 'run', value: run.status || run.summary || t('detail.valueUnknown'), at: run.updatedAt || run.createdAt || '', source: run })),
     ];
     return signals.map((signal, index) => ({ ...signal, index })).sort((left, right) => String(left.at).localeCompare(String(right.at)) || left.index - right.index).at(-1) || null;

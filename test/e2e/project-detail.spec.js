@@ -152,8 +152,9 @@ test('overview summarizes project signals and links to filtered source sections'
     ];
     p.gates = [
       { id: 'human-pending', title: '待负责人确认', type: 'release', kind: 'human', status: 'pending' },
-      { id: 'computed-gate', title: '自动评估', type: 'quality', kind: 'computed', status: 'pending', verdict: 'BLOCK', updatedAt: '2099-01-01T00:00:00.000Z' },
+      { id: 'computed-gate', title: '自动评估', type: 'quality', kind: 'computed', status: 'pending', verdict: 'BLOCK', calculatedAt: '2099-02-01T00:00:00.000Z' },
     ];
+    p.testruns = [{ id: 'older-passing-run', status: 'passed', updatedAt: '2099-01-01T00:00:00.000Z' }];
     p.milestones = [
       { id: 'later-milestone', title: '后续发布', kind: 'release', dueDate: '2099-10-01', done: false },
       { id: 'nearest-milestone', title: '最近评审', kind: 'review', dueDate: '2099-02-01', done: false },
@@ -175,7 +176,10 @@ test('overview summarizes project signals and links to filtered source sections'
   await expect(page.locator('[data-overview-metric="open-defects"]')).toContainText('2');
   await expect(page.locator('[data-overview-metric="verified-evidence"]')).toContainText('1');
   await expect(page.locator('[data-overview-metric="pending-gates"]')).toContainText('1');
-  await expect(page.locator('#overview-latest-quality-signal')).toContainText('BLOCK');
+  const latestQualitySignal = page.locator('#overview-latest-quality-signal');
+  await expect(latestQualitySignal).toContainText('BLOCK');
+  await expect(latestQualitySignal).toHaveAttribute('data-overview-target', 'delivery');
+  await expect(latestQualitySignal).toHaveAttribute('data-overview-scroll-target', '#quality-gate-summary');
   await expect(page.locator('#overview-upcoming-milestone')).toContainText('最近评审');
 
   await page.locator('[data-detail-tab="defectsRisks"]').click();
