@@ -19,13 +19,12 @@ test('质量证据与回归工作台提供空状态、创建流程和双语界�
   await page.locator('.card').filter({ hasText: projectTitle }).click();
   await page.locator('#project-detail-tabs button[data-detail-tab="qualityTasks"]').click();
 
-  await expect(page.getByRole('heading', { name: '质量证据' })).toBeVisible();
-  await expect(page.getByText('暂无证据包')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '故障分析与回归集' })).toBeVisible();
   await expect(page.getByText('修复前后对比')).toBeVisible();
   await page.getByRole('button', { name: '新建质量任务' }).click();
   await page.getByLabel('任务名称').fill('计算回归任务');
   await page.getByRole('button', { name: '创建任务' }).click();
-  await expect(page.getByText('计算回归任务')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '计算回归任务' })).toBeVisible();
   await page.getByRole('button', { name: '计算回归集' }).click();
   await answerWorkbenchInput(page, 'sha256:change-1');
   await answerWorkbenchInput(page, '计算回归');
@@ -33,11 +32,16 @@ test('质量证据与回归工作台提供空状态、创建流程和双语界�
   await page.getByRole('button', { name: '新建回归集' }).click();
   await answerWorkbenchInput(page, '核心回归');
   await expect(page.getByText(/核心回归 · manual · 0\/0 个用例/)).toBeVisible();
+  await page.locator('#project-detail-tabs button[data-detail-tab="delivery"]').click();
+  await expect(page.getByRole('heading', { name: '质量证据' })).toBeVisible();
+  await expect(page.locator('#detail-delivery-evidence')).toContainText('暂无证据包');
 
-  await page.locator('#btn-settings').click();
+  await page.locator('#btn-project-detail-settings').click();
   await page.locator('[data-settings-lang="en"]').click();
   await page.locator('#st-close').click();
-  await page.locator('#project-detail-tabs button[data-detail-tab="qualityTasks"]').click();
+  await page.locator('#project-detail-tabs button[data-detail-tab="delivery"]').click();
   await expect(page.getByRole('heading', { name: 'Quality evidence' })).toBeVisible();
+  await page.locator('#project-detail-tabs button[data-detail-tab="qualityTasks"]').click();
+  await expect(page.getByRole('heading', { name: 'Failure analysis & regression' })).toBeVisible();
   await expect(page.getByText('Before/after comparison')).toBeVisible();
 });

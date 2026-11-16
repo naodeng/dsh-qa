@@ -24,7 +24,7 @@ test.describe('项目看板页', () => {
     const card = page.locator('.card').first();
     await card.click();
     await expect(page.locator('#view-project-detail')).toBeVisible();
-    await expect(page.getByRole('heading', { name: '项目详情' })).toBeVisible();
+    await expect(page.locator('#project-detail-project-title')).not.toHaveText('');
     await expect(page.locator('#project-detail-tabs')).toBeVisible();
     await page.getByRole('button', { name: '返回项目看板' }).click();
     await card.getByRole('button', { name: '快速预览' }).click();
@@ -43,16 +43,22 @@ test.describe('项目看板页', () => {
       await page.getByRole('button', { name: '项目看板' }).click();
       await page.locator('.card').filter({ hasText: title }).click();
       await expect(page.locator('#project-detail-body')).toBeVisible();
+      await page.getByRole('button', { name: '编辑项目' }).click();
+      await expect(page.locator('#project-overview-extra')).toHaveAttribute('open', '');
 
       const updatedTitle = `${title}-已更新`;
       const updatedResponse = await page.request.patch(`/api/projects/${project.id}`, { data: { title: updatedTitle } });
       expect(updatedResponse.ok()).toBe(true);
-      await expect(page.locator('#project-detail-meta')).toContainText(updatedTitle);
+      await expect(page.locator('#ov-title')).toHaveValue(updatedTitle);
 
-      const body = page.locator('#project-detail-body');
-      const overflow = await body.evaluate((element) => ({ scrollHeight: element.scrollHeight, clientHeight: element.clientHeight }));
+      const detailView = page.locator('#view-project-detail');
+      const canvasBounds = await page.locator('#main-content').boundingBox();
+      const detailBounds = await page.locator('.project-detail-page').boundingBox();
+      expect(detailBounds.x).toBeCloseTo(canvasBounds.x, 0);
+      expect(detailBounds.width).toBeCloseTo(canvasBounds.width, 0);
+      const overflow = await detailView.evaluate((element) => ({ scrollHeight: element.scrollHeight, clientHeight: element.clientHeight }));
       expect(overflow.scrollHeight).toBeGreaterThan(overflow.clientHeight);
-      await body.evaluate((element) => element.scrollTo({ top: element.scrollHeight, behavior: 'instant' }));
+      await detailView.evaluate((element) => element.scrollTo({ top: element.scrollHeight, behavior: 'instant' }));
       await expect(page.locator('#ov-save')).toBeInViewport();
 
       await page.locator('#ov-title').fill(`${updatedTitle}-保存`);
@@ -100,10 +106,10 @@ test.describe('项目看板页', () => {
       const updatedResponse = await page.request.patch(`/api/projects/${project.id}`, { data: { title: updatedTitle } });
       expect(updatedResponse.ok()).toBe(true);
       await expect.poll(() => detailGets).toBeGreaterThan(readsBeforeUpdate);
-      await expect(page.locator('#project-detail-meta')).toContainText(updatedTitle);
+      await expect(page.locator('#ov-title')).toHaveValue(updatedTitle);
 
       releaseStaleResponse();
-      await expect(page.locator('#project-detail-meta')).toContainText(updatedTitle);
+      await expect(page.locator('#ov-title')).toHaveValue(updatedTitle);
     } finally {
       releaseStaleResponse?.();
       await page.request.delete(`/api/projects/${project.id}`);
@@ -115,6 +121,7 @@ test.describe('项目看板页', () => {
     await page.getByRole('button', { name: '项目看板' }).click();
     await page.locator('.card').first().click();
     await expect(page.locator('#project-detail-body')).toBeVisible();
+    await page.getByRole('button', { name: '编辑项目' }).click();
 
     await page.locator('#project-detail-body').getByRole('button', { name: '新建 DSH 对话', exact: true }).click();
     const modal = page.locator('#modal-root .modal');

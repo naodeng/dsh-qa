@@ -324,13 +324,15 @@ export function buildActionQueue(projects = [], { now = new Date(), limit = DEFA
 export function readActionQueue(storeLike, options = {}) {
   const source = options.listProjects || storeLike?.listProjects;
   if (typeof source !== 'function') throw new ActionQueueSourceError('Action Queue 缺少项目数据源');
+  const { projectId, ...queueOptions } = options;
   let projects;
   try { projects = source.call(storeLike); }
   catch (error) {
     if (error?.code === 'ACTION_QUEUE_SOURCE_UNAVAILABLE') throw error;
     throw error;
   }
-  return buildActionQueue(projects, options);
+  if (projectId !== undefined) projects = projects.filter((project) => project?.id === projectId);
+  return buildActionQueue(projects, queueOptions);
 }
 
 function legacyTitle(item) {
