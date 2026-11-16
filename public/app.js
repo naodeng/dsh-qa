@@ -1947,6 +1947,8 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
   }
   function renderProjectDetailTabs() {
     const p = state.detailProject;
+    const tabs = $('#project-detail-tabs');
+    const previousScrollLeft = tabs.scrollLeft;
     const counts = p ? {
       traceability: p.requirements.length,
       qualityTasks: p.qualityTasks?.length || 0,
@@ -1954,10 +1956,20 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       delivery: (p.gates || []).filter((item) => item.status === 'pending').length + p.reports.length,
       activity: p.milestones.length + p.events.length,
     } : {};
-    $('#project-detail-tabs').innerHTML = DETAIL_SECTIONS.map(([key, label, icon]) => {
+    tabs.innerHTML = DETAIL_SECTIONS.map(([key, label, icon]) => {
       const count = counts[key];
       return `<button class="tab ${state.detailTab === key ? 'active' : ''}" data-detail-tab="${key}" type="button"${state.detailTab === key ? ' aria-current="page"' : ''}><span class="tab-icon" aria-hidden="true">${icon}</span><span>${t(label)}</span>${count != null ? `<span class="tab-count">${count}</span>` : ''}</button>`;
     }).join('');
+    tabs.scrollLeft = previousScrollLeft;
+    if (window.matchMedia('(max-width: 767px)').matches) {
+      const activeTab = $('.tab.active', tabs);
+      if (activeTab) {
+        const navBounds = tabs.getBoundingClientRect();
+        const tabBounds = activeTab.getBoundingClientRect();
+        if (tabBounds.left < navBounds.left) tabs.scrollLeft -= navBounds.left - tabBounds.left;
+        else if (tabBounds.right > navBounds.right) tabs.scrollLeft += tabBounds.right - navBounds.right;
+      }
+    }
     $$('[data-detail-tab]', $('#project-detail-tabs')).forEach((tab) => tab.addEventListener('click', () => {
       const restoreFocus = document.activeElement === tab;
       state.detailTab = tab.dataset.detailTab;

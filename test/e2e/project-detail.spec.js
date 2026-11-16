@@ -424,7 +424,14 @@ test('loading keeps project identity visible and mobile actions and section navi
   expect(navigation.scrollWidth).toBeGreaterThan(navigation.clientWidth);
   await tabs.locator('[data-detail-tab="delivery"]').scrollIntoViewIfNeeded();
   await tabs.locator('[data-detail-tab="delivery"]').click();
-  await expect(tabs.locator('[data-detail-tab="delivery"]')).toHaveClass(/active/);
+  const selectedTab = tabs.locator('[data-detail-tab="delivery"]');
+  await expect(selectedTab).toHaveClass(/active/);
+  const selectedTabIsVisible = await selectedTab.evaluate((tab) => {
+    const nav = tab.parentElement.getBoundingClientRect();
+    const item = tab.getBoundingClientRect();
+    return item.left >= nav.left && item.right <= nav.right;
+  });
+  expect(selectedTabIsVisible).toBe(true);
 });
 
 test('legacy action targets map to the corresponding workspace sections', async ({ page, request }) => {
@@ -1157,9 +1164,17 @@ test('Action Queue run and computed gate targets select their owning task and fo
     ] } });
   });
 
+  await page.setViewportSize({ width: 390, height: 844 });
   await openProjectFromBoard(page, project);
   await page.locator('[data-action-id="action-target-run"]').click();
-  await expect(page.locator('[data-detail-tab="qualityTasks"]')).toHaveClass(/active/);
+  const qualityTab = page.locator('[data-detail-tab="qualityTasks"]');
+  await expect(qualityTab).toHaveClass(/active/);
+  const qualityTabIsVisible = await qualityTab.evaluate((tab) => {
+    const nav = tab.parentElement.getBoundingClientRect();
+    const item = tab.getBoundingClientRect();
+    return item.left >= nav.left && item.right <= nav.right;
+  });
+  expect(qualityTabIsVisible).toBe(true);
   await expect(page.locator('[data-quality-task-select="target-task"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('[data-project-test-run-id="target-run"]')).toHaveClass(/action-target-focus/);
   await expect(page.locator('[data-project-test-run-id="target-run"]')).toBeInViewport();
