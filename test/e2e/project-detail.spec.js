@@ -50,6 +50,65 @@ test('quick preview opens the full workspace and return restores the board', asy
   await expect(card).toBeVisible();
 });
 
+test('returning from project detail restores board and column scroll positions', async ({ page, request }) => {
+  const createdProjects = [];
+  for (const status of ['intake', 'design']) {
+    for (let index = 0; index < 8; index += 1) {
+      const response = await request.post('/api/projects', {
+        data: { title: `滚动恢复项目-${status}-${Date.now()}-${index}`, createWorkspace: false },
+      });
+      expect(response.ok()).toBe(true);
+      const project = (await response.json()).project;
+      if (status === 'design') {
+        const transitionResponse = await request.post(`/api/projects/${project.id}/transition`, { data: { to: status } });
+        expect(transitionResponse.ok()).toBe(true);
+      }
+      createdProjects.push(project);
+    }
+  }
+
+  await page.goto('/');
+  await page.getByRole('button', { name: '项目看板' }).click();
+  const scrollPositions = await page.locator('#board').evaluate((board) => {
+    board.scrollLeft = Math.min(48, board.scrollWidth - board.clientWidth);
+    const intakeCards = board.querySelector('.col[data-col="intake"] .col-cards');
+    const designCards = board.querySelector('.col[data-col="design"] .col-cards');
+    intakeCards.scrollTop = Math.min(140, intakeCards.scrollHeight - intakeCards.clientHeight);
+    designCards.scrollTop = Math.min(140, designCards.scrollHeight - designCards.clientHeight);
+    const visibleCard = [...designCards.querySelectorAll('.card')].find((card) => {
+      const cardRect = card.getBoundingClientRect();
+      const cardsRect = designCards.getBoundingClientRect();
+      return cardRect.top >= cardsRect.top && cardRect.bottom <= cardsRect.bottom;
+    });
+    return {
+      boardLeft: board.scrollLeft,
+      columnTops: {
+        intake: intakeCards.scrollTop,
+        design: designCards.scrollTop,
+      },
+      projectId: visibleCard?.dataset.id,
+    };
+  });
+  expect(scrollPositions.boardLeft).toBeGreaterThan(0);
+  expect(scrollPositions.columnTops.intake).toBeGreaterThan(0);
+  expect(scrollPositions.columnTops.design).toBeGreaterThan(0);
+  expect(createdProjects.some((project) => project.id === scrollPositions.projectId)).toBe(true);
+
+  await page.locator(`.card[data-id="${scrollPositions.projectId}"]`).click();
+  await expect(page.locator('#view-project-detail')).toBeVisible();
+  await page.getByRole('button', { name: '返回项目看板' }).click();
+  await expect(page.locator('#view-board')).toBeVisible();
+
+  const restoredPositions = await page.locator('#board').evaluate((board) => ({
+    boardLeft: board.scrollLeft,
+    columnTops: {
+      intake: board.querySelector('.col[data-col="intake"] .col-cards').scrollTop,
+      design: board.querySelector('.col[data-col="design"] .col-cards').scrollTop,
+    },
+  }));
+  expect(restoredPositions).toEqual({ boardLeft: scrollPositions.boardLeft, columnTops: scrollPositions.columnTops });
+});
+
 test('keeps project identity visible across workspace sections', async ({ page, request }) => {
   const project = (await (await request.post('/api/projects', { data: { title: `项目身份-${Date.now()}`, createWorkspace: false } })).json()).project;
   await openProjectFromBoard(page, project);

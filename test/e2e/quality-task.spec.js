@@ -79,6 +79,38 @@ test('质量任务按确认信号排序，选择后显示对应范围和风险',
   await expect(page.locator('#quality-task-detail [data-quality-task-id]')).toHaveAttribute('data-quality-task-id', olderTask.id);
 });
 
+test('长任务列表由项目详情页面滚动承载', async ({ page, request }) => {
+  const response = await request.post('/api/projects', {
+    data: { title: `长任务列表项目-${Date.now()}`, createWorkspace: false },
+  });
+  expect(response.ok()).toBe(true);
+  const { project } = await response.json();
+  for (let index = 0; index < 12; index += 1) {
+    const taskResponse = await request.post(`/api/projects/${project.id}/quality-tasks`, {
+      data: { title: `质量任务 ${index + 1}` },
+    });
+    expect(taskResponse.ok()).toBe(true);
+  }
+
+  await page.goto('/');
+  await page.getByRole('button', { name: '项目看板' }).click();
+  await page.locator('.card').filter({ hasText: project.title }).click();
+  await page.locator('#project-detail-tabs button[data-detail-tab="qualityTasks"]').click();
+  const taskChoices = page.locator('#quality-task-list .quality-task-choices');
+  await expect(taskChoices.locator('[data-quality-task-select]')).toHaveCount(12);
+
+  for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport);
+    const scrollStyles = await taskChoices.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { maxHeight: style.maxHeight, overflowY: style.overflowY };
+    });
+    expect(scrollStyles).toEqual({ maxHeight: 'none', overflowY: 'visible' });
+    const pageCanScroll = await page.locator('#view-project-detail').evaluate((element) => element.scrollHeight > element.clientHeight);
+    expect(pageCanScroll).toBe(true);
+  }
+});
+
 test('analysis and regression actions stay task-scoped while project-level records keep their actions', async ({ page, request }) => {
   const project = (await (await request.post('/api/projects', { data: { title: `任务操作隔离-${Date.now()}`, createWorkspace: false } })).json()).project;
   const taskA = (await (await request.post(`/api/projects/${project.id}/quality-tasks`, { data: { title: '隔离任务 A' } })).json()).task;

@@ -2187,10 +2187,10 @@ select:focus-visible, [role="button"]:focus-visible {
 
 /* Selected-task quality workspace */
 .quality-workspace { display: grid; grid-template-columns: minmax(220px, 270px) minmax(0, 1fr); gap: 16px; align-items: start; }
-.quality-task-list-panel { position: sticky; top: 12px; padding: 12px; }
+.quality-task-list-panel { padding: 12px; }
 .quality-task-list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 2px 10px; }
 .quality-task-list-head h3 { font-size: 14px; }
-.quality-task-choices { display: grid; gap: 7px; max-height: min(68vh, 720px); overflow: auto; }
+.quality-task-choices { display: grid; gap: 7px; }
 .quality-task-choice { width: 100%; display: grid; gap: 7px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: var(--surface); text-align: left; cursor: pointer; font: inherit; }
 .quality-task-choice:hover { border-color: var(--line-strong); background: var(--surface-soft); }
 .quality-task-choice:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
@@ -2259,8 +2259,6 @@ select:focus-visible, [role="button"]:focus-visible {
 }
 @media (max-width: 767px) {
   .quality-workspace { grid-template-columns: minmax(0, 1fr); }
-  .quality-task-list-panel { position: static; }
-  .quality-task-choices { max-height: 230px; }
   .quality-task-fields { gap: 12px; }
   .quality-linked-records { gap: 12px; }
   .quality-task-selected > .li-meta { gap: 6px 12px; }
