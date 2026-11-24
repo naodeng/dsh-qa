@@ -15,11 +15,34 @@ test('normalizes legacy approval gates without rewriting their historical fields
 
 test('quality gate blocks failed runs, unready evidence, and open high risks', () => {
   const project = makeProject({ risks: [{ id: 'risk-1', severity: 'high', status: 'open' }] });
+  project.qualityTasks.push({ id: 'task-risk', risks: [{ id: 'task-risk-1', severity: 'high', assessmentStatus: 'confirmed', dispositionStatus: 'open' }] });
   project.testruns.push(makeTestRun({ projectId: project.id, status: 'failed' }));
   project.evidenceBundles.push({ id: 'ev-1', testRunId: project.testruns[0].id, state: 'finalizing' });
   const result = evaluateQualityGate(project);
   assert.equal(result.status, 'blocked');
   assert.deepEqual(result.blockers, ['存在失败测试运行', '存在未就绪证据包', '存在未关闭高风险']);
+});
+
+test('quality gate does not pass cancelled, timed-out, or environment-error runs', () => {
+  for (const status of ['cancelled', 'timed-out', 'environment-error']) {
+    const project = makeProject();
+    project.testruns.push(makeTestRun({ status }));
+
+    const result = evaluateQualityGate(project);
+
+    assert.equal(result.status, 'blocked', status);
+    assert.deepEqual(result.blockers, ['存在非通过测试运行'], status);
+  }
+});
+
+test('quality gate blocks passed runs without a controlled result source', () => {
+  const project = makeProject();
+  project.testruns.push(makeTestRun({ status: 'passed', resultTrust: 'imported-summary' }));
+
+  const result = evaluateQualityGate(project);
+
+  assert.equal(result.status, 'blocked');
+  assert.deepEqual(result.blockers, ['存在来源未受控的测试运行']);
 });
 
 test('quality gate passes only when terminal runs and evidence are clean', () => {

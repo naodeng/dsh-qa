@@ -150,6 +150,7 @@ test('项目详情支持 Host 配置、预览确认和受控 not_run 结果', as
   await page.getByRole('button', { name: '保存 Host 配置' }).click();
   await expect(page.locator('#host-execution-card')).toContainText('browser host from UI');
   await expect(page.locator('#host-execution-card')).toContainText('预览并执行');
+  await expect(page.locator('[data-host-target]')).toHaveAttribute('aria-label', '目标');
 
   const previewResponsePromise = page.waitForResponse((response) => response.request().method() === 'POST'
     && response.url().includes(`/api/projects/${project.id}/quality-tasks/`)

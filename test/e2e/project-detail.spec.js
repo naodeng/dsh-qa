@@ -692,16 +692,17 @@ test('delivery reports and approvals remain usable and defect status is editable
   }).toBe('fixing');
 });
 
-test('activity separates upcoming schedule, recent materials, history, knowledge, and minutes', async ({ page, request }) => {
+test('activity sorts recent materials and stage changes while separating schedule, knowledge, and minutes', async ({ page, request }) => {
   const project = await seededProject(request);
   await openProjectFromBoard(page, project);
   await page.locator('[data-detail-tab="activity"]').click();
 
   await expect(page.locator('#detail-activity-schedule')).toContainText('用例评审会');
   await expect(page.locator('#detail-activity-schedule')).toContainText('测试排期同步会');
+  await expect(page.locator('#detail-activity-schedule')).toContainText('会议');
   await expect(page.locator('#detail-activity-recent')).toContainText('最近活动');
   await expect(page.locator('#detail-activity-recent')).toContainText('测试计划草稿 v1 已保存');
-  await expect(page.locator('#detail-activity-history')).toContainText('用例设计');
+  await expect(page.locator('#detail-activity-recent')).toContainText('用例设计');
   await expect(page.locator('#detail-activity-knowledge')).toContainText('幂等键设计最佳实践');
   await expect(page.locator('#detail-activity-minutes')).toContainText('测试范围确认会纪要');
 });
@@ -712,8 +713,8 @@ test('retains past events and completed milestones in the activity archive', asy
     const response = await route.fetch();
     const payload = await response.json();
     payload.project.events = [
-      { id: 'event-past', title: '已结束联调会', type: 'meeting', date: '2001-01-01' },
-      { id: 'event-future', title: '待进行联调会', type: 'meeting', date: '2099-01-01' },
+      { id: 'event-past', title: '已结束联调会', kind: 'meeting', date: '2001-01-01' },
+      { id: 'event-future', title: '待进行联调会', kind: 'meeting', date: '2099-01-01' },
     ];
     payload.project.milestones = [
       { id: 'milestone-done', title: '已完成验收', kind: 'release', dueDate: '2001-01-02', done: true },
@@ -725,9 +726,34 @@ test('retains past events and completed milestones in the activity archive', asy
   await page.locator('[data-detail-tab="activity"]').click();
   await expect(page.locator('#detail-activity-schedule')).toContainText('待进行联调会');
   await expect(page.locator('#detail-activity-schedule')).toContainText('待完成发布');
+  await expect(page.locator('#detail-activity-schedule')).toContainText('会议');
   await expect(page.locator('#detail-activity-schedule')).not.toContainText('已结束联调会');
   await expect(page.locator('#detail-activity-past-schedule')).toContainText('已结束联调会');
   await expect(page.locator('#detail-activity-past-schedule')).toContainText('已完成验收');
+  await expect(page.locator('#detail-activity-past-schedule')).toContainText('会议');
+});
+
+test('recent activity sorts project materials and stage changes by timestamp', async ({ page, request }) => {
+  const project = await seededProject(request);
+  await patchProjectResponse(page, project.id, (p) => {
+    p.materials = [
+      { id: 'material-new', label: '较新材料', type: 'document', ts: '2026-11-18T10:00:00.000Z' },
+      { id: 'material-old', label: '较旧材料', type: 'document', ts: '2026-11-14T10:00:00.000Z' },
+    ];
+    p.history = [
+      { from: 'intake', to: 'design', by: 'QA', at: '2026-11-17T10:00:00.000Z' },
+      { from: 'design', to: 'intake', by: 'QA', at: '2026-11-13T10:00:00.000Z' },
+    ];
+  });
+  await openProjectFromBoard(page, project);
+  await page.locator('[data-detail-tab="activity"]').click();
+
+  await expect(page.locator('#detail-activity-recent .timeline-row b')).toHaveText([
+    '较新材料',
+    '需求分析 → 用例设计',
+    '较旧材料',
+    '用例设计 → 需求分析',
+  ]);
 });
 
 test('empty records and first-load or stale Action Queue failures stay distinct', async ({ page, request }) => {
@@ -737,6 +763,7 @@ test('empty records and first-load or stale Action Queue failures stay distinct'
     const response = await route.fetch();
     const payload = await response.json();
     payload.project.materials = [];
+    payload.project.history = [];
     return route.fulfill({ response, json: payload });
   });
   let failActionQueue = true;
@@ -815,7 +842,7 @@ test('language changes preserve project, task, and defect-authored text', async 
   await expect(page.getByLabel('Task name')).toBeVisible();
   await page.getByRole('button', { name: 'Cancel' }).click();
   await page.locator('[data-detail-tab="activity"]').click();
-  await expect(page.locator('#detail-activity-history')).toContainText('Requirements → Test Design');
+  await expect(page.locator('#detail-activity-recent')).toContainText('Requirements → Test Design');
   await page.locator('[data-detail-tab="defectsRisks"]').click();
   await expect(page.locator('[data-defect-id="defect-locale"]')).toContainText('交易项目状态异常');
   await page.locator('[data-defect-id="defect-locale"] [data-defect-details] > summary').click();

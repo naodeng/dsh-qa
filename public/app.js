@@ -294,15 +294,17 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     applyLayout({ [collapsedKey]: !state.layout[collapsedKey] });
   }
   function syncAssistantPanelAccessibility() {
-    const isNarrow = window.matchMedia('(max-width: 767px)').matches;
+    const isNarrow = window.matchMedia('(max-width: 1220px)').matches;
+    if (!isNarrow) document.body.classList.remove('mobile-cases-open', 'mobile-context-open');
+    document.documentElement.style.setProperty('--assistant-panel-left', `${Math.round($('#rail')?.getBoundingClientRect().width || 64)}px`);
     const panels = [
       { key: 'cases', button: $('#btn-mobile-cases'), panel: $('#case-sidebar'), openClass: 'mobile-cases-open' },
       { key: 'context', button: $('#btn-mobile-context'), panel: $('#context-panel'), openClass: 'mobile-context-open' },
     ];
     for (const item of panels) {
       if (!item.button || !item.panel) continue;
-      const open = isNarrow && document.body.classList.contains(item.openClass) && !state.layout[`${item.key}Collapsed`];
-      const hidden = state.layout[`${item.key}Collapsed`] || (isNarrow && !open);
+      const open = isNarrow && document.body.classList.contains(item.openClass);
+      const hidden = isNarrow ? !open : state.layout[`${item.key}Collapsed`];
       item.button.setAttribute('aria-expanded', String(open));
       item.panel.setAttribute('aria-hidden', String(hidden));
       item.panel.toggleAttribute('inert', hidden);
@@ -484,6 +486,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       if (isCurrent) el.setAttribute('aria-current', 'page');
       else el.removeAttribute('aria-current');
     });
+    if (view === 'assistant' && !state.activeProject) initializeDshChat({ initialize: false });
     if (view === 'dashboard') renderDashboard();
     if (view === 'board') {
       renderBoard();
@@ -872,7 +875,10 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
         <i class="ci-dot"></i><span class="ci-body"><span class="ci-title">${esc(card.title)}</span><span class="ci-meta"><span>${esc(KIND_CN[card.kind] || card.typeLabel)}</span><span>${esc(column?.title || card.status)}</span><span>${fmtTime(card.lastActivityAt)}</span>${card.aiActive ? `<span class="ci-ai">${t('caseList.aiBusy')}</span>` : ''}</span></span>
       </button>`;
     }).join('') || emptyHtml(q ? t('caseList.noMatch') : t('caseList.empty'));
-    $$('.case-item', $('#case-list')).forEach((button) => button.addEventListener('click', () => loadChat(button.dataset.projectId, false)));
+    $$('.case-item', $('#case-list')).forEach((button) => button.addEventListener('click', () => {
+      closeMobileAssistantPanels();
+      loadChat(button.dataset.projectId, false);
+    }));
   }
 
   // ---------- kanban ----------
@@ -1025,14 +1031,29 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     updateDshChrome();
     populateDshModelSelect(state.dsh.projectId === project?.id ? state.dsh.models : null);
     const keepCurrentMessages = initialize && state.dsh.projectId === project?.id;
-    if (!keepCurrentMessages) renderDshEmpty(initialize ? '正在连接本项目的 DSH 测试模式会话…' : '进入对话空间后即可使用 DSH 模型、技能、命令和工具。');
+    if (!keepCurrentMessages) renderDshEmpty(
+      initialize ? '正在连接本项目的 DSH 测试模式会话…' : '进入对话空间后即可使用 DSH 模型、技能、命令和工具。',
+      { state: !project ? 'no-project' : initialize ? 'connecting' : 'ready' },
+    );
     updateChatUI();
     if (!initialize || !project) return;
     try {
       await ensureDshProject(project, { allowSessionChanges });
     } catch (error) {
-      if (!(error instanceof DshSessionRecoveryError)) throw error;
-      await showDshSessionRecovery(error, project);
+      if (state.activeProjectId !== project.id) return;
+      if (error instanceof DshSessionRecoveryError) {
+        await showDshSessionRecovery(error, project);
+        return;
+      }
+      const standalone = !state.dshEmbedded;
+      if (!$('#chat-msgs .msg-wrap')) {
+        renderDshEmpty('', {
+          state: standalone ? 'standalone' : 'error',
+          detail: error.message,
+        });
+      }
+      updateChatUI();
+      if (!standalone) throw error;
       return;
     }
     if (state.activeProjectId === project.id && state.dsh.projectId === project.id && turnToken === state.dsh.turnToken) {
@@ -1149,20 +1170,6 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     updateDshChrome();
     return sessionId;
   }
-  function renderMessages(messages) {
-    const container = $('#chat-msgs');
-    if (!messages.length) {
-      container.innerHTML = `<div class="chat-empty"><span class="ai-orb">AI</span><h3>${t('chat.empty.title')}</h3><p>${t('chat.empty.sub')}</p><div class="prompt-grid"><button class="prompt-chip" type="button">${t('chat.empty.p1')}</button><button class="prompt-chip" type="button">${t('chat.empty.p2')}</button><button class="prompt-chip" type="button">${t('chat.empty.p3')}</button><button class="prompt-chip" type="button">${t('chat.empty.p4')}</button></div></div>`;
-      $$('.prompt-chip', container).forEach((button) => button.addEventListener('click', () => { $('#chat-input').value = button.textContent; $('#chat-input').focus(); autoGrow($('#chat-input')); }));
-      return;
-    }
-    container.innerHTML = '';
-    messages.forEach((message) => {
-      if (message.role === 'user') appendUserMsg(message.content, false);
-      else if (message.role === 'assistant') appendAiMsg(message.content, false);
-    });
-    container.scrollTop = container.scrollHeight;
-  }
   function formatAttachmentSize(bytes) {
     const size = Math.max(0, Number(bytes) || 0);
     if (size < 1024) return `${size} B`;
@@ -1206,7 +1213,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     const fileInput = $('#chat-file-input');
     if (!guidance || !attachButton || !fileInput) return;
     const unavailable = !state.dshEmbedded
-      ? label('附件上传需要 DSH 原生会话，请从 DSH 侧边栏打开工作台。', 'Attachments require a native DSH session. Open the Workbench from the DSH sidebar.')
+      ? label('对话和附件需要 DSH 原生会话，请从 DSH 侧边栏打开工作台。', 'Chat and attachments require a native DSH session. Open the Workbench from the DSH sidebar.')
       : !state.activeProjectId
         ? label('请先选择一个项目，再添加附件。', 'Select a project before adding attachments.')
         : '';
@@ -1310,24 +1317,71 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     $('#chat-msgs').appendChild(wrap); scrollChat();
   }
   function scrollChat() { const el = $('#chat-msgs'); el.scrollTop = el.scrollHeight; }
-  function renderDshEmpty(message) {
+  function renderDshEmpty(message, { state: requestedState = 'ready', detail = '' } = {}) {
     const en = currentLang() === 'en';
-    const visibleMessage = en
-      ? (message.includes('正在连接') ? 'DSH Test Mode is connecting to this project session…' : 'Enter the chat space to use DSH models, skills, commands and tools.')
-      : message;
+    const displayState = state.activeProject ? requestedState : 'no-project';
+    const copy = {
+      'no-project': {
+        title: en ? 'Choose a project to start' : '先选择一个项目',
+        body: en ? 'Conversations, files and test history are kept with each project.' : '每个项目都有独立的对话、文件和测试记录。',
+      },
+      connecting: {
+        title: en ? 'Connecting to this project' : '正在连接项目会话',
+        body: en ? 'DSH Test Mode is connecting to this project session…' : message,
+      },
+      standalone: {
+        title: en ? 'Open this page from DSH to chat' : '请从 DSH 侧边栏打开工作台',
+        body: en ? 'Project management is available here. DSH chat, models, skills and commands require the DSH Workbench.' : '当前是独立项目管理模式；对话、模型、技能和命令请从 DSH 侧边栏进入。',
+      },
+      error: {
+        title: en ? 'Could not connect to DSH' : '暂时无法连接 DSH',
+        body: en ? 'Check that DSH is running, then try again.' : '请检查 DSH 运行状态，然后重试。',
+      },
+      ready: {
+        title: en ? 'DSH Test Mode' : 'DSH 测试模式',
+        body: en ? 'Enter the chat space to use DSH models, skills, commands and tools.' : message,
+      },
+    }[displayState] || { title: en ? 'DSH Test Mode' : 'DSH 测试模式', body: message };
     const fallbackPrompts = en
       ? ['/qa-testcase-generator Generate test cases from a requirement', '/qa-defect-analysis Analyze defects and suggest root causes', 'Outline this project’s test scope and list next steps', '/plan Create a test execution plan for this project']
       : ['/qa-testcase-generator 为需求生成测试用例', '/qa-defect-analysis 分析缺陷并给根因建议', '梳理本项目测试范围并列出下一步', '/plan 为本项目制定测试执行计划'];
-    const installed = (state.skillCatalog.skills || []).filter((skill) => skill.installed).slice(0, 4);
+    const showPrompts = displayState === 'ready' && Boolean(state.activeProject);
+    const installed = showPrompts ? (state.skillCatalog.skills || []).filter((skill) => skill.installed).slice(0, 4) : [];
     const prompts = installed.map((skill) => {
       const label = en
         ? `Perform ${skill.title.toLowerCase()} and output the corresponding document`
         : `进行${skill.title}，输出对应的文档`;
       return { value: `/${skill.name}`, label: `/${skill.name} · ${label}` };
     });
-    fallbackPrompts.slice(installed.length, 4).forEach((prompt) => prompts.push({ value: prompt, label: prompt }));
-    $('#chat-msgs').innerHTML = `<div class="chat-empty"><span class="ai-orb">DSH</span><h3>${en ? 'DSH Test Mode' : 'DSH 测试模式'}</h3><p>${esc(visibleMessage)}</p><div class="prompt-grid">${prompts.map((prompt) => `<button class="prompt-chip dsh-prompt" type="button" data-prompt="${esc(prompt.value)}">${esc(prompt.label)}</button>`).join('')}</div></div>`;
+    if (showPrompts) fallbackPrompts.slice(installed.length, 4).forEach((prompt) => prompts.push({ value: prompt, label: prompt }));
+    const actions = displayState === 'no-project'
+      ? `<div class="chat-empty-actions"><button class="btn secondary" type="button" data-empty-select-project>${en ? 'Choose a project' : '打开项目列表'}</button><button class="btn primary" type="button" data-empty-create-project>${en ? 'Create a project' : '新建项目'}</button></div>`
+      : displayState === 'error'
+        ? `<div class="chat-empty-actions"><button class="btn primary" type="button" data-empty-retry>${en ? 'Retry connection' : '重试连接'}</button></div>${detail ? `<details class="chat-empty-detail"><summary>${en ? 'Connection details' : '查看连接详情'}</summary><p>${esc(detail)}</p></details>` : ''}`
+        : '';
+    const promptsMarkup = showPrompts
+      ? `<div class="prompt-grid">${prompts.map((prompt) => `<button class="prompt-chip dsh-prompt" type="button" data-prompt="${esc(prompt.value)}">${esc(prompt.label)}</button>`).join('')}</div>`
+      : '';
+    $('#chat-msgs').innerHTML = `<div class="chat-empty chat-empty-${displayState}"><span class="ai-orb">DSH</span><h3>${copy.title}</h3><p>${esc(copy.body)}</p>${actions}${promptsMarkup}</div>`;
     $$('.dsh-prompt', $('#chat-msgs')).forEach((button) => button.addEventListener('click', () => { $('#chat-input').value = button.dataset.prompt; $('#chat-input').focus(); autoGrow($('#chat-input')); renderSlashSuggestions(); }));
+    $('[data-empty-select-project]', $('#chat-msgs'))?.addEventListener('click', () => {
+      if (window.matchMedia('(max-width: 1220px)').matches) {
+        document.body.classList.add('mobile-cases-open');
+        document.body.classList.remove('mobile-context-open');
+        syncAssistantPanelAccessibility();
+        $('#btn-mobile-cases')?.focus();
+      } else {
+        ($('#case-list .case-item') || $('#btn-new-case-side'))?.focus();
+      }
+    });
+    $('[data-empty-create-project]', $('#chat-msgs'))?.addEventListener('click', () => openNewProject(false));
+    $('[data-empty-retry]', $('#chat-msgs'))?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try { await initializeDshChat({ initialize: true }); }
+      catch (error) { toast(error.message, 'err'); }
+      finally { if (button.isConnected) button.disabled = false; }
+    });
   }
   function contentText(content) { return (Array.isArray(content) ? content : []).filter((block) => block?.type === 'text').map((block) => block.text || '').join('\n').trim(); }
   function dshRows(events) {
@@ -1626,9 +1680,16 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
   function updateChatUI() {
     const busy = state.dsh.busy || sendingMessage;
     document.body.classList.toggle('dsh-busy', busy);
-    $('#chat-input').disabled = !state.activeProjectId || busy;
-    $('#chat-input').placeholder = busy ? t('chat.input.busy') : t('chat.input.placeholder');
-    $('#btn-send').disabled = !state.activeProjectId || busy;
+    const unavailable = !state.dshEmbedded || !state.activeProjectId;
+    $('#chat-input').disabled = unavailable || busy;
+    $('#chat-input').placeholder = busy
+      ? t('chat.input.busy')
+      : !state.dshEmbedded
+        ? label('请从 DSH 打开后对话', 'Open from DSH to chat')
+        : !state.activeProjectId
+          ? label('先选择或新建一个项目', 'Choose or create a project first')
+          : t('chat.input.placeholder');
+    $('#btn-send').disabled = unavailable || busy;
     $$('.attachment-remove', $('#chat-attachments')).forEach((button) => { button.disabled = busy; });
     renderAttachmentGuidance();
     $('#btn-stop').classList.toggle('hidden', !busy);
@@ -2072,7 +2133,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     const schedule = [...milestones, ...events].sort((left, right) => String(left.date || '').localeCompare(String(right.date || '')));
     body.innerHTML = `<div class="tab-toolbar"><div><b>${localizedText(`${schedule.length} 个待安排时间节点`, `${schedule.length} upcoming schedule items`)}</b><span>${localizedText('未来日程与未完成里程碑会同步进入日历排期', 'Upcoming events and open milestones stay in the calendar')}</span></div><button class="btn primary sm" id="dl-add" type="button">＋ ${localizedText('新增日程', 'Add event')}</button></div><div class="list">${schedule.map((item) => activityScheduleRow(item, {
       badgeClass: item.overdue ? 'danger' : item.milestone ? '' : 'doc',
-      badgeText: item.overdue ? localizedText('逾期', 'Overdue') : item.milestone ? localizedText('里程碑', 'Milestone') : (currentLang() === 'en' ? EVENT_KIND_EN[item.type] : EVENT_KIND_CN[item.type]) || localizedText('日程', 'Event'),
+      badgeText: item.overdue ? localizedText('逾期', 'Overdue') : item.milestone ? localizedText('里程碑', 'Milestone') : (currentLang() === 'en' ? EVENT_KIND_EN[item.kind] : EVENT_KIND_CN[item.kind]) || localizedText('日程', 'Event'),
       includeMilestoneId: true,
     })).join('') || emptyHtml(localizedText('暂无待安排日程。', 'No upcoming schedule items.'))}</div>`;
     $('#dl-add', body).addEventListener('click', () => openScheduleModal(localDate(new Date()), p.id));
@@ -2086,7 +2147,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     const archive = [...pastEvents, ...completedMilestones].sort((left, right) => String(right.date || '').localeCompare(String(left.date || '')));
     body.innerHTML = `<div class="list">${archive.map((item) => activityScheduleRow(item, {
       badgeClass: item.milestone ? 'verified' : 'doc',
-      badgeText: item.milestone ? localizedText('已完成里程碑', 'Completed milestone') : (currentLang() === 'en' ? EVENT_KIND_EN[item.type] : EVENT_KIND_CN[item.type]) || localizedText('已结束日程', 'Past event'),
+      badgeText: item.milestone ? localizedText('已完成里程碑', 'Completed milestone') : (currentLang() === 'en' ? EVENT_KIND_EN[item.kind] : EVENT_KIND_CN[item.kind]) || localizedText('已结束日程', 'Past event'),
     })).join('') || emptyHtml(t('detail.activity.pastScheduleEmpty'))}</div>`;
   }
   function renderDeliverySection(body, p) {
@@ -2177,11 +2238,23 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     });
   }
   function renderActivitySection(body, p) {
+    const activity = [
+      ...(p.materials || []).map((item) => ({ kind: 'material', at: item.ts, item })),
+      ...(p.history || []).map((item) => ({ kind: 'stage', at: item.at, item })),
+    ].sort((left, right) => String(right.at || '').localeCompare(String(left.at || '')));
+    const activityRows = activity.map(({ kind, at, item }) => {
+      const title = kind === 'stage'
+        ? `${item.from ? `${projectStageLabel(item.from)} → ` : ''}${projectStageLabel(item.to)}`
+        : item.label || t('detail.activity.untitled');
+      const detail = kind === 'stage'
+        ? [item.by, at ? fmtDateFull(at) : ''].filter(Boolean).join(' · ')
+        : [projectMaterialTypeLabel(item.type), at ? fmtTime(at) : ''].filter(Boolean).join(' · ');
+      return `<div class="timeline-row"><i></i><div><b data-user-content>${esc(title)}</b><span data-user-content>${esc(detail)}</span></div></div>`;
+    }).join('');
     body.innerHTML = `<div class="project-workspace-stack">
       <section class="project-workspace-group"><div class="project-workspace-group-head"><h3>${esc(t('detail.activity.schedule'))}</h3></div><div id="detail-activity-schedule"></div></section>
       <section class="project-workspace-group" id="detail-activity-past-schedule"><div class="project-workspace-group-head"><h3>${esc(t('detail.activity.pastSchedule'))}</h3></div><div class="list"></div></section>
-      <section class="detail-card activity-materials" id="detail-activity-recent"><div class="detail-card-head"><div><h3>${esc(t('detail.activity.recent'))}</h3><p class="field-note">${esc(t('detail.activity.recentSub'))}</p></div><span class="badge">${(p.materials || []).length}</span></div><div class="list">${(p.materials || []).map((item) => `<div class="list-item"><div class="li-title" data-user-content>${esc(item.label || t('detail.activity.untitled'))}</div><div class="li-meta"><span data-user-content>${esc(projectMaterialTypeLabel(item.type))}</span>${item.ts ? ` · ${fmtTime(item.ts)}` : ''}</div></div>`).join('') || projectDetailEmptyHtml(t('detail.activity.recentEmpty'))}</div></section>
-      <section class="detail-card activity-history" id="detail-activity-history"><div class="detail-card-head"><div><h3>${esc(t('detail.activity.history'))}</h3></div><span class="badge">${(p.history || []).length}</span></div><div class="case-timeline">${(p.history || []).slice().reverse().map((item) => `<div class="timeline-row"><i></i><div><b data-user-content>${esc(item.from ? `${projectStageLabel(item.from)} → ` : '')}${esc(projectStageLabel(item.to))}</b><span data-user-content>${esc(item.by || '')}${item.at ? ` · ${fmtDateFull(item.at)}` : ''}</span></div></div>`).join('') || projectDetailEmptyHtml(t('detail.activity.historyEmpty'))}</div></section>
+      <section class="detail-card activity-materials" id="detail-activity-recent"><div class="detail-card-head"><div><h3>${esc(t('detail.activity.recent'))}</h3><p class="field-note">${esc(t('detail.activity.recentSub'))}</p></div><span class="badge">${activity.length}</span></div><div class="case-timeline">${activityRows || projectDetailEmptyHtml(t('detail.activity.recentEmpty'))}</div></section>
       <section class="project-workspace-group"><div class="project-workspace-group-head"><h3>${esc(t('detail.activity.knowledge'))}</h3></div><div id="detail-activity-knowledge"></div></section>
       <section class="project-workspace-group"><div class="project-workspace-group-head"><h3>${esc(t('detail.activity.minutes'))}</h3></div><div id="detail-activity-minutes"></div></section>
     </div>`;
@@ -2316,7 +2389,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       const running = ['queued', 'running'].includes(execution?.status);
       const terminal = execution && !running;
       const evidenceState = hostEvidenceStatus(execution);
-      return `<article class="list-item host-profile-card" data-host-profile-id="${esc(profile.id)}" data-quality-task-id="${esc(task.id)}"><div class="li-title">${esc(version.name || profile.name)} · ${localizedText('质量任务', 'Quality task')}：${esc(task.title || task.id)} · v${esc(version.version || profile.currentVersion || 1)} <span class="badge">${esc(version.provider)}</span></div><div class="li-meta"><span>${localizedText('能力', 'Capability')}：${esc(capability)}</span><span>${localizedText('超时', 'Timeout')}：${Number(version.timeoutMs || 0)}ms</span><span>${localizedText('证据', 'Evidence')}：${Object.entries(version.artifactPolicy || {}).filter(([, enabled]) => enabled).map(([key]) => key).join(', ') || localizedText('无', 'none')}</span></div><div class="host-run-controls"><div class="field"><label>${localizedText('目标', 'Target')}</label><input data-host-target type="text" value="${esc(targetValue)}" placeholder="${esc(version.provider === 'mcp' ? t('host.mcpTargetPlaceholder') : t('host.targetPlaceholder'))}" /></div><select data-host-capability aria-label="${esc(localizedText('宿主能力', 'Host capability'))}">${(version.capabilities || []).map((item) => `<option value="${esc(item)}">${esc(item)}</option>`).join('')}</select><button class="btn primary sm" data-host-preview type="button">${localizedText('预览并执行', 'Preview and run')}</button></div><div class="host-run-status" data-host-status><span class="badge ${running ? 'warn' : terminal && execution.status !== 'passed' ? 'danger' : ''}">${localizedText('状态', 'Status')}：${esc(hostStatusLabel(execution?.status))}</span>${evidenceState ? `<span class="badge ${evidenceState.className}">${esc(evidenceState.label)}</span>` : ''}${execution?.updatedAt ? `<span class="li-meta-inline">${esc(fmtTime(execution.updatedAt))}</span>` : ''}${execution?.errorSummary ? `<span class="li-meta-inline">${esc(execution.errorSummary)}</span>` : ''}${running ? `<button class="btn sm danger" data-host-cancel type="button">${localizedText('取消执行', 'Cancel execution')}</button>` : ''}${terminal ? `<button class="btn sm" data-host-retry type="button">${localizedText('重试', 'Retry')}</button>` : ''}</div></article>`;
+      return `<article class="list-item host-profile-card" data-host-profile-id="${esc(profile.id)}" data-quality-task-id="${esc(task.id)}"><div class="li-title">${esc(version.name || profile.name)} · ${localizedText('质量任务', 'Quality task')}：${esc(task.title || task.id)} · v${esc(version.version || profile.currentVersion || 1)} <span class="badge">${esc(version.provider)}</span></div><div class="li-meta"><span>${localizedText('能力', 'Capability')}：${esc(capability)}</span><span>${localizedText('超时', 'Timeout')}：${Number(version.timeoutMs || 0)}ms</span><span>${localizedText('证据', 'Evidence')}：${Object.entries(version.artifactPolicy || {}).filter(([, enabled]) => enabled).map(([key]) => key).join(', ') || localizedText('无', 'none')}</span></div><div class="host-run-controls"><div class="field"><label>${localizedText('目标', 'Target')}</label><input data-host-target aria-label="${localizedText('目标', 'Target')}" type="text" value="${esc(targetValue)}" placeholder="${esc(version.provider === 'mcp' ? t('host.mcpTargetPlaceholder') : t('host.targetPlaceholder'))}" /></div><select data-host-capability aria-label="${esc(localizedText('宿主能力', 'Host capability'))}">${(version.capabilities || []).map((item) => `<option value="${esc(item)}">${esc(item)}</option>`).join('')}</select><button class="btn primary sm" data-host-preview type="button">${localizedText('预览并执行', 'Preview and run')}</button></div><div class="host-run-status" data-host-status><span class="badge ${running ? 'warn' : terminal && execution.status !== 'passed' ? 'danger' : ''}">${localizedText('状态', 'Status')}：${esc(hostStatusLabel(execution?.status))}</span>${evidenceState ? `<span class="badge ${evidenceState.className}">${esc(evidenceState.label)}</span>` : ''}${execution?.updatedAt ? `<span class="li-meta-inline">${esc(fmtTime(execution.updatedAt))}</span>` : ''}${execution?.errorSummary ? `<span class="li-meta-inline">${esc(execution.errorSummary)}</span>` : ''}${running ? `<button class="btn sm danger" data-host-cancel type="button">${localizedText('取消执行', 'Cancel execution')}</button>` : ''}${terminal ? `<button class="btn sm" data-host-retry type="button">${localizedText('重试', 'Retry')}</button>` : ''}</div></article>`;
     })).join('') : hostProfiles.map((profile) => {
       const version = hostProfileVersion(profile);
       return `<article class="list-item host-profile-card" data-host-profile-id="${esc(profile.id)}"><div class="li-title">${esc(version.name || profile.name)} · v${esc(version.version || profile.currentVersion || 1)} <span class="badge">${esc(version.provider)}</span></div><p class="field-note">${localizedText('请先创建质量任务，再开始 Host 执行。', 'Create a quality task before starting a Host execution.')}</p></article>`;
@@ -3370,7 +3443,18 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
   function removeCard(id) {
     state.cards.delete(id);
     $$(`.card[data-id="${id}"]`).forEach((el) => el.remove());
-    if (state.activeProjectId === id) { state.activeProjectId = null; state.activeProject = null; renderMessages([]); updateChatHead(null); }
+    if (state.activeProjectId === id) {
+      state.activeProjectId = null;
+      state.activeProject = null;
+      state.dsh.turnToken += 1;
+      state.dsh.busy = false;
+      activeAttachmentUpload?.abort();
+      state.dsh.attachments = [];
+      state.dsh.attachmentProjectId = '';
+      renderChatAttachments();
+      updateChatHead(null);
+      initializeDshChat({ initialize: false });
+    }
     renderRailCases(); renderCaseList(); renderDashboard(); updateColCounts();
   }
   function scheduleActionQueueRefresh() {
@@ -3690,10 +3774,10 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     $('#btn-add-selected').addEventListener('click', () => openScheduleModal(state.selectedDate));
     document.addEventListener('click', (event) => {
       if (!event.target.closest('.composer-wrap')) $('#slash-suggestions').classList.add('hidden');
-      if (!window.matchMedia('(max-width: 767px)').matches) return;
+      if (!window.matchMedia('(max-width: 1220px)').matches) return;
       const casesOpen = document.body.classList.contains('mobile-cases-open');
       const contextOpen = document.body.classList.contains('mobile-context-open');
-      if (casesOpen && !event.target.closest('#case-sidebar, #btn-mobile-cases')) closeMobileAssistantPanels();
+      if (casesOpen && !event.target.closest('#case-sidebar, #btn-mobile-cases, [data-empty-select-project]')) closeMobileAssistantPanels();
       else if (contextOpen && !event.target.closest('#context-panel, #btn-mobile-context')) closeMobileAssistantPanels();
     });
     window.addEventListener('resize', syncAssistantPanelAccessibility);

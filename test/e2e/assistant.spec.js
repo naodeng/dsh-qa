@@ -100,6 +100,86 @@ test.describe('DSH 测试对话页', () => {
     await expect(page.locator('#chat-pane')).toBeVisible();
   });
 
+  test('平板与手机布局保留聊天宽度、侧栏入口和项目操作', async ({ page }) => {
+    await page.setViewportSize({ width: 1216, height: 900 });
+    await page.goto('/');
+    await page.locator('[data-view="assistant"]').click();
+    await expect(page.locator('#btn-mobile-cases')).toBeVisible();
+    await expect(page.locator('#btn-mobile-context')).toBeVisible();
+    await expect(page.locator('#case-resizer')).toBeHidden();
+    await expect(page.locator('#context-resizer')).toBeHidden();
+
+    const tabletLayout = await page.evaluate(() => ({
+      chatWidth: document.querySelector('#chat-pane').getBoundingClientRect().width,
+      hiddenCasesRight: document.querySelector('#case-sidebar').getBoundingClientRect().right,
+      headerWidth: document.querySelector('#chat-head').clientWidth,
+      headerScrollWidth: document.querySelector('#chat-head').scrollWidth,
+    }));
+    expect(tabletLayout.chatWidth).toBeGreaterThan(500);
+    expect(tabletLayout.hiddenCasesRight).toBeLessThanOrEqual(1);
+    expect(tabletLayout.headerScrollWidth).toBeLessThanOrEqual(tabletLayout.headerWidth + 1);
+
+    await page.locator('#btn-mobile-cases').click();
+    await expect(page.locator('#btn-mobile-cases')).toHaveAttribute('aria-expanded', 'true');
+    await page.waitForFunction(() => {
+      const drawer = document.querySelector('#case-sidebar').getBoundingClientRect();
+      const rail = document.querySelector('#rail').getBoundingClientRect();
+      return Math.abs(drawer.x - rail.right) < 1;
+    });
+    const drawer = await page.locator('#case-sidebar').boundingBox();
+    const rail = await page.locator('#rail').boundingBox();
+    expect(Math.abs(drawer.x - rail.x - rail.width)).toBeLessThanOrEqual(1);
+    await page.locator('#case-list .case-item').first().click();
+    await expect(page.locator('#btn-mobile-cases')).toHaveAttribute('aria-expanded', 'false');
+    await page.waitForFunction(() => document.querySelector('#case-sidebar').getBoundingClientRect().right <= 1);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator('#model-switch')).toBeVisible();
+    await expect(page.locator('#btn-case-detail')).toBeVisible();
+    await expect(page.locator('#btn-case-workspace')).toBeVisible();
+    await expect(page.locator('#case-resizer')).toBeHidden();
+    await expect(page.locator('#context-resizer')).toBeHidden();
+    await page.waitForFunction(() => document.querySelector('#case-sidebar').getBoundingClientRect().right <= 1);
+    const mobileLayout = await page.evaluate(() => ({
+      hiddenCasesRight: document.querySelector('#case-sidebar').getBoundingClientRect().right,
+      hiddenContextLeft: document.querySelector('#context-panel').getBoundingClientRect().left,
+      viewportWidth: window.innerWidth,
+    }));
+    expect(mobileLayout.hiddenCasesRight).toBeLessThanOrEqual(1);
+    expect(mobileLayout.hiddenContextLeft).toBeGreaterThanOrEqual(mobileLayout.viewportWidth);
+  });
+
+  test('没有项目时提供项目入口，不显示无法发送的对话示例', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.route('**/api/board', async (route) => {
+      const response = await route.fetch();
+      const board = await response.json();
+      await route.fulfill({ response, body: JSON.stringify({ ...board, projects: [] }) });
+    });
+    await page.goto('/');
+    await page.locator('[data-view="assistant"]').click();
+
+    await expect(page.locator('.chat-empty-no-project')).toContainText('先选择一个项目');
+    await expect(page.locator('[data-empty-select-project]')).toBeVisible();
+    await expect(page.locator('[data-empty-create-project]')).toBeVisible();
+    await expect(page.locator('.dsh-prompt')).toHaveCount(0);
+    await expect(page.locator('#chat-input')).toBeDisabled();
+
+    await page.locator('[data-empty-select-project]').click();
+    await expect(page.locator('#btn-mobile-cases')).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#case-sidebar')).toBeVisible();
+  });
+
+  test('独立模式不再显示连接中或允许提交 DSH 对话', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('[data-view="assistant"]').click();
+
+    await expect(page.locator('.chat-empty-standalone')).toContainText('请从 DSH 侧边栏打开工作台');
+    await expect(page.locator('.dsh-prompt')).toHaveCount(0);
+    await expect(page.locator('#chat-input')).toBeDisabled();
+    await expect(page.locator('#btn-send')).toBeDisabled();
+  });
+
   test('初始化请求完成后保留用户已经选择的页面', async ({ page }) => {
     let releaseAppInfo;
     const appInfoGate = new Promise((resolve) => { releaseAppInfo = resolve; });
