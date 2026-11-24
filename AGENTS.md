@@ -26,7 +26,7 @@ npm test                  # 单元测试 + E2E 测试
 
 首次运行 E2E 测试前执行 `npx playwright install chromium`。测试不需要 DSH 登录、真实模型或 API Key。
 
-GitHub Actions 在 `master` push 和 Pull Request 上运行同一个 `npm test`，使用 Node.js 20 和 Chromium；失败时会上传 Playwright 报告与 trace。
+GitHub Actions 在 `master`、`develop` push 和 Pull Request 上运行同一个 `npm test`，使用 Node.js 20 和 Chromium；失败时会上传 Playwright 报告与 trace。
 
 ## 测试规则
 
@@ -39,6 +39,12 @@ GitHub Actions 在 `master` push 和 Pull Request 上运行同一个 `npm test`�
 ## 修改与交付
 
 保持 ESM、Node 18+ 和现有零生产依赖约束。改动应保持小范围，不顺手重构无关模块。交付前至少运行相关测试、`npm test` 和 `git diff --check`；汇报时区分静态检查、单元测试和真实浏览器验证。
+
+## Git 分支与提交规范
+
+- `develop` 是唯一持续开发分支；所有实现提交都直接在 `develop` 上完成并推送。
+- 不创建临时 `codex/*` 功能分支或功能 worktree。
+- 清理已有 `codex/*` 分支前，先审查并保留其中有用的提交和未提交改动；确认有用的内容先整合到 `develop` 并验证。
 
 ### 多步骤实现任务的终止约束
 
