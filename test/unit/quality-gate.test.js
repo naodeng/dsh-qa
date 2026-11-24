@@ -32,6 +32,12 @@ test('quality gate passes only when terminal runs and evidence are clean', () =>
   assert.deepEqual(result.blockers, []);
 });
 
+test('quality gate does not report a pass before any test run exists', () => {
+  const result = evaluateQualityGate(makeProject());
+  assert.equal(result.status, 'not-evaluated');
+  assert.deepEqual(result.blockers, []);
+});
+
 test('quality gate blocks ready evidence whose integrity is not verified', () => {
   const project = makeProject();
   const run = makeTestRun({ projectId: project.id, status: 'passed' });

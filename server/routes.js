@@ -126,10 +126,12 @@ async function api(req, res, url, body, hostAdapters, eventBroadcast = broadcast
 
   if (p === '/api/action-queue' && m('GET')) {
     const rawLimit = url.searchParams.get('limit');
+    const projectId = url.searchParams.get('projectId');
     if (rawLimit !== null && !/^(?:[1-9]|[1-4][0-9]|50)$/.test(rawLimit)) return fail(res, 400, 'limit 必须是 1 到 50 的整数');
+    if (projectId !== null && (!projectId || projectId.trim() !== projectId || projectId.length > 128)) return fail(res, 400, 'projectId 无效');
     const limit = rawLimit === null ? 50 : Number(rawLimit);
     try {
-      ok(res, readActionQueue(store, { limit, listProjects: actionQueueSource }));
+      ok(res, readActionQueue(store, { limit, projectId: projectId ?? undefined, listProjects: actionQueueSource }));
     } catch (error) {
       if (error instanceof ActionQueueSourceError || error?.code === 'ACTION_QUEUE_SOURCE_UNAVAILABLE') return fail(res, 503, error.message, 'ACTION_QUEUE_SOURCE_UNAVAILABLE');
       throw error;

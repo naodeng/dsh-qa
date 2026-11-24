@@ -32,6 +32,31 @@ test('orders blocking execution actions before due reminders and uses stable tie
   assert.equal(result.generatedAt, NOW.toISOString());
 });
 
+test('readActionQueue filters by project before applying the limit', () => {
+  const foreign = makeProject({
+    id: 'foreign_project',
+    gates: [makeGate({ id: 'foreign_block', projectId: 'foreign_project', verdict: 'BLOCK', status: 'evaluated' })],
+  });
+  const target = makeProject({
+    id: 'target_project',
+    gates: [makeGate({ id: 'target_approval', projectId: 'target_project', verdict: null, status: 'pending' })],
+  });
+
+  const result = readActionQueue({}, {
+    limit: 1,
+    projectId: target.id,
+    now: NOW,
+    listProjects: () => [foreign, target],
+  });
+
+  assert.deepEqual(result.items.map((item) => item.id), ['gate_approval:target_project:target_approval']);
+});
+
+test('readActionQueue returns no items for an unknown project filter', () => {
+  const result = readActionQueue({}, { projectId: 'missing_project', listProjects: () => fixtureProjects });
+  assert.deepEqual(result.items, []);
+});
+
 test('distinguishes local test failures from environment failures', () => {
   const project = makeProject({
     id: 'project_local_failures',
