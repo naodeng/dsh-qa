@@ -48,4 +48,4 @@
 - `.playwright-cli/`、`output/playwright/`、`playwright-report/`、`test-results/`：浏览器测试产物
 - `.superpowers/`、`.impeccable/`：本地工作流和设计审查工具状态
 
-产品文档从 [质量工作台文档索引](./quality-workbench/README.md) 开始；过程计划和规格从 [`docs/superpowers/`](./superpowers/) 查找。
+产品文档从 [质量工作台文档索引](./quality-workbench/README.md) 开始；过程计划和规格从 [`docs/superpowers/`](./superpowers/) 查找。Figma 页面审查从 [高保真审查流程](./superpowers/figma-high-fidelity-review-process.md) 开始。

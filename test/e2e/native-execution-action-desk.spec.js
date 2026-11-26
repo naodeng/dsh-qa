@@ -51,11 +51,16 @@ test('多质量任务的 Host 卡片和操作都绑定当前质量任务', async
 
   const firstCard = page.locator(`#host-execution-card .host-profile-card[data-quality-task-id="${fixture.task.id}"]`);
   const secondCard = page.locator(`#host-execution-card .host-profile-card[data-quality-task-id="${secondTask.id}"]`);
-  await expect(page.locator('#host-execution-card .host-profile-card')).toHaveCount(2);
+  const taskChoices = page.locator('#quality-task-list [data-quality-task-select]');
+  await expect(taskChoices).toHaveCount(2);
+  await page.locator(`#quality-task-list [data-quality-task-select="${fixture.task.id}"]`).click();
+  await expect(page.locator('#host-execution-card .host-profile-card')).toHaveCount(1);
   await expect(firstCard).toContainText('Host checkout smoke');
-  await expect(secondCard).toContainText('Host second task');
   await expect(firstCard.locator('[data-host-retry]')).toBeVisible();
 
+  await page.locator(`#quality-task-list [data-quality-task-select="${secondTask.id}"]`).click();
+  await expect(page.locator('#host-execution-card .host-profile-card')).toHaveCount(1);
+  await expect(secondCard).toContainText('Host second task');
   const secondPreviewPath = `/api/projects/${fixture.project.id}/quality-tasks/${secondTask.id}/host-executions/preview`;
   const secondStartPath = `/api/projects/${fixture.project.id}/quality-tasks/${secondTask.id}/host-executions`;
   const previewResponsePromise = page.waitForResponse((response) => response.request().method() === 'POST'
@@ -73,6 +78,7 @@ test('多质量任务的 Host 卡片和操作都绑定当前质量任务', async
   const secondStarted = await startResponse.json();
   expect(secondStarted.execution.qualityTaskId).toBe(secondTask.id);
 
+  await page.locator(`#quality-task-list [data-quality-task-select="${fixture.task.id}"]`).click();
   const firstRetryPath = `/api/projects/${fixture.project.id}/host-executions/${firstStarted.execution.id}/retry`;
   const retryResponsePromise = page.waitForResponse((response) => response.request().method() === 'POST'
     && new URL(response.url()).pathname === firstRetryPath
@@ -119,7 +125,7 @@ test('Action Queue receives a missing Host adapter result without a page reload'
   expect(attemptItems).toHaveLength(1);
   expect(attemptItems[0].source.id).toBe(retried.testRun.id);
 
-  await page.locator('#btn-settings').click();
+  await page.locator('#btn-project-detail-settings').click();
   await page.getByRole('button', { name: 'English' }).click();
   await page.getByRole('button', { name: 'Done' }).click();
   await page.locator('.nav-item[data-view="dashboard"]').click();
@@ -144,6 +150,7 @@ test('项目详情支持 Host 配置、预览确认和受控 not_run 结果', as
   await page.getByRole('button', { name: '保存 Host 配置' }).click();
   await expect(page.locator('#host-execution-card')).toContainText('browser host from UI');
   await expect(page.locator('#host-execution-card')).toContainText('预览并执行');
+  await expect(page.locator('[data-host-target]')).toHaveAttribute('aria-label', '目标');
 
   const previewResponsePromise = page.waitForResponse((response) => response.request().method() === 'POST'
     && response.url().includes(`/api/projects/${project.id}/quality-tasks/`)

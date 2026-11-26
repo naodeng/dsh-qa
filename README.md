@@ -103,6 +103,8 @@ npm start
 npm test
 ~~~
 
+`public/project-detail-model.js` 将需求与用例关联投影为覆盖状态、计数和验证点，不改动项目数据。
+
 - [完整安装与使用指南](./docs/quality-workbench/user-guide-zh-CN.md)
 - [质量工作台设计与路线文档](./docs/quality-workbench/README.md)
 - [质量交付流程图](./docs/diagram/quality-workflow/dsh-qa-quality-workflow.svg)

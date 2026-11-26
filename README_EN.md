@@ -103,6 +103,8 @@ npm start
 npm test
 ~~~
 
+`public/project-detail-model.js` projects requirement-to-case links into coverage states, counts, and verification points without changing project data.
+
 - [Full installation and user guide](./docs/quality-workbench/user-guide-en.md)
 - [Quality Workbench design and roadmap docs](./docs/quality-workbench/README.md)
 - [Quality delivery workflow diagram](./docs/diagram/quality-workflow/dsh-qa-quality-workflow.svg)

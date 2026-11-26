@@ -191,13 +191,19 @@
 
       <section id="view-project-detail" class="view">
         <div class="project-detail-page">
+          <div class="project-detail-topbar">
+            <div class="project-detail-crumb"><button id="btn-project-detail-back" class="text-btn" type="button" data-i18n="detail.actions.back">← 返回项目看板</button><span aria-hidden="true">/</span><span data-i18n="detail.actions.crumbProject">项目</span><span class="project-detail-crumb-sep" aria-hidden="true">/</span><strong id="project-detail-crumb-title" class="project-detail-crumb-title" data-user-content>项目详情</strong></div>
+            <div class="project-detail-actions"><details id="project-detail-more" class="project-detail-more"><summary class="btn sm" aria-label="更多操作">···</summary><div class="project-detail-menu"><button id="btn-project-detail-chat" class="btn primary sm" type="button" data-i18n="detail.actions.chat">打开 DSH 对话 ↗</button><button id="btn-project-detail-folder" class="btn sm" type="button">项目文件</button><button id="btn-project-detail-edit" class="btn sm" type="button" data-i18n="detail.actions.edit">编辑项目</button><button id="btn-project-detail-settings" class="btn sm" type="button" data-i18n="detail.actions.settings">设置与语言</button><button id="btn-project-detail-delete" class="btn sm danger" type="button" data-i18n="detail.actions.delete">删除项目记录</button></div></details></div>
+          </div>
           <div class="project-detail-head">
-            <button id="btn-project-detail-back" class="btn sm" type="button">返回项目看板</button>
-            <div><h1>项目详情</h1><p id="project-detail-meta"></p></div>
-            <div class="project-detail-actions"><button id="btn-project-detail-chat" class="btn primary sm" type="button">DSH 对话</button><button id="btn-project-detail-folder" class="btn sm" type="button">项目文件</button></div>
+            <div><div class="project-detail-title-row"><h1 id="project-detail-project-title" data-user-content>项目详情</h1><span id="project-detail-status" class="status-pill" data-user-content>需求分析</span><button id="overview-latest-quality-signal" class="project-quality-signal" type="button"></button></div><p id="project-detail-meta" data-user-content></p></div>
           </div>
           <div class="project-detail-layout">
-            <aside class="detail-sidebar"><nav id="project-detail-tabs" class="tabs"></nav><div id="project-detail-summary" class="drawer-summary"></div></aside>
+            <aside class="detail-sidebar">
+              <div class="project-nav-top"><div class="project-nav-eyebrow" data-i18n="detail.nav.project">Project workspace</div><h2 id="project-nav-title" data-user-content>项目空间</h2><div id="project-nav-key" class="project-key" data-user-content></div></div>
+              <div class="project-nav-group"><div class="project-nav-caption" data-i18n="detail.nav.caption">项目</div><nav id="project-detail-tabs" class="tabs" aria-label="项目工作区分区"></nav></div>
+              <div id="project-detail-summary" class="drawer-summary" data-user-content></div>
+            </aside>
             <section class="detail-content"><div class="detail-section-head"><div><h2 id="project-detail-title"></h2><span id="project-detail-subtitle"></span></div></div><div id="project-detail-body" class="tab-body"></div></section>
           </div>
         </div>
@@ -219,7 +225,7 @@
 
   <div id="drawer-backdrop" class="backdrop hidden"></div>
   <aside id="drawer" class="drawer hidden">
-    <div class="drawer-head"><div class="case-file-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6zM14 3.5v4h4M9 12h6M9 16h6"/></svg></div><div class="drawer-title-wrap"><h2 id="drawer-title" class="drawer-title" data-i18n="chat.detail">项目详情</h2><div id="drawer-meta" class="drawer-meta"></div></div><div class="drawer-head-actions"><button id="btn-drawer-full" class="btn primary sm" type="button">进入完整详情</button><button id="btn-drawer-chat" class="btn sm" type="button">DSH 对话</button><button id="btn-drawer-folder" class="btn sm" type="button">项目文件</button><button id="btn-close-drawer" class="icon-btn" type="button" title="关闭" aria-label="关闭项目详情">✕</button></div></div>
+    <div class="drawer-head"><div class="case-file-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6zM14 3.5v4h4M9 12h6M9 16h6"/></svg></div><div class="drawer-title-wrap"><h2 id="drawer-title" class="drawer-title" data-user-content>项目详情</h2><div id="drawer-meta" class="drawer-meta" data-user-content></div></div><div class="drawer-head-actions"><button id="btn-drawer-full" class="btn primary sm" type="button">进入完整详情</button><button id="btn-drawer-chat" class="btn sm" type="button">DSH 对话</button><button id="btn-drawer-folder" class="btn sm" type="button">项目文件</button><button id="btn-close-drawer" class="icon-btn" type="button" title="关闭" aria-label="关闭项目详情">✕</button></div></div>
     <div class="case-detail-layout">
       <aside class="detail-sidebar"><nav id="tabs" class="tabs"></nav><div id="drawer-summary" class="drawer-summary"></div></aside>
       <section class="detail-content"><div class="detail-section-head"><div><h2 id="drawer-section-title">项目概览</h2><span id="drawer-section-subtitle">基本信息、测试阶段与协作设置</span></div></div><div id="tab-body" class="tab-body"></div></section>
