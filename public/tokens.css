@@ -60,6 +60,7 @@
   --font-display: var(--font-body);
   --font-code: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
+  --radius-chip: 6px;
   --radius-control: 10px;
   --radius-panel: 14px;
   --radius-panel-large: 16px;

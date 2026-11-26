@@ -2625,6 +2625,63 @@ body.project-detail-open #rail .nav-item .nav-count { display: none; }
   .overview-main-grid { grid-template-columns: minmax(0, 1fr); }
   .overview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+/* Project detail design tokens: one type scale and three radius tiers. */
+.project-detail-page { font-size: var(--text-sm); }
+.project-detail-page .project-detail-head h1 { font: 600 var(--text-3xl)/1.2 var(--font-ui); letter-spacing: -.025em; }
+.project-detail-page .detail-section-head h2 { font-size: var(--text-xl); }
+.project-detail-page .detail-card-head h3 { font-size: var(--text-md); }
+.project-detail-page .quality-task-title h3 { font-size: var(--text-xl); }
+.project-detail-page .delivery-overview-main b { font-size: var(--text-xl); }
+.project-detail-page .overview-metrics > .overview-metric b { font-size: var(--text-2xl); }
+.project-detail-page .project-detail-head p:last-child { font-size: var(--text-sm); }
+.project-detail-page .detail-section-head span { font-size: var(--text-sm); }
+.project-detail-page .badge,
+.project-detail-page .coverage-badge,
+.project-detail-page .tab-count { font-size: var(--text-xs); }
+.project-detail-page .text-btn { font-size: var(--text-xs); }
+.project-detail-page .folder-visual > span { font-size: var(--text-2xl); }
+.project-detail-page .tab-icon { font-size: var(--text-xs); }
+.project-detail-page input,
+.project-detail-page select,
+.project-detail-page textarea,
+.project-detail-page option { font-size: var(--text-sm); }
+.project-detail-page .ai-detail-card > strong { font-size: var(--text-sm); }
+
+.project-detail-page .btn,
+.project-detail-page .tab,
+.project-detail-page .detail-card,
+.project-detail-page .list-item,
+.project-detail-page .list-row,
+.project-detail-page .overview-metric,
+.project-detail-page .delivery-overview-metric,
+.project-detail-page .quality-task-choice,
+.project-detail-page .traceability-table-wrap,
+.project-detail-page .traceability-table tbody tr.requirement-row,
+.project-detail-page .traceability-case,
+.project-detail-page .traceability-empty,
+.project-detail-page .project-detail-empty,
+.project-detail-page .overview-next-step,
+.project-detail-page .quality-linked-item,
+.project-detail-page .unlinked-testcases,
+.project-detail-page .project-overview-extra,
+.project-detail-page .project-detail-menu,
+.project-detail-page input,
+.project-detail-page select,
+.project-detail-page textarea,
+.project-detail-page .evidence-preview,
+.project-detail-page .folder-visual { border-radius: var(--radius-control); }
+.project-detail-page .badge,
+.project-detail-page .coverage-badge,
+.project-detail-page .tab-count,
+.project-detail-page .status-pill,
+.project-detail-page .project-quality-signal,
+.project-detail-page .stage-track,
+.project-detail-page .stage-track i,
+.project-detail-page .card-counter { border-radius: var(--radius-pill); }
+.project-detail-page .tab-icon,
+.project-detail-page .disclosure-mark,
+.project-detail-page .party-avatar { border-radius: var(--radius-chip); }
+
 @media (max-width: 767px) {
   body.project-detail-open #rail { width: 52px; flex-basis: 52px; padding: 10px 5px; }
   body.project-detail-open #rail::before { width: 30px; height: 30px; margin-bottom: 10px; }
