@@ -4,7 +4,7 @@
 
 ## 1. 当前发布基线
 
-当前 `master` 发布基线是 `v0.7.5`。该补丁版本接入 QA Skills 仓库目录、支持 DSH 原生对话图片附件，并改进会话恢复和工作台体验；对应事实记录见 [CHANGELOG.md](../../CHANGELOG.md)、0.7 设计规格和实现计划。npm、Git tag、GitHub Release 与宿主兼容性仍作为独立交付事实记录。
+当前发布基线是 `v0.7.6`。该补丁版本将项目详情改为完整工作区，加入项目级行动项和需求—用例追溯矩阵，并改善窄屏导航；对应事实记录见 [CHANGELOG.md](../../CHANGELOG.md) 和项目详情工作区设计与实施计划。npm、Git tag、GitHub Release 与宿主兼容性仍作为独立交付事实记录。
 
 下面这些事实不能混为一谈：
 
@@ -32,6 +32,8 @@
 
 `0.7.5` 作为 QA 工作台体验与 DSH 集成修订版发布：增加 QA Skills 仓库目录及安装状态管理、DSH 原生对话图片附件和会话恢复交互，并改进工作台布局与自动化覆盖。它不改变质量事实、执行边界或 provider 验收边界。
 
+`0.7.6` 作为项目详情工作区修订版发布：整合项目概况、需求—用例追溯、质量任务、缺陷风险、证据交付和动态排期，并改善窄屏导航与返回体验。它不改变质量事实、执行边界或 provider 验收边界。
+
 ## 2. 当前有效路线
 
 ```text
@@ -48,7 +50,10 @@ v0.4.1 Harness 0.1.6 Compatibility（历史基线）
 0.7.2 DSH history and Harness 0.2.0-rc.2 compatibility patch
         ↓
 0.7.3 In-app fullscreen workbench fallback and bilingual user guides
+        ↓
 0.7.5 QA Skills catalog, DSH chat attachments, and workbench refinements
+        ↓
+0.7.6 Project detail workspace
         ↓
 1.0.0 AI-Native QA Workbench
         ↓
@@ -73,6 +78,7 @@ Post-1.0：Quality Obligation、Evidence Graph、Adapter、Policy、Multi-Agent�
 | `0.7.2` | Released | DSH history and Harness 0.2.0-rc.2 compatibility | 如何在升级宿主后保留并展示同一项目空间中的历史 DSH 对话？ | 改变质量事实、执行边界或 quality-control 独立 bundle 宿主验收 |
 | `0.7.3` | Released | In-app fullscreen workbench fallback | 桌面端拦截新窗口时，如何继续打开工作台？ | 改变质量事实、执行边界或 provider 验收 |
 | `0.7.5` | Released | QA Skills catalog, DSH attachments, and workbench refinements | 如何联动 QA Skills 仓库并改善 DSH 对话与工作台体验？ | 改变质量事实、执行边界或 provider 验收 |
+| `0.7.6` | Released | Project detail workspace | 如何在同一项目工作区查看状态、需求覆盖、行动项和交付？ | 改变质量事实、执行边界或 provider 验收 |
 | `1.0.0` | Planned | AI-Native QA Workbench | 如何把 Panel、执行、智能分析和受控 Agent Loop 收束成可依赖主路径？ | 自动生产发布、无限权限自治 |
 
 ### 3.1 `0.4.1` 的验收边界

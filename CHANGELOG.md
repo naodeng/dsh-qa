@@ -1,6 +1,38 @@
 # Changelog
 
-## Unreleased
+## 0.7.6 - 2026-11-26
+
+## 中文
+
+### 新功能
+
+- 将项目详情改为完整项目工作区，集中呈现项目概况、需求与用例追溯、质量任务、缺陷与风险、证据与交付、动态与排期。
+- 在项目概况中加入项目级待处理事项和质量摘要，并提供可展开的需求—用例覆盖矩阵，查看验收要点、验证点及用例步骤。
+
+### 改进
+
+- 优化桌面和窄屏下的详情导航、展开与返回体验，并保留项目级执行和分析记录的访问入口。
+
+### 验证
+
+- `npm test`：264 个单元/API 测试和 132 个 Chromium E2E 测试通过。
+- `npm pack --dry-run` 与 `git diff --check`：通过。
+
+## English
+
+### Features
+
+- Rework project detail into a full workspace for project overview, requirement and test case traceability, quality tasks, defects and risks, evidence and delivery, and activity and scheduling.
+- Add project-scoped action items and quality summaries, plus an expandable requirement-to-test-case coverage matrix with acceptance criteria, validation points, and case steps.
+
+### Improvements
+
+- Improve project navigation, expansion, and return flows across desktop and narrow screens while keeping project-level execution and analysis records accessible.
+
+### Verification
+
+- `npm test`: 264 unit/API tests and 132 Chromium E2E tests passed.
+- `npm pack --dry-run` and `git diff --check` passed.
 
 ## 0.7.5 - 2026-11-11
 
