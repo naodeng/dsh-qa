@@ -67,7 +67,8 @@ test('质量任务按确认信号排序，选择后显示对应范围和风险',
   await expect(page.locator('#quality-task-detail')).toContainText('验签失败的支付回调必须拒绝处理');
   await expect(page.locator('#quality-task-detail')).toContainText('回调可能未验签');
   await expect(page.locator('#quality-task-detail')).toContainText('支付回调接口');
-  await expect(page.locator('#quality-task-detail')).toContainText('intake');
+  await expect(page.locator('#quality-task-detail [data-task-stage]')).toHaveAttribute('data-task-stage', 'intake');
+  await expect(page.locator('#quality-task-detail')).toContainText('信息收集');
 
   await taskChoices.nth(1).click();
   await expect(page.locator('#quality-task-detail [data-quality-task-id]')).toHaveAttribute('data-quality-task-id', attentionTask.id);

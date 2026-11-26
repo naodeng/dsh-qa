@@ -26,6 +26,23 @@ async function patchProjectResponse(page, projectId, update) {
   });
 }
 
+function parseColor(value) {
+  return value.match(/[\d.]+/g).slice(0, 3).map(Number);
+}
+
+function relativeLuminance(rgb) {
+  return rgb.map((channel) => {
+    const value = channel / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  }).reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
+}
+
+function contrastRatio(foreground, background) {
+  const first = relativeLuminance(parseColor(foreground));
+  const second = relativeLuminance(parseColor(background));
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+}
+
 test('quick preview opens the full workspace and return restores the board', async ({ page, request }) => {
   const project = await seededProject(request);
   await page.goto('/');
@@ -117,6 +134,28 @@ test('keeps project identity visible across workspace sections', async ({ page, 
   await expect(page.locator('#project-detail-project-title')).toHaveText(project.title);
 });
 
+test('keeps the header milestone link after a refresh on another section', async ({ page, request }) => {
+  const projectTitle = `头部刷新项目-${Date.now()}`;
+  const created = await request.post('/api/projects', { data: { title: projectTitle, createWorkspace: false } });
+  expect(created.ok()).toBe(true);
+  const { project } = await created.json();
+  const schedule = await request.post(`/api/projects/${project.id}/schedule`, { data: { type: 'milestone', title: '头部里程碑', date: '2099-03-01', kind: 'release' } });
+  expect(schedule.ok()).toBe(true);
+
+  await openProjectFromBoard(page, project);
+  const milestoneChip = page.locator('#overview-upcoming-milestone');
+  await expect(milestoneChip).toContainText('头部里程碑');
+  await page.locator('[data-detail-tab="traceability"]').click();
+
+  const nextKey = `HDR-${Date.now()}`;
+  const patched = await request.patch(`/api/projects/${project.id}`, { data: { projectKey: nextKey } });
+  expect(patched.ok()).toBe(true);
+  await expect(page.locator('#project-detail-meta [data-project-key]')).toHaveText(nextKey);
+  await expect(milestoneChip).toContainText('头部里程碑');
+  const chipClickable = await milestoneChip.evaluate((element) => Boolean(element.onclick));
+  expect(chipClickable).toBe(true);
+});
+
 test('failed project load offers retry and hides stale controls', async ({ page, request }) => {
   const first = (await (await request.post('/api/projects', { data: { title: `上一个项目-${Date.now()}`, createWorkspace: false } })).json()).project;
   const second = (await (await request.post('/api/projects', { data: { title: `加载失败项目-${Date.now()}`, createWorkspace: false } })).json()).project;
@@ -190,6 +229,17 @@ test('overview displays only project-scoped Action Queue items', async ({ page, 
     const monitoringIds = await monitoring.locator('[data-action-id]').evaluateAll((nodes) => nodes.map((node) => node.dataset.actionId));
     expect(monitoringIds).toEqual(runningItems.map((item) => item.id));
   }
+});
+
+test('project action items omit repeated project context and need-action status', async ({ page, request }) => {
+  const project = await seededProject(request);
+  await openProjectFromBoard(page, project);
+  const actionQueue = page.locator('#project-action-queue');
+  await expect(actionQueue).toHaveAttribute('data-load-state', 'ready');
+  await expect(actionQueue).not.toContainText(project.title);
+  const statuses = await actionQueue.locator('.attention-time').allTextContents();
+  expect(statuses).not.toContain('待处理');
+  await expect(actionQueue.locator('.attention-action').first()).toContainText('需要处理');
 });
 
 test('overview summarizes project signals and links to filtered source sections', async ({ page, request }) => {
@@ -280,6 +330,41 @@ test('overview summarizes project signals and links to filtered source sections'
   await expect(page.locator('#detail-delivery-gates [data-gate-id]')).toHaveCount(1);
   await expect(page.locator('#detail-delivery-gates [data-gate-id="human-pending"]')).toBeVisible();
   await expect(page.locator('#detail-delivery-gates [data-gate-id="computed-gate"]')).toHaveCount(0);
+});
+
+test('overview reflects the project-level gate verdict and quality signal', async ({ page, request }) => {
+  const projectTitle = `项目门禁投影-${Date.now()}`;
+  const created = await request.post('/api/projects', { data: { title: projectTitle, createWorkspace: false } });
+  expect(created.ok()).toBe(true);
+  const { project } = await created.json();
+  const taskCreated = await request.post(`/api/projects/${project.id}/quality-tasks`, { data: { title: '支付回调风险任务' } });
+  expect(taskCreated.ok()).toBe(true);
+  const { task } = await taskCreated.json();
+  const analysis = await request.post(`/api/projects/${project.id}/quality-tasks/${task.id}/manual-analyses`, { data: {
+    expectedRevision: task.version,
+    actorLabel: '测试负责人',
+    sourceDigests: [],
+    acceptanceCriteria: [{ id: 'gate-acceptance', condition: '验签失败的支付回调必须拒绝处理' }],
+    risks: [{ id: 'gate-risk', title: '回调可能未验签', severity: 'critical', assessmentStatus: 'confirmed', dispositionStatus: 'open' }],
+    testScope: [{ id: 'gate-scope', title: '支付回调接口' }],
+  } });
+  expect(analysis.ok()).toBe(true);
+
+  await openProjectFromBoard(page, project);
+  await expect(page.locator('.delivery-overview-main')).toContainText('项目级阻断');
+  await expect(page.locator('.delivery-overview-main')).toContainText('存在未关闭高风险');
+  await expect(page.locator('#overview-latest-quality-signal')).toContainText('BLOCK');
+});
+
+test('overview coverage rows open the matching requirement in the matrix', async ({ page, request }) => {
+  const project = await seededProject(request);
+  await openProjectFromBoard(page, project);
+  const coverageRow = page.locator('.overview-coverage-panel .coverage-mini').filter({ hasText: '订单创建（含幂等）' });
+  await coverageRow.click();
+  await expect(page.locator('[data-detail-tab="traceability"]')).toHaveClass(/active/);
+  const requirement = page.locator('.requirement-row').filter({ hasText: '订单创建（含幂等）' });
+  await expect(requirement.locator('[data-requirement-expand]')).toHaveAttribute('aria-expanded', 'true');
+  await expect(requirement).toBeInViewport();
 });
 
 test('defect details stay collapsed until expanded inline', async ({ page, request }) => {
@@ -502,6 +587,72 @@ test('expands linked cases from seeded requirements', async ({ page, request }) 
   await expect(linkedCase).toBeVisible();
   await expect(status).toHaveValue('reviewed');
   await status.selectOption('draft');
+});
+
+test('expanded requirement cases keep the full row width on desktop', async ({ page, request }) => {
+  const project = await seededProject(request);
+  await openProjectFromBoard(page, project);
+  await page.locator('[data-detail-tab="traceability"]').click();
+  const requirement = page.locator('#requirement-matrix .requirement-row').filter({ hasText: '订单创建（含幂等）' });
+  await requirement.locator('[data-requirement-expand]').click();
+  const details = page.locator('.requirement-detail-row:not([hidden])');
+
+  for (const width of [1440, 1280, 1024]) {
+    await page.setViewportSize({ width, height: 900 });
+    const sizes = await details.evaluate((row) => {
+      const tableWidth = row.closest('table').getBoundingClientRect().width;
+      const cellWidth = row.querySelector('td').getBoundingClientRect().width;
+      const cardWidth = row.querySelector('.traceability-case').getBoundingClientRect().width;
+      return { tableWidth, cellWidth, cardWidth };
+    });
+    expect(sizes.cellWidth).toBeGreaterThanOrEqual(sizes.tableWidth - 2);
+    expect(sizes.cardWidth).toBeGreaterThan(300);
+  }
+});
+
+test('overview stacks at tablet widths without clipping the coverage panel', async ({ page, request }) => {
+  const project = await seededProject(request);
+  await openProjectFromBoard(page, project);
+
+  for (const width of [1024, 820, 768]) {
+    await page.setViewportSize({ width, height: 900 });
+    const layout = await page.evaluate(() => {
+      const grid = document.querySelector('.overview-main-grid');
+      const metrics = document.querySelector('.overview-metrics');
+      const row = document.querySelector('.coverage-mini');
+      const title = document.querySelector('.overview-coverage-panel h3');
+      return {
+        columns: getComputedStyle(grid).gridTemplateColumns.split(' ').length,
+        metricColumns: getComputedStyle(metrics).gridTemplateColumns.split(' ').length,
+        clipped: row.scrollWidth > row.clientWidth,
+        titleWidth: title.getBoundingClientRect().width,
+        titleHeight: title.getBoundingClientRect().height,
+      };
+    });
+    expect(layout.columns).toBe(1);
+    expect(layout.metricColumns).toBe(2);
+    expect(layout.clipped).toBe(false);
+    expect(layout.titleWidth).toBeGreaterThan(120);
+    expect(layout.titleHeight).toBeLessThan(30);
+  }
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const desktop = await page.evaluate(() => ({
+    columns: getComputedStyle(document.querySelector('.overview-main-grid')).gridTemplateColumns.split(' ').length,
+    metricColumns: getComputedStyle(document.querySelector('.overview-metrics')).gridTemplateColumns.split(' ').length,
+  }));
+  expect(desktop).toEqual({ columns: 2, metricColumns: 4 });
+});
+
+test('dark theme keeps the project primary action readable', async ({ page, request }) => {
+  const project = await seededProject(request);
+  await page.addInitScript(() => localStorage.setItem('dsh-qa-theme', 'dark'));
+  await openProjectFromBoard(page, project);
+  const colors = await page.locator('#btn-project-detail-chat').evaluate((element) => ({
+    color: getComputedStyle(element).color,
+    background: getComputedStyle(element).backgroundColor,
+  }));
+  expect(contrastRatio(colors.color, colors.background)).toBeGreaterThanOrEqual(4.5);
 });
 
 test('keeps the project detail usable at 1440, 1024, 768, and 390 pixels', async ({ page, request }) => {
@@ -936,6 +1087,24 @@ test('mobile project identity and section navigation stay visible while scrollin
   await expect(page.locator('#project-detail-tabs [data-detail-tab="qualityTasks"]')).toHaveAttribute('aria-current', 'page');
 });
 
+test('switching workspace sections from a deep scroll returns to the section top', async ({ page, request }) => {
+  const project = await seededProject(request);
+  await patchProjectResponse(page, project.id, (p) => {
+    p.materials = Array.from({ length: 30 }, (_, index) => ({ id: `switch-material-${index}`, label: `切换材料 ${index + 1}`, type: 'spec', ts: `2026-11-${String(15 - (index % 14)).padStart(2, '0')}T12:00:00.000Z` }));
+    p.history = Array.from({ length: 20 }, (_, index) => ({ at: `2026-10-${String(20 - (index % 15)).padStart(2, '0')}T10:00:00.000Z`, to: 'design', by: 'owner' }));
+  });
+  await openProjectFromBoard(page, project);
+  await page.setViewportSize({ width: 390, height: 700 });
+  await page.locator('[data-detail-tab="activity"]').click();
+  const view = page.locator('#view-project-detail');
+  await view.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  await expect.poll(() => view.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+
+  await page.locator('[data-detail-tab="overview"]').click();
+  await expect.poll(() => view.evaluate((element) => element.scrollTop)).toBe(0);
+  await expect(page.locator('#project-detail-title')).toHaveText('项目概况');
+});
+
 test('project action navigation avoids smooth scrolling when reduced motion is enabled', async ({ page, request }) => {
   const project = await seededProject(request);
   await page.addInitScript(() => {
@@ -1169,6 +1338,14 @@ test('traceability and task metadata use the declared 14px text size', async ({ 
   await expect.poll(() => page.locator('.traceability-table td').first().evaluate((element) => getComputedStyle(element).fontSize)).toBe('14px');
   await page.locator('[data-detail-tab="qualityTasks"]').click();
   await expect.poll(() => page.locator('.quality-task-choice-meta').first().evaluate((element) => getComputedStyle(element).fontSize)).toBe('14px');
+});
+
+test('traceability hides the risk column when no requirement has risk or priority', async ({ page, request }) => {
+  const project = await seededProject(request);
+  await openProjectFromBoard(page, project);
+  await page.locator('[data-detail-tab="traceability"]').click();
+  await expect(page.locator('.traceability-table th')).toHaveCount(4);
+  await expect(page.locator('.traceability-table th').last()).toContainText('用例与状态');
 });
 
 test('Action Queue run and computed gate targets select their owning task and focus the exact record', async ({ page, request }) => {

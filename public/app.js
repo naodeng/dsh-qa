@@ -35,6 +35,12 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
   const ROLE_EN_LABEL = { owner: 'Owner', qa: 'QA', dev: 'Developer', pm: 'Product', other: 'Other' };
   const TC_STATUS_EN = { draft: 'Draft', reviewed: 'Reviewed', executed: 'Executed' };
   const SEVERITY_EN = { critical: 'Critical', high: 'High', major: 'Major', medium: 'Medium', minor: 'Minor', low: 'Low', trivial: 'Trivial' };
+  const TASK_STAGE_CN = { intake: '信息收集', confirmation: '待确认', review: '评审中' };
+  const TASK_STAGE_EN = { intake: 'Intake', confirmation: 'Confirmation', review: 'Review' };
+  const RISK_ASSESSMENT_CN = { confirmed: '已确认', candidate: '待确认', dismissed: '已驳回' };
+  const RISK_ASSESSMENT_EN = { confirmed: 'Confirmed', candidate: 'Candidate', dismissed: 'Dismissed' };
+  const RISK_DISPOSITION_CN = { open: '待处置', mitigated: '已缓解', accepted: '已接受', closed: '已关闭', dismissed: '已驳回' };
+  const RISK_DISPOSITION_EN = { open: 'Open', mitigated: 'Mitigated', accepted: 'Accepted', closed: 'Closed', dismissed: 'Dismissed' };
   const DEFECT_STATUS_EN = { open: 'Open', fixing: 'Fixing', verify: 'Ready to verify', closed: 'Closed' };
   const TYPE_EN = { web: 'Web app', app: 'Mobile app', api: 'API service', desktop: 'Desktop', embedded: 'Embedded', data: 'Data platform', other: 'Other' };
   const KIND_EN = { project: 'Test project', iteration: 'Iteration' };
@@ -69,7 +75,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     view: 'dashboard', columns: [], cards: new Map(), feed: [], schedule: [], reminders: [], actionQueue: [], actionQueueLoaded: false, actionQueueError: false, stats: {}, settings: {},
     boardScrollPositions: null,
     activeProjectId: null, activeProject: null, drawerProject: null, drawerProjectId: null, drawerRequestToken: 0, drawerPendingRequest: null, drawerTab: 'overview', detailProjectId: null, detailRequestToken: 0, detailProject: null, detailTab: 'overview', detailReturnView: 'board',
-    detailActionQueue: [], detailActionQueueLoaded: false, detailActionQueueError: false, detailActionExpanded: false,
+    detailActionQueue: [], detailActionQueueLoaded: false, detailActionQueueError: false, detailActionExpanded: false, detailProjectGate: null,
     detailDefectStatusFilter: 'all', detailDeliveryFocus: 'all',
     traceabilitySearch: '', traceabilityFilter: 'all', traceabilityExpandedRequirements: new Set(), traceabilityExpandedTestcases: new Set(),
     qualitySelectedTaskId: null, qualityTaskSelectionPinned: false,
@@ -376,6 +382,19 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     if (!column) return status || '';
     return currentLang() === 'en' ? column.titleEn || column.title : column.title;
   }
+  function qualityTaskStageLabel(stage) {
+    const value = stage || 'intake';
+    return enumLabel(TASK_STAGE_CN, TASK_STAGE_EN, value, value);
+  }
+  function riskSeverityLabel(severity) {
+    return severity ? enumLabel(SEVERITY_CN, SEVERITY_EN, severity, severity) : '';
+  }
+  function riskAssessmentLabel(status) {
+    return status ? enumLabel(RISK_ASSESSMENT_CN, RISK_ASSESSMENT_EN, status, status) : '';
+  }
+  function riskDispositionLabel(status) {
+    return status ? enumLabel(RISK_DISPOSITION_CN, RISK_DISPOSITION_EN, status, status) : '';
+  }
   function projectMaterialTypeLabel(type) {
     const labels = {
       doc: localizedText('文档', 'Document'), evidence: localizedText('证据', 'Evidence'), defect: localizedText('缺陷', 'Defect'),
@@ -509,6 +528,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       state.detailActionQueueLoaded = false;
       state.detailActionQueueError = false;
       state.detailActionExpanded = false;
+      state.detailProjectGate = null;
       state.detailDefectStatusFilter = 'all';
       state.detailDeliveryFocus = 'all';
       state.traceabilitySearch = '';
@@ -568,14 +588,15 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       ? t('action.reason.default')
       : t(`action.reason.${item.reasonCode}`, item.reasonArgs || {});
   }
-  function actionItemMarkup(item) {
+  function actionItemMarkup(item, { compact = false } = {}) {
     const severity = actionPriorityClass(item);
     const status = actionStatusLabel(item.status);
-    return `<button class="attention-item action-item ${severity}" data-action-id="${esc(item.id)}" type="button">
+    const showStatus = !compact || item.status === 'blocked' || item.status === 'in_progress';
+    return `<button class="attention-item action-item ${severity}${compact ? ' compact' : ''}" data-action-id="${esc(item.id)}" type="button">
       <span class="attention-mark">${tinyIcon(item.kind.startsWith('gate_') ? 'gate' : item.kind.startsWith('milestone_') ? 'milestone' : 'workflow')}</span>
-      <div class="action-copy"><div class="attention-title">${esc(actionTitle(item))}</div><div class="attention-meta">${esc(item.projectTitle)} · ${esc(actionReason(item))}</div></div>
+      <div class="action-copy"><div class="attention-title">${esc(actionTitle(item))}</div><div class="attention-meta">${compact ? '' : `${esc(item.projectTitle)} · `}${esc(actionReason(item))}</div></div>
       <span class="attention-action">${item.actionRequired ? esc(t('action.needsAction')) : esc(t('action.monitoring'))}</span>
-      <span class="attention-time">${esc(status)}</span>
+      ${showStatus ? `<span class="attention-time">${esc(status)}</span>` : ''}
     </button>`;
   }
   function qualityTaskIdForRun(project, runId) {
@@ -671,7 +692,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       : '';
     const content = state.actionQueueError && !items.length
       ? emptyHtml(t('action.queueUnavailable'))
-      : items.length ? items.map(actionItemMarkup).join('') : emptyHtml(t('action.empty'));
+      : items.length ? items.map((item) => actionItemMarkup(item)).join('') : emptyHtml(t('action.empty'));
     list.innerHTML = `${errorNotice}${content}`;
     $$('.action-item', list).forEach((el) => el.addEventListener('click', () => openActionItem(state.actionQueue.find((item) => item.id === el.dataset.actionId))));
     const alertCount = state.actionQueue.filter((item) => item.actionRequired).length;
@@ -1918,14 +1939,17 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     meta.textContent = '';
     $('#project-nav-key').textContent = '';
     $('#project-detail-status').textContent = '';
-    $('#overview-latest-quality-signal').textContent = '';
+    const headerQualitySignal = $('#overview-latest-quality-signal');
+    headerQualitySignal.textContent = '';
+    headerQualitySignal.onclick = null;
+    delete headerQualitySignal.dataset.overviewTarget;
+    delete headerQualitySignal.dataset.overviewScrollTarget;
     sectionTitle.textContent = '';
     sectionSubtitle.textContent = '';
     if (status === 'loading') {
       const card = state.cards.get(id);
       title.textContent = card?.title || t('detail.loadingProject');
       $('#project-nav-title').textContent = title.textContent;
-      $('#project-detail-crumb-title').textContent = title.textContent;
       $('#project-detail-meta').textContent = '';
       const metaItems = [
         card?.projectKey || t('detail.projectKeyUnknown'),
@@ -1941,7 +1965,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     body.setAttribute('aria-busy', 'false');
     title.textContent = t('detail.projectLoadFailed');
     $('#project-nav-title').textContent = t('detail.projectLoadFailed');
-    $('#project-detail-crumb-title').textContent = t('detail.projectLoadFailed');
+    state.detailProjectGate = null;
     body.innerHTML = `<section id="detail-load-error" class="detail-load-state" role="alert"><p>${esc(error?.message || t('detail.projectLoadFailed'))}</p><div><button class="btn primary sm" id="detail-load-retry" type="button">${esc(t('detail.retry'))}</button><button class="btn sm" id="detail-load-return" type="button">${esc(t('detail.backToProjects'))}</button></div></section>`;
     $('#detail-load-retry', body).addEventListener('click', () => {
       renderProjectDetailLoadState('loading', id);
@@ -1957,7 +1981,6 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       state.detailProject = p;
       updateProjectDetailBackLabel();
       $('#project-detail-project-title').textContent = p.title || t('detail.title');
-      $('#project-detail-crumb-title').textContent = p.title || t('detail.title');
       $('#project-nav-title').textContent = p.title || t('detail.title');
       $('#btn-project-detail-chat').disabled = false;
       $('#btn-project-detail-folder').disabled = false;
@@ -1976,8 +1999,10 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       const stageIndex = Math.max(0, state.columns.findIndex((column) => column.id === p.status));
       const stagePercent = state.columns.length > 1 ? Math.round(stageIndex / (state.columns.length - 1) * 100) : 0;
       $('#project-detail-summary').innerHTML = `<div class="sidebar-stage"><div><span>${currentLang() === 'en' ? 'Project stage' : '项目阶段'}</span><b>${esc(stageTitle)}</b></div><div class="stage-track"><i style="width:${stagePercent}%"></i></div><small>${stageIndex + 1} / ${state.columns.length} ${currentLang() === 'en' ? 'stages' : '阶段'}</small></div><div class="sidebar-facts"><div><span>${currentLang() === 'en' ? 'Last updated' : '最近更新'}</span><b>${esc(fmtTime(p.updatedAt || p.createdAt))}</b></div><div><span>${currentLang() === 'en' ? 'Owner' : '负责人'}</span><b>${esc(p.owner || t('detail.valueNotSet'))}</b></div></div>`;
+      renderProjectDetailHeaderLinks(p);
       renderProjectDetailTabs();
       renderProjectDetailTab(state.detailTab);
+      refreshProjectGate(id, requestToken).catch(() => {});
       await refreshProjectActionQueue(id, requestToken);
     } catch (error) {
       if (requestToken !== state.detailRequestToken || state.view !== 'project-detail' || state.detailProjectId !== id) return;
@@ -2006,6 +2031,50 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       renderProjectDetailTab('qualityTasks');
     }
   }
+  async function refreshProjectGate(id, requestToken = state.detailRequestToken) {
+    const isCurrentRequest = () => requestToken === state.detailRequestToken
+      && state.view === 'project-detail'
+      && state.detailProjectId === id;
+    try {
+      const payload = await api(`api/projects/${id}/quality-gate`);
+      if (!isCurrentRequest()) return;
+      state.detailProjectGate = payload?.gate || null;
+    } catch {
+      if (!isCurrentRequest()) return;
+      state.detailProjectGate = null;
+    }
+    if (!isCurrentRequest() || !state.detailProject) return;
+    renderProjectDetailHeaderLinks(state.detailProject);
+    if (state.detailTab === 'overview') renderOverviewGateMetric();
+  }
+  function projectGateMetric(p) {
+    const pendingGateCount = (p.gates || []).filter((item) => item.kind !== 'computed' && item.status === 'pending').length;
+    const latestComputedGate = (p.gates || []).filter((item) => item.kind === 'computed' && item.verdict).at(-1);
+    const projectGate = state.detailProjectGate;
+    const projectGateValue = projectGate?.status === 'blocked'
+      ? localizedText('项目级阻断', 'Blocked')
+      : projectGate?.status === 'passed' ? localizedText('项目级通过', 'Passed') : '';
+    const value = pendingGateCount
+      ? `${pendingGateCount} ${localizedText('项待审批', 'pending')}`
+      : projectGateValue || latestComputedGate?.verdict || localizedText('待最终评估', 'Awaiting evaluation');
+    const note = projectGate?.status === 'blocked' && projectGate.blockers?.length
+      ? projectGate.blockers.join(localizedText('、', ', '))
+      : projectGate?.status === 'passed'
+        ? localizedText('项目级检查通过', 'Project checks passed')
+        : latestComputedGate?.verdict
+          ? `${localizedText('最近结论', 'Latest verdict')}: ${latestComputedGate.verdict}`
+          : localizedText('负责人审批与质量结论', 'Owner approval and quality verdict');
+    return { value, note };
+  }
+  function renderOverviewGateMetric() {
+    const metric = $('.delivery-overview-main', $('#project-detail-body'));
+    if (!metric || !state.detailProject) return;
+    const { value, note } = projectGateMetric(state.detailProject);
+    const valueNode = $('b', metric);
+    const noteNode = $('em', metric);
+    if (valueNode) valueNode.textContent = value;
+    if (noteNode) noteNode.textContent = note;
+  }
   function renderProjectDetailTabs() {
     const p = state.detailProject;
     const tabs = $('#project-detail-tabs');
@@ -2033,6 +2102,8 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     }
     $$('[data-detail-tab]', $('#project-detail-tabs')).forEach((tab) => tab.addEventListener('click', () => {
       const restoreFocus = document.activeElement === tab;
+      const detailView = $('#view-project-detail');
+      if (detailView) detailView.scrollTop = 0;
       state.detailTab = tab.dataset.detailTab;
       if (state.detailTab === 'defectsRisks') state.detailDefectStatusFilter = 'all';
       if (state.detailTab === 'delivery') state.detailDeliveryFocus = 'all';
@@ -2089,13 +2160,34 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     const emptyMessage = state.detailActionQueueError ? t('detail.actionQueue.staleEmpty') : t('detail.actionQueue.empty');
     section.innerHTML = `<div class="detail-card-head"><div><h3 id="project-action-queue-title">${localizedText('建议下一步', 'Suggested next step')}</h3><p>${localizedText('根据当前项目状态，优先处理最需要关注的一项。', 'Start with the item that needs attention most.')}</p></div>${items.length ? `<span class="card-counter">${items.length}</span>` : ''}</div>
       ${state.detailActionQueueError ? `<div class="action-queue-error" role="alert">${esc(t('detail.actionQueue.stale'))} <button class="btn sm" type="button" data-action-queue-retry>${esc(t('detail.actionQueue.retry'))}</button></div>` : ''}
-      ${suggestion ? `<div class="overview-next-step"><span class="overview-next-step-label">${localizedText('优先处理', 'Priority')}</span>${actionItemMarkup(suggestion)}</div>` : `<div class="detail-action-empty">${esc(emptyMessage)}</div>`}
-      ${otherActions.length ? `<div class="overview-other-actions"><h4>${localizedText('其他待处理事项', 'Other open actions')} <span>${otherActions.length}</span></h4><div class="detail-action-list">${otherActions.map(actionItemMarkup).join('')}</div></div>` : ''}
-      ${restItems.length ? `<details class="overview-other-actions overview-more-actions"><summary>${localizedText('其余待处理事项', 'More open actions')} <span>${restItems.length}</span></summary><div class="detail-action-list">${restItems.map(actionItemMarkup).join('')}</div></details><button class="btn sm detail-action-expand" type="button" data-action-expand>${esc(t('detail.actionQueue.showAll', { n: items.length }))}</button>` : ''}
-      ${monitoring.length ? `<div id="project-action-monitoring" class="detail-action-monitoring"><h4>${esc(t('detail.actionQueue.monitoring'))}</h4>${monitoring.map(actionItemMarkup).join('')}</div>` : ''}`;
+      ${suggestion ? `<div class="overview-next-step"><span class="overview-next-step-label">${localizedText('优先处理', 'Priority')}</span>${actionItemMarkup(suggestion, { compact: true })}</div>` : `<div class="detail-action-empty">${esc(emptyMessage)}</div>`}
+      ${otherActions.length ? `<div class="overview-other-actions"><h4>${localizedText('其他待处理事项', 'Other open actions')} <span>${otherActions.length}</span></h4><div class="detail-action-list">${otherActions.map((item) => actionItemMarkup(item, { compact: true })).join('')}</div></div>` : ''}
+      ${restItems.length ? `<details class="overview-other-actions overview-more-actions"><summary>${localizedText('其余待处理事项', 'More open actions')} <span>${restItems.length}</span></summary><div class="detail-action-list">${restItems.map((item) => actionItemMarkup(item, { compact: true })).join('')}</div></details><button class="btn sm detail-action-expand" type="button" data-action-expand>${esc(t('detail.actionQueue.showAll', { n: items.length }))}</button>` : ''}
+      ${monitoring.length ? `<div id="project-action-monitoring" class="detail-action-monitoring"><h4>${esc(t('detail.actionQueue.monitoring'))}</h4>${monitoring.map((item) => actionItemMarkup(item, { compact: true })).join('')}</div>` : ''}`;
     $$('.action-item', section).forEach((button) => button.addEventListener('click', () => openActionItem(state.detailActionQueue.find((item) => item.id === button.dataset.actionId))));
     $('[data-action-queue-retry]', section)?.addEventListener('click', retry);
     $('[data-action-expand]', section)?.addEventListener('click', () => { state.detailActionExpanded = true; renderProjectActionQueue(); });
+  }
+  function renderProjectDetailHeaderLinks(p) {
+    const qualitySignal = $('#overview-latest-quality-signal');
+    if (!qualitySignal) return;
+    const latestSignal = projectQualitySignal(p, state.detailProjectGate);
+    const isGateSignal = latestSignal?.kind === 'gate' || latestSignal?.kind === 'project-gate';
+    const latestSignalTarget = isGateSignal ? 'delivery' : 'qualityTasks';
+    qualitySignal.innerHTML = latestSignal
+      ? `<i aria-hidden="true"></i>${isGateSignal ? localizedText('质量门禁', 'Quality gate') : localizedText('最近测试运行', 'Latest test run')} · <span data-user-content>${esc(latestSignal.value)}</span>`
+      : `<i aria-hidden="true"></i>${localizedText('暂无质量信号', 'No quality signal')}`;
+    qualitySignal.dataset.overviewTarget = latestSignalTarget;
+    qualitySignal.dataset.overviewScrollTarget = isGateSignal ? '#quality-gate-summary' : '#project-run-summary';
+    qualitySignal.onclick = () => navigateProjectDetail(latestSignalTarget, { scrollTarget: qualitySignal.dataset.overviewScrollTarget });
+    const milestoneLink = $('#overview-upcoming-milestone');
+    if (!milestoneLink) return;
+    const nearestMilestone = (p.milestones || []).filter((item) => !item.done)
+      .sort((left, right) => String(left.dueDate || '').localeCompare(String(right.dueDate || '')))[0];
+    milestoneLink.innerHTML = nearestMilestone
+      ? `${localizedText('临近里程碑', 'Next milestone')}：<span data-user-content>${esc(nearestMilestone.title)}</span>${nearestMilestone.dueDate ? ` · <span data-user-content>${esc(nearestMilestone.dueDate)}</span>` : ''}`
+      : localizedText('暂无临近里程碑', 'No upcoming milestone');
+    milestoneLink.onclick = () => navigateProjectDetail('activity', { scrollTarget: '#detail-activity-schedule' });
   }
   function evidenceStatusLabel(bundle) {
     if (bundle?.state === 'integrity-failed' || bundle?.integrity === 'failed') return localizedText('完整性失败', 'Integrity failed');
@@ -2114,7 +2206,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
         const mimeType = (item.mimeType || 'application/octet-stream').split(';')[0];
         const previewable = ['text/plain', 'image/png', 'image/jpeg'].includes(mimeType);
         const preview = item.type === 'screenshot' ? `<img class="evidence-preview" src="${href}" alt="${localizedText('失败步骤截图', 'Failure step screenshot')}" loading="lazy">` : '';
-        return `<div class="evidence-item" data-evidence-item-id="${esc(item.id)}">${preview}<a class="btn sm" href="${href}"${previewable ? '' : ' download'}><span>${localizedText(previewable ? '打开' : '下载', previewable ? 'Open' : 'Download')} ${esc(item.relativePath || item.id)} · ${esc(item.mimeType || 'application/octet-stream')}</span></a></div>`;
+        return `<div class="evidence-item" data-evidence-item-id="${esc(item.id)}">${preview}<a class="btn sm" href="${href}"${previewable ? ' target="_blank" rel="noopener"' : ' download'}><span>${localizedText(previewable ? '打开' : '下载', previewable ? 'Open' : 'Download')} ${esc(item.relativePath || item.id)} · ${esc(item.mimeType || 'application/octet-stream')}</span></a></div>`;
       }).join('') : '';
       return `<article class="list-item delivery-evidence-bundle" data-evidence-bundle-id="${esc(bundle.id)}"><div class="li-title">${esc(bundle.id)} <span class="badge ${verified ? 'verified' : bundle.state === 'integrity-failed' ? 'danger' : 'warn'}">${esc(stateLabel(bundle))}</span></div><div class="li-meta">${bundle.testRunId ? `${localizedText('测试运行', 'Test run')}：${esc(bundle.testRunId)}` : localizedText('未关联测试运行', 'No linked test run')}${bundle.qualityTaskId ? ` · ${localizedText('质量任务', 'Quality task')}：${esc((p.qualityTasks || []).find((task) => task.id === bundle.qualityTaskId)?.title || bundle.qualityTaskId)}` : ''}</div><div class="delivery-evidence-items">${items || `<p class="li-sub">${verified ? localizedText('此证据包没有可下载项目。', 'This bundle has no downloadable items.') : localizedText('当前状态下不提供下载。', 'Downloads are unavailable in this state.')}</p>`}</div></article>`;
     }).join('') : projectDetailEmptyHtml(verifiedOnly ? t('detail.delivery.verifiedEmpty') : localizedText('暂无证据包。', 'No evidence bundles.'));
@@ -2161,12 +2253,14 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       && state.detailTab === 'delivery'
       && $('#delivery-quality-task', body)?.value === selectedTaskId;
     if (!state.qualitySelectedTaskId && selectedTask) state.qualitySelectedTaskId = selectedTask.id;
-    const options = tasks.map((task) => `<option value="${esc(task.id)}" ${task.id === selectedTask?.id ? 'selected' : ''}>${esc(task.title)} · ${esc(task.stage || 'intake')}</option>`).join('');
+    const options = tasks.map((task) => `<option value="${esc(task.id)}" ${task.id === selectedTask?.id ? 'selected' : ''}>${esc(task.title)} · ${esc(qualityTaskStageLabel(task.stage))}</option>`).join('');
     const computedGates = (p.gates || []).filter((gate) => gate.kind === 'computed' && gate.qualityTaskId === selectedTask?.id);
     const latestGate = computedGates.at(-1);
+    const hasWaivableCheck = Boolean(latestGate?.checks?.some((check) => check.status === 'failed' && check.waivable));
+    const hasEvidenceBundles = Boolean((p.evidenceBundles || []).length);
     const reportText = latestGate ? `${esc(latestGate.verdict)} · ${(latestGate.checks || []).map((check) => esc(check.explanation)).join('；')}` : localizedText('评估后可查看可追溯交付依据。', 'Evaluate to view traceable delivery evidence.');
     const trendText = computedGates.length ? computedGates.map((gate) => esc(gate.verdict)).join(' → ') : localizedText('暂无门禁趋势。', 'No gate trend yet.');
-    body.innerHTML = `<div class="project-workspace-stack"><section class="detail-card delivery-gate-summary" id="quality-gate-summary"><div class="detail-card-head"><div><h3>${localizedText('质量门禁', 'Quality gate')}</h3><p class="field-note">${localizedText('选择质量任务，查看评估结果并记录负责人决策。', 'Select a quality task to review its gate result and record an owner decision.')}</p></div><span class="badge" id="quality-gate-status">${localizedText('正在检查', 'Checking')}</span></div><div class="delivery-gate-controls"><label for="delivery-quality-task">${localizedText('质量任务', 'Quality task')}</label><select id="delivery-quality-task" ${tasks.length ? '' : 'disabled'}>${options || `<option value="">${localizedText('暂无质量任务', 'No quality tasks')}</option>`}</select><button class="btn primary sm" id="gate-evaluate" type="button" ${selectedTask ? '' : 'disabled'}>${localizedText('评估质量门禁', 'Evaluate quality gate')}</button><button class="btn sm" id="gate-exception" type="button" ${selectedTask ? '' : 'disabled'}>${localizedText('添加门禁例外', 'Add gate exception')}</button></div><div class="delivery-gate-result"><div><b>${localizedText('交付报告', 'Delivery report')}</b><p class="li-sub" id="gate-report">${reportText}</p></div><div><b>${localizedText('门禁趋势', 'Gate trends')}</b><p class="li-sub" id="gate-trend">${trendText}</p></div></div></section><section class="project-workspace-group"><div class="project-workspace-group-head"><h3>${esc(t('detail.delivery.gates'))}</h3></div><div id="detail-delivery-gates"></div></section><section class="project-workspace-group"><div class="project-workspace-group-head"><h3>${esc(t('detail.delivery.reports'))}</h3></div><div id="detail-delivery-reports"></div></section><section class="detail-card delivery-evidence" id="detail-delivery-evidence"><div class="detail-card-head"><div><h3>${localizedText('质量证据', 'Quality evidence')}</h3><p class="field-note">${localizedText('仅展示通过完整性校验的可打开或下载产物。', 'Only artifacts that pass integrity checks can be opened or downloaded.')}</p></div><button class="btn sm" id="cleanup-add" type="button">${localizedText('清理过期证据', 'Clean expired evidence')}</button></div><div class="list" id="delivery-evidence-list"></div></section></div>`;
+    body.innerHTML = `<div class="project-workspace-stack"><section class="detail-card delivery-gate-summary" id="quality-gate-summary"><div class="detail-card-head"><div><h3>${localizedText('质量门禁', 'Quality gate')}</h3><p class="field-note">${localizedText('选择质量任务，查看评估结果并记录负责人决策。', 'Select a quality task to review its gate result and record an owner decision.')}</p></div><span class="badge" id="quality-gate-status">${localizedText('正在检查', 'Checking')}</span></div><div class="delivery-gate-controls"><label for="delivery-quality-task">${localizedText('质量任务', 'Quality task')}</label><select id="delivery-quality-task" ${tasks.length ? '' : 'disabled'}>${options || `<option value="">${localizedText('暂无质量任务', 'No quality tasks')}</option>`}</select><button class="btn primary sm" id="gate-evaluate" type="button" ${selectedTask ? '' : 'disabled'}>${localizedText('评估质量门禁', 'Evaluate quality gate')}</button><button class="btn sm" id="gate-exception" type="button" ${selectedTask && hasWaivableCheck ? '' : 'disabled'} title="${selectedTask && hasWaivableCheck ? '' : esc(localizedText('请先评估质量门禁，且存在可豁免的检查项', 'Evaluate the gate first; an exception needs a failed waivable check'))}">${localizedText('添加门禁例外', 'Add gate exception')}</button></div><div class="delivery-gate-result"><div><b>${localizedText('交付报告', 'Delivery report')}</b><p class="li-sub" id="gate-report">${reportText}</p></div><div><b>${localizedText('门禁趋势', 'Gate trends')}</b><p class="li-sub" id="gate-trend">${trendText}</p></div></div></section><section class="project-workspace-group"><div class="project-workspace-group-head"><h3>${esc(t('detail.delivery.gates'))}</h3></div><div id="detail-delivery-gates"></div></section><section class="project-workspace-group"><div class="project-workspace-group-head"><h3>${esc(t('detail.delivery.reports'))}</h3></div><div id="detail-delivery-reports"></div></section><section class="detail-card delivery-evidence" id="detail-delivery-evidence"><div class="detail-card-head"><div><h3>${localizedText('质量证据', 'Quality evidence')}</h3><p class="field-note">${localizedText('仅展示通过完整性校验的可打开或下载产物。', 'Only artifacts that pass integrity checks can be opened or downloaded.')}</p></div>${hasEvidenceBundles ? `<button class="btn sm" id="cleanup-add" type="button">${localizedText('清理过期证据', 'Clean expired evidence')}</button>` : ''}</div><div class="list" id="delivery-evidence-list"></div></section></div>`;
     $('.delivery-gate-summary h3', body).textContent = localizedText('项目级质量门禁', 'Project-wide quality gate');
     $('.delivery-gate-summary .field-note', body).textContent = localizedText('此处结论综合当前项目数据，不代表所选质量任务的单独评估。', 'This result summarizes project-wide data; it is separate from the selected task assessment.');
     $$('.delivery-gate-result > div > b', body)[0].textContent = localizedText('任务级交付报告', 'Task-level delivery report');
@@ -2305,7 +2399,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     const renderItems = (items, empty) => items?.length ? `<ul class="quality-detail-list">${items.map((item) => `<li data-user-content>${esc(itemText(item))}</li>`).join('')}</ul>` : `<div class="li-sub">${empty}</div>`;
     const originText = (task) => task.analysisOrigin === 'agent' ? localizedText('DSH 分析', 'DSH analysis') : localizedText('人工录入', 'Manual');
     const taskDetailMarkup = selectedTask ? (() => {
-      const riskItems = (selectedTask.risks || []).map((risk) => ({ ...risk, title: [risk.title || risk.description || risk.reason || localizedText('未命名风险', 'Untitled risk'), risk.severity, risk.assessmentStatus, risk.dispositionStatus].filter(Boolean).join(' · ') }));
+      const riskItems = (selectedTask.risks || []).map((risk) => ({ ...risk, title: [risk.title || risk.description || risk.reason || localizedText('未命名风险', 'Untitled risk'), riskSeverityLabel(risk.severity), riskAssessmentLabel(risk.assessmentStatus), riskDispositionLabel(risk.dispositionStatus)].filter(Boolean).join(' · ') }));
       const sourceItems = (selectedTask.sources || []).map((source) => ({ title: [source.type, source.ref, source.digest ? `${source.digest.slice(0, 12)}…` : '', source.byteSize === undefined ? '' : `${source.byteSize} B`].filter(Boolean).join(' · ') }));
       const plansMarkup = taskPlans.length ? taskPlans.map((plan) => {
         const names = (plan.testcaseIds || []).map((id) => (p.testcases || []).find((testcase) => testcase.id === id)?.title).filter(Boolean);
@@ -2315,7 +2409,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       const evidenceMarkup = taskEvidence.length ? taskEvidence.map((bundle) => `<article class="quality-linked-item" data-quality-evidence-id="${esc(bundle.id)}"><b>${esc(bundle.id)} · ${esc(evidenceState(bundle))}</b><span>${esc(bundle.testRunId || localizedText('未关联运行', 'No linked run'))}</span></article>`).join('') : `<div class="li-sub">${localizedText('暂无关联证据包', 'No linked evidence bundles')}</div>`;
       const analysesMarkup = taskAnalyses.length ? taskAnalyses.map((item) => `<article class="quality-linked-item"><b>${esc(item.summary || item.id)} · ${esc(item.status || 'proposed')}</b><span>${esc(item.failureStep || item.testRunId || '')}</span></article>`).join('') : `<div class="li-sub">${localizedText('暂无关联故障分析', 'No linked failure analyses')}</div>`;
       const regressionMarkup = taskRegressions.length ? taskRegressions.map((set) => `<article class="quality-linked-item"><b>${esc(set.name || set.id)} · ${esc(set.status || 'manual')}</b><span>${(set.cases?.length || set.testCaseIds?.length || 0)} ${localizedText('个用例', 'cases')}</span></article>`).join('') : `<div class="li-sub">${localizedText('暂无关联回归集', 'No linked regression sets')}</div>`;
-      return `<article class="list-item quality-task-card quality-task-selected" data-quality-task-id="${esc(selectedTask.id)}"><div class="quality-task-title"><h3 data-user-content>${esc(selectedTask.title)}</h3><span class="badge">v${selectedTask.version || 1}</span></div><div class="li-meta"><span>${localizedText('阶段', 'Stage')}：<b data-user-content>${esc(selectedTask.stage || 'intake')}</b></span><span>${localizedText('结果来源', 'Origin')}：<b>${originText(selectedTask)}</b></span>${selectedTask.updatedAt ? `<span>${localizedText('最近更新', 'Updated')}：${esc(fmtTime(selectedTask.updatedAt))}</span>` : ''}</div><div class="quality-task-fields"><section><h4>${t('detail.task.acceptance')}</h4>${renderItems(selectedTask.acceptanceCriteria, localizedText('暂无验收标准', 'No acceptance criteria'))}</section><section><h4>${t('detail.task.risks')}</h4>${renderItems(riskItems, localizedText('暂无已记录风险', 'No recorded risks'))}</section><section><h4>${t('detail.task.scope')}</h4>${renderItems(selectedTask.testScope, localizedText('暂无测试范围', 'No test scope recorded'))}</section><section><h4>${t('detail.task.sources')}</h4>${renderItems(sourceItems, localizedText('暂无已采集来源', 'No captured sources'))}</section><section class="span-2"><h4>${t('detail.task.decisions')}</h4>${renderItems(selectedTask.decisions, localizedText('暂无分析决策', 'No analysis decisions'))}</section></div><div class="quality-linked-records"><section><h4>${t('detail.task.plans')}</h4><div class="quality-linked-list">${plansMarkup}</div></section><section><h4>${t('detail.task.runs')}</h4><div class="quality-linked-list">${runsMarkup}</div></section><section><h4>${t('detail.task.evidence')}</h4><div class="quality-linked-list">${evidenceMarkup}</div></section><section><h4>${localizedText('故障分析', 'Failure analyses')}</h4><div class="quality-linked-list">${analysesMarkup}</div></section><section><h4>${localizedText('关联回归集', 'Linked regression sets')}</h4><div class="quality-linked-list">${regressionMarkup}</div></section></div></article>`;
+      return `<article class="list-item quality-task-card quality-task-selected" data-quality-task-id="${esc(selectedTask.id)}"><div class="quality-task-title"><h3 data-user-content>${esc(selectedTask.title)}</h3><span class="badge">v${selectedTask.version || 1}</span></div><div class="li-meta"><span>${localizedText('阶段', 'Stage')}：<b data-user-content data-task-stage="${esc(selectedTask.stage || 'intake')}">${esc(qualityTaskStageLabel(selectedTask.stage))}</b></span><span>${localizedText('结果来源', 'Origin')}：<b>${originText(selectedTask)}</b></span>${selectedTask.updatedAt ? `<span>${localizedText('最近更新', 'Updated')}：${esc(fmtTime(selectedTask.updatedAt))}</span>` : ''}</div><div class="quality-task-fields"><section><h4>${t('detail.task.acceptance')}</h4>${renderItems(selectedTask.acceptanceCriteria, localizedText('暂无验收标准', 'No acceptance criteria'))}</section><section><h4>${t('detail.task.risks')}</h4>${renderItems(riskItems, localizedText('暂无已记录风险', 'No recorded risks'))}</section><section><h4>${t('detail.task.scope')}</h4>${renderItems(selectedTask.testScope, localizedText('暂无测试范围', 'No test scope recorded'))}</section><section><h4>${t('detail.task.sources')}</h4>${renderItems(sourceItems, localizedText('暂无已采集来源', 'No captured sources'))}</section><section class="span-2"><h4>${t('detail.task.decisions')}</h4>${renderItems(selectedTask.decisions, localizedText('暂无分析决策', 'No analysis decisions'))}</section></div><div class="quality-linked-records"><section><h4>${t('detail.task.plans')}</h4><div class="quality-linked-list">${plansMarkup}</div></section><section><h4>${t('detail.task.runs')}</h4><div class="quality-linked-list">${runsMarkup}</div></section><section><h4>${t('detail.task.evidence')}</h4><div class="quality-linked-list">${evidenceMarkup}</div></section><section><h4>${localizedText('故障分析', 'Failure analyses')}</h4><div class="quality-linked-list">${analysesMarkup}</div></section><section><h4>${localizedText('关联回归集', 'Linked regression sets')}</h4><div class="quality-linked-list">${regressionMarkup}</div></section></div></article>`;
     })() : `<article class="detail-card quality-task-empty"><h3>${t('detail.task.empty')}</h3><p>${t('detail.task.selectEmpty')}</p><button class="btn sm" type="button" data-open-project-dsh>${esc(t('detail.empty.continueInDsh'))}</button></article>`;
     const taskListMarkup = sortedTasks.length ? sortedTasks.map((task) => {
       const needsConfirmation = confirmationTaskIds.has(task.id);
@@ -2332,7 +2426,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       const riskMarkup = primaryRisk
         ? `<span class="quality-task-choice-risk"><span class="badge ${['critical', 'high', 'major'].includes(primaryRisk.severity) ? 'danger' : 'warn'}">${esc(riskSeverity)}</span><span data-user-content>${esc(riskTitle)}</span>${activeRisks.length > 1 ? `<small>${esc(localizedText(`另有 ${activeRisks.length - 1} 项`, `+${activeRisks.length - 1} more`))}</small>` : ''}</span>`
         : `<span class="quality-task-choice-risk is-empty">${esc(localizedText('暂无待处置风险', 'No open risks'))}</span>`;
-      return `<button class="quality-task-choice${selected ? ' selected' : ''}" type="button" data-quality-task-select="${esc(task.id)}" aria-pressed="${selected}"><span class="quality-task-choice-title" data-user-content>${esc(task.title)}</span><span class="quality-task-choice-meta"><span data-user-content>${esc(task.stage || 'intake')}</span><span>${esc(fmtTime(task.updatedAt || task.createdAt))}</span></span>${riskMarkup}${needsConfirmation ? `<span class="badge warn">${t('detail.task.needsConfirmation')}</span>` : ''}</button>`;
+      return `<button class="quality-task-choice${selected ? ' selected' : ''}" type="button" data-quality-task-select="${esc(task.id)}" aria-pressed="${selected}"><span class="quality-task-choice-title" data-user-content>${esc(task.title)}</span><span class="quality-task-choice-meta"><span data-user-content>${esc(qualityTaskStageLabel(task.stage))}</span><span>${esc(fmtTime(task.updatedAt || task.createdAt))}</span></span>${riskMarkup}${needsConfirmation ? `<span class="badge warn">${t('detail.task.needsConfirmation')}</span>` : ''}</button>`;
     }).join('') : `<div class="quality-task-list-empty">${projectDetailEmptyHtml(t('detail.task.empty'))}</div>`;
     const projectRecords = [
       ...projectRuns.map((run) => `<div class="list-item">${esc(`${localizedText('测试运行', 'Test run')} · ${run.status || localizedText('状态未知', 'Unknown status')} · ${run.summary || run.id}`)}</div>`),
@@ -2528,14 +2622,19 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     $('#qt-add', body).addEventListener('click', () => openQualityTaskModal(p));
     $('#ep-add', body).addEventListener('click', () => openExecutionProfileModal(p));
   }
-  function projectQualitySignal(project) {
+  function projectQualitySignal(project, projectGate = null) {
     const signals = [
+      ...(projectGate && ['blocked', 'passed'].includes(projectGate.status)
+        ? [{ kind: 'project-gate', value: projectGate.status === 'blocked' ? 'BLOCK' : 'PASS', at: projectGate.evaluatedAt || '' }]
+        : []),
       ...(project.gates || []).filter((gate) => gate.kind === 'computed' && gate.verdict).map((gate) => ({ kind: 'gate', value: gate.verdict, at: gate.updatedAt || gate.createdAt || gate.calculatedAt || '', source: gate })),
       ...(project.testruns || []).map((run) => ({ kind: 'run', value: run.status || run.summary || t('detail.valueUnknown'), at: run.updatedAt || run.createdAt || '', source: run })),
     ];
     return signals.map((signal, index) => ({ ...signal, index })).sort((left, right) => String(left.at).localeCompare(String(right.at)) || left.index - right.index).at(-1) || null;
   }
   function navigateProjectDetail(tab, { defectFilter = 'all', deliveryFocus = 'all', traceabilityFilter = 'all', scrollTarget = '' } = {}) {
+    const detailView = $('#view-project-detail');
+    if (detailView) detailView.scrollTop = 0;
     state.detailTab = tab;
     state.detailDefectStatusFilter = defectFilter;
     state.detailDeliveryFocus = deliveryFocus;
@@ -2559,12 +2658,15 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     const unlinkedTestcaseCount = testcases.filter((testcase) => !linkedTestcaseIds.has(testcase.id)).length;
     const openDefectCount = (p.defects || []).filter(isActiveProjectDefect).length;
     const verifiedEvidenceCount = (p.evidenceBundles || []).filter((item) => item.state === 'ready' && item.integrity === 'verified').length;
-    const pendingGateCount = (p.gates || []).filter((item) => item.kind !== 'computed' && item.status === 'pending').length;
-    const latestComputedGate = (p.gates || []).filter((item) => item.kind === 'computed' && item.verdict).at(-1);
-    const latestSignal = projectQualitySignal(p);
-    const nearestMilestone = (p.milestones || []).filter((item) => !item.done).sort((left, right) => String(left.dueDate || '').localeCompare(String(right.dueDate || '')))[0];
+    const gateMetric = projectGateMetric(p);
+    const requirementGap = requirements.length - coveredRequirements;
+    const requirementGapNote = currentLang() === 'en'
+      ? `${requirementGap} ${requirementGap === 1 ? 'requirement' : 'requirements'} without linked cases`
+      : `${requirementGap} 项需求未关联用例`;
+    const testcaseGapNote = currentLang() === 'en'
+      ? `${unlinkedTestcaseCount} ${unlinkedTestcaseCount === 1 ? 'case' : 'cases'} without linked requirements`
+      : `${unlinkedTestcaseCount} 个用例未关联需求`;
     const profileWasOpen = $('#project-overview-extra', body)?.open || false;
-    const latestSignalTarget = latestSignal?.kind === 'gate' ? 'delivery' : 'qualityTasks';
     const activityItems = [
       ...testRuns.map((run) => ({ at: run.updatedAt || run.createdAt, title: `${localizedText('测试运行', 'Test run')} · ${run.status || localizedText('状态未知', 'Unknown status')}`, detail: run.summary || run.executor || run.id })),
       ...(p.materials || []).map((item) => ({ at: item.ts || item.updatedAt || item.createdAt, title: item.label || localizedText('项目资料已更新', 'Project material updated'), detail: projectMaterialTypeLabel(item.type) })),
@@ -2572,14 +2674,16 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     ].filter((item) => item.at).sort((left, right) => String(right.at).localeCompare(String(left.at))).slice(0, 5);
     const requirementRows = coverageRows.slice(0, 4).map(({ requirement, summary }) => {
       const kind = summary.state === 'reviewed' ? 'verified' : summary.state === 'uncovered' ? 'danger' : summary.state === 'needs-check' ? 'warn' : 'doc';
-      return `<div class="coverage-mini"><strong data-user-content>${esc(requirement.id || localizedText('需求', 'Requirement'))} · ${esc(requirement.title || localizedText('未命名需求', 'Untitled requirement'))}</strong><span class="muted">${summary.cases.length} ${localizedText('个关联用例', 'linked cases')}${summary.counts.draft ? ` · ${summary.counts.draft} ${localizedText('待评审', 'draft')}` : ''}</span><span class="badge ${kind}">${esc(coverageStateLabel(summary.state))}</span></div>`;
+      const requirementTitle = requirement.title || localizedText('未命名需求', 'Untitled requirement');
+      const requirementKey = requirement.id || '';
+      return `<button class="coverage-mini" type="button" data-coverage-requirement-id="${esc(requirementKey)}" aria-label="${esc(`${localizedText('查看需求', 'View requirement')}：${requirementTitle}`)}"><strong data-user-content><span class="coverage-mini-title">${esc(requirementTitle)}</span><small class="coverage-mini-id">${esc(requirementKey || localizedText('需求', 'Requirement'))}</small></strong><span class="muted">${summary.cases.length} ${localizedText('个关联用例', 'linked cases')}${summary.counts.draft ? ` · ${summary.counts.draft} ${localizedText('待评审', 'draft')}` : ''}</span><span class="badge ${kind}">${esc(coverageStateLabel(summary.state))}</span></button>`;
     }).join('');
     const qualityTasks = [...(p.qualityTasks || [])].sort((left, right) => String(right.updatedAt || right.createdAt || '').localeCompare(String(left.updatedAt || left.createdAt || ''))).slice(0, 3);
     const qualityTaskRows = qualityTasks.map((task, index) => {
       const openRisks = (task.risks || []).filter(isActiveQualityRisk).length;
       const run = testRuns.filter((item) => item.qualityTaskId === task.id || item.provenance?.qualityTaskId === task.id).sort((left, right) => String(right.updatedAt || right.createdAt || '').localeCompare(String(left.updatedAt || left.createdAt || '')))[0];
-      const detail = [task.stage || localizedText('阶段未设置', 'Stage not set'), openRisks ? `${openRisks} ${localizedText('项风险待确认', 'risks to review')}` : '', run ? `${localizedText('最近运行', 'Latest run')}: ${run.status || localizedText('状态未知', 'Unknown status')}` : ''].filter(Boolean).join(' · ');
-      return `<button class="list-row overview-quality-task" type="button" data-overview-task="${esc(task.id)}"><span class="list-icon">${String(index + 1).padStart(2, '0')}</span><span class="list-copy"><b data-user-content>${esc(task.title || localizedText('未命名质量任务', 'Untitled quality task'))}</b><span data-user-content>${esc(detail)}</span></span><span class="badge ${openRisks ? 'warn' : ''}" data-user-content>${esc(task.stage || localizedText('未设置阶段', 'No stage'))}</span></button>`;
+      const detail = [openRisks ? `${openRisks} ${localizedText('项风险待确认', 'risks to review')}` : '', run ? `${localizedText('最近运行', 'Latest run')}: ${run.status || localizedText('状态未知', 'Unknown status')}` : ''].filter(Boolean).join(' · ') || localizedText('暂无风险与运行记录', 'No risks or runs yet');
+      return `<button class="list-row overview-quality-task" type="button" data-overview-task="${esc(task.id)}"><span class="list-icon">${String(index + 1).padStart(2, '0')}</span><span class="list-copy"><b data-user-content>${esc(task.title || localizedText('未命名质量任务', 'Untitled quality task'))}</b><span data-user-content>${esc(detail)}</span></span><span class="badge ${openRisks ? 'warn' : ''}" data-user-content>${esc(task.stage ? qualityTaskStageLabel(task.stage) : localizedText('未设置阶段', 'No stage'))}</span></button>`;
     }).join('');
     const roleLabel = (member) => currentLang() === 'en' ? ROLE_EN_LABEL[member.role] || member.role : ROLE_CN[member.role] || member.role;
     const memberRows = p.members.map((member) => `<div class="party-row"><span class="party-avatar" data-user-content>${esc((member.name || '?').slice(0, 1))}</span><div><b data-user-content>${esc(member.name)}</b><span><span data-user-content>${esc(roleLabel(member))}</span>${member.contact ? ` · <span data-user-content>${esc(member.contact)}</span>` : ''}</span></div></div>`).join('') || emptyHtml(localizedText('暂无成员信息', 'No members'));
@@ -2601,10 +2705,10 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       </div><div class="detail-action-bar"><button class="btn sm" id="ov-new-chat" type="button">${localizedText('新建 DSH 对话', 'New DSH chat')}</button><button class="btn sm danger" id="ov-delete" type="button">${localizedText('删除项目记录', 'Delete project record')}</button><span></span><button class="btn primary" id="ov-save" type="button">${localizedText('保存项目信息', 'Save project info')}</button></div>`;
     body.innerHTML = `<section id="project-action-queue" class="detail-card project-action-queue" aria-labelledby="project-action-queue-title"></section>
       <div class="overview-metrics">
-        <button type="button" class="overview-metric" data-overview-metric="requirements" data-overview-target="traceability" data-overview-traceability-filter="no-linked-cases"><span>${localizedText('需求覆盖', 'Requirement coverage')}</span><b>${coveredRequirements}<small> / ${requirements.length}</small></b><em>${requirements.length - coveredRequirements} ${localizedText('项需求未关联用例', 'requirements without linked cases')}</em></button>
-        <button type="button" class="overview-metric" data-overview-metric="testcases" data-overview-target="traceability" data-overview-scroll-target="#requirement-matrix"><span>${localizedText('测试用例', 'Test cases')}</span><b>${testcases.length}</b><em>${esc(testcases.length === 0 ? localizedText('尚未登记测试用例', 'No test cases yet') : unlinkedTestcaseCount ? `${unlinkedTestcaseCount} ${localizedText('个用例未关联需求', 'cases without linked requirements')}` : localizedText('全部用例均已关联需求', 'All cases linked to requirements'))}</em></button>
+        <button type="button" class="overview-metric" data-overview-metric="requirements" data-overview-target="traceability" data-overview-traceability-filter="no-linked-cases"><span>${localizedText('需求覆盖', 'Requirement coverage')}</span><b>${coveredRequirements}<small> / ${requirements.length}</small></b><em>${requirementGapNote}</em></button>
+        <button type="button" class="overview-metric" data-overview-metric="testcases" data-overview-target="traceability" data-overview-scroll-target="#requirement-matrix"><span>${localizedText('测试用例', 'Test cases')}</span><b>${testcases.length}</b><em>${esc(testcases.length === 0 ? localizedText('尚未登记测试用例', 'No test cases yet') : unlinkedTestcaseCount ? testcaseGapNote : localizedText('全部用例均已关联需求', 'All cases linked to requirements'))}</em></button>
         <button type="button" class="overview-metric" data-overview-metric="open-defects" data-overview-target="defectsRisks" data-overview-filter="open"><span>${localizedText('未关闭缺陷', 'Open defects')}</span><b>${openDefectCount}</b><em>${(p.defects || []).filter((item) => isActiveProjectDefect(item) && ['critical', 'major'].includes(item.severity)).length} ${localizedText('项高优先级待处理', 'high priority to review')}</em></button>
-        <div class="overview-metric delivery-overview-metric"><button type="button" class="delivery-overview-main" data-overview-metric="pending-gates" data-overview-target="delivery" data-overview-focus="pendingGates" data-overview-scroll-target="#detail-delivery-gates"><span>${localizedText('交付门禁', 'Delivery gate')}</span><b>${pendingGateCount ? `${pendingGateCount} ${localizedText('项待审批', 'pending')}` : latestComputedGate?.verdict || localizedText('待最终评估', 'Awaiting evaluation')}</b><em>${latestComputedGate?.verdict ? `${localizedText('最近结论', 'Latest verdict')}: ${esc(latestComputedGate.verdict)}` : localizedText('负责人审批与质量结论', 'Owner approval and quality verdict')}</em></button><button type="button" class="verified-evidence-link" data-overview-metric="verified-evidence" data-overview-target="delivery" data-overview-focus="verifiedEvidence" data-overview-scroll-target="#detail-delivery-evidence">${localizedText('已验证证据', 'Verified evidence')} <b>${verifiedEvidenceCount}</b></button></div>
+        <div class="overview-metric delivery-overview-metric"><button type="button" class="delivery-overview-main" data-overview-metric="pending-gates" data-overview-target="delivery" data-overview-focus="pendingGates" data-overview-scroll-target="#detail-delivery-gates"><span>${localizedText('交付门禁', 'Delivery gate')}</span><b>${esc(gateMetric.value)}</b><em>${esc(gateMetric.note)}</em></button><button type="button" class="verified-evidence-link" data-overview-metric="verified-evidence" data-overview-target="delivery" data-overview-focus="verifiedEvidence" data-overview-scroll-target="#detail-delivery-evidence">${localizedText('已验证证据', 'Verified evidence')} <b>${verifiedEvidenceCount}</b></button></div>
       </div>
       <div class="overview-main-grid">
         <section class="overview-primary-column">
@@ -2621,18 +2725,23 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       traceabilityFilter: button.dataset.overviewTraceabilityFilter || 'all',
       scrollTarget: button.dataset.overviewScrollTarget || '',
     })));
-    const qualitySignal = $('#overview-latest-quality-signal');
-    qualitySignal.innerHTML = latestSignal ? `<i aria-hidden="true"></i>${latestSignal.kind === 'gate' ? localizedText('质量门禁', 'Quality gate') : localizedText('最近测试运行', 'Latest test run')} · <span data-user-content>${esc(latestSignal.value)}</span>` : `<i aria-hidden="true"></i>${localizedText('暂无质量信号', 'No quality signal')}`;
-    qualitySignal.dataset.overviewTarget = latestSignalTarget;
-    qualitySignal.dataset.overviewScrollTarget = latestSignal?.kind === 'gate' ? '#quality-gate-summary' : '#project-run-summary';
-    qualitySignal.onclick = () => navigateProjectDetail(latestSignalTarget, { scrollTarget: qualitySignal.dataset.overviewScrollTarget });
-    const milestoneLink = $('#overview-upcoming-milestone');
-    milestoneLink.innerHTML = nearestMilestone ? `${localizedText('临近里程碑', 'Next milestone')}：<span data-user-content>${esc(nearestMilestone.title)}</span>${nearestMilestone.dueDate ? ` · <span data-user-content>${esc(nearestMilestone.dueDate)}</span>` : ''}` : localizedText('暂无临近里程碑', 'No upcoming milestone');
-    milestoneLink.onclick = () => navigateProjectDetail('activity', { scrollTarget: '#detail-activity-schedule' });
     $$('.overview-quality-task', body).forEach((button) => button.addEventListener('click', () => {
       state.qualitySelectedTaskId = button.dataset.overviewTask;
       state.qualityTaskSelectionPinned = true;
       navigateProjectDetail('qualityTasks');
+    }));
+    $$('.coverage-mini[data-coverage-requirement-id]', body).forEach((button) => button.addEventListener('click', () => {
+      const requirementId = button.dataset.coverageRequirementId;
+      if (!requirementId) return;
+      state.traceabilitySearch = '';
+      state.traceabilityFilter = 'all';
+      state.traceabilityExpandedRequirements.add(requirementId);
+      navigateProjectDetail('traceability');
+      requestAnimationFrame(() => {
+        const row = $$('[data-requirement-id]', $('#project-detail-body')).find((node) => node.dataset.requirementId === requirementId);
+        row?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+        $('[data-requirement-expand]', row)?.focus({ preventScroll: true });
+      });
     }));
     $('#ov-save', body).addEventListener('click', async () => { try {
       await api(`api/projects/${p.id}`, { method: 'PATCH', body: { title: $('#ov-title', body).value.trim(), projectKey: $('#ov-number', body).value.trim(), product: $('#ov-product', body).value.trim(), owner: $('#ov-owner', body).value.trim(), summary: $('#ov-summary', body).value.trim() } });
@@ -2698,7 +2807,13 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
   }
   function requirementSummaryText(summary) {
     const { counts } = summary;
-    return `<span>${counts.valid} ${esc(t('traceability.count.valid'))}</span><span>${esc(t('traceability.count.draft'))} ${counts.draft}</span><span>${esc(t('traceability.count.reviewed'))} ${counts.reviewed}</span><span>${esc(t('traceability.count.executed'))} ${counts.executed}</span>${counts.unknown ? `<span class="traceability-anomaly">${esc(t('traceability.count.unknown'))} ${counts.unknown}</span>` : ''}${counts.brokenLinks ? `<span class="traceability-anomaly">${esc(t('traceability.count.brokenLinks'))} ${counts.brokenLinks}</span>` : ''}`;
+    return [
+      counts.draft ? `<span>${esc(t('traceability.count.draft'))} ${counts.draft}</span>` : '',
+      counts.reviewed ? `<span>${esc(t('traceability.count.reviewed'))} ${counts.reviewed}</span>` : '',
+      counts.executed ? `<span>${esc(t('traceability.count.executed'))} ${counts.executed}</span>` : '',
+      counts.unknown ? `<span class="traceability-anomaly">${esc(t('traceability.count.unknown'))} ${counts.unknown}</span>` : '',
+      counts.brokenLinks ? `<span class="traceability-anomaly">${esc(t('traceability.count.brokenLinks'))} ${counts.brokenLinks}</span>` : '',
+    ].filter(Boolean).join('');
   }
   function testcaseCoverageMarkup(testcase, purposes = [], { linked = false, requirements = [] } = {}) {
     const expanded = state.traceabilityExpandedTestcases.has(testcase.id);
@@ -2805,6 +2920,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       index,
       summary: summarizeRequirementCoverage(requirement, p.testcases || []),
     }));
+    const hasRiskInfo = all.some(({ requirement }) => Boolean(requirement.priority || requirement.riskLevel || requirement.risk || requirement.kind === 'risk'));
     const filtered = all.filter(({ requirement, summary }) => {
       if (state.traceabilityFilter === 'no-linked-cases' && summary.cases.length > 0) return false;
       if (state.traceabilityFilter !== 'all' && state.traceabilityFilter !== 'no-linked-cases' && summary.state !== state.traceabilityFilter) return false;
@@ -2829,7 +2945,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       matrix.innerHTML = `<div id="requirement-empty-filter" class="traceability-empty"><p>${esc(t('traceability.noFilterResults'))}</p><p class="traceability-empty-conditions">${esc(conditions.join(' · '))}</p><button type="button" class="btn sm" data-clear-requirement-filters>${esc(t('traceability.clearFilters'))}</button></div>`;
       return;
     }
-    matrix.innerHTML = `<div class="traceability-table-wrap"><table class="traceability-table"><thead><tr><th scope="col">${esc(t('traceability.column.requirement'))}</th><th scope="col">${esc(t('traceability.column.acceptance'))}</th><th scope="col">${esc(t('traceability.column.coverage'))}</th><th scope="col">${esc(t('traceability.column.testcases'))}</th><th scope="col">${esc(t('traceability.column.risk'))}</th></tr></thead><tbody>${filtered.map(({ requirement, index, summary }) => {
+    matrix.innerHTML = `<div class="traceability-table-wrap"><table class="traceability-table"><thead><tr><th scope="col">${esc(t('traceability.column.requirement'))}</th><th scope="col">${esc(t('traceability.column.acceptance'))}</th><th scope="col">${esc(t('traceability.column.coverage'))}</th><th scope="col">${esc(t('traceability.column.testcases'))}</th>${hasRiskInfo ? `<th scope="col">${esc(t('traceability.column.risk'))}</th>` : ''}</tr></thead><tbody>${filtered.map(({ requirement, index, summary }) => {
       const requirementId = String(requirement.id || `requirement-${index}`);
       const expanded = state.traceabilityExpandedRequirements.has(requirementId);
       const detailsId = `requirement-details-${index}`;
@@ -2843,9 +2959,9 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
         <td data-label="${esc(t('traceability.column.requirement'))}"><button class="requirement-toggle" type="button" data-requirement-expand aria-label="${esc(t(expanded ? 'traceability.collapseRequirement' : 'traceability.expandRequirement', { title: requirementTitle }))}" aria-expanded="${expanded}" aria-controls="${detailsId}"><span class="disclosure-mark" aria-hidden="true">${expanded ? '−' : '+'}</span><span><b data-user-content>${esc(requirementTitle)}</b><small data-user-content>${esc(requirementId)}</small></span></button><span class="badge">${esc(t(`traceability.reqKind.${requirement.kind}`) === `traceability.reqKind.${requirement.kind}` ? requirement.kind || '' : t(`traceability.reqKind.${requirement.kind}`))}</span></td>
         <td data-label="${esc(t('traceability.column.acceptance'))}"><div class="requirement-statement" data-user-content>${esc(requirement.statement || t('traceability.value.none'))}</div><div class="requirement-acceptance"><b>${esc(t('traceability.acceptance'))}</b><p data-user-content>${esc(requirement.acceptance || t('traceability.value.none'))}</p></div></td>
         <td data-label="${esc(t('traceability.column.coverage'))}"><span class="coverage-badge ${summary.state}">${esc(coverageStateLabel(summary.state))}</span>${summary.counts.brokenLinks || summary.counts.unknown ? `<span class="coverage-anomaly-count">${summary.counts.brokenLinks ? `${esc(t('traceability.count.brokenLinks'))} ${summary.counts.brokenLinks}` : ''}${summary.counts.unknown ? ` ${esc(t('traceability.count.unknown'))} ${summary.counts.unknown}` : ''}</span>` : ''}</td>
-        <td data-label="${esc(t('traceability.column.testcases'))}"><div class="coverage-case-count">${summary.cases.length} ${esc(t('traceability.count.cases'))}</div><div class="coverage-counts">${requirementSummaryText(summary)}</div></td>
-        <td data-label="${esc(t('traceability.column.risk'))}">${esc(riskValue || t('traceability.value.none'))}</td>
-      </tr><tr class="requirement-detail-row" id="${detailsId}" ${expanded ? '' : 'hidden'}><td colspan="5"><div class="requirement-linked-cases">${linkedCasesMarkup || `<div class="traceability-empty">${esc(t('traceability.noLinkedCases'))}</div>`}${summary.counts.brokenLinks ? `<div class="traceability-anomaly" role="status">${esc(t('traceability.brokenLinksMessage', { n: summary.counts.brokenLinks }))}</div>` : ''}</div></td></tr>`;
+        <td data-label="${esc(t('traceability.column.testcases'))}"><div class="coverage-case-count">${summary.cases.length} ${esc(currentLang() === 'en' && summary.cases.length === 1 ? 'case' : t('traceability.count.cases'))}</div><div class="coverage-counts">${requirementSummaryText(summary)}</div></td>
+        ${hasRiskInfo ? `<td data-label="${esc(t('traceability.column.risk'))}">${esc(riskValue || t('traceability.value.none'))}</td>` : ''}
+      </tr><tr class="requirement-detail-row" id="${detailsId}" ${expanded ? '' : 'hidden'}><td colspan="${hasRiskInfo ? 5 : 4}"><div class="requirement-linked-cases">${linkedCasesMarkup || `<div class="traceability-empty">${esc(t('traceability.noLinkedCases'))}</div>`}${summary.counts.brokenLinks ? `<div class="traceability-anomaly" role="status">${esc(t('traceability.brokenLinksMessage', { n: summary.counts.brokenLinks }))}</div>` : ''}</div></td></tr>`;
     }).join('')}</tbody></table></div>`;
   }
   function renderUnlinkedTestcases(body, p) {
@@ -2900,7 +3016,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     const risksMarkup = risks.map((risk) => {
       const riskTitle = risk.title || risk.description || risk.reason || localizedText('未命名风险', 'Untitled risk');
       const severity = currentLang() === 'en' ? SEVERITY_EN[risk.severity] : SEVERITY_CN[risk.severity];
-      return `<article class="list-item quality-risk-item" data-quality-risk-id="${esc(risk.id || '')}"><div class="li-title"><span data-user-content>${esc(riskTitle)}</span> <span class="badge ${['critical', 'high'].includes(risk.severity) ? 'danger' : 'warn'}">${esc(severity || risk.severity || localizedText('未分级', 'Unrated'))}</span></div><div class="li-meta"><span>${localizedText('来源任务', 'Task')}: <button class="text-link risk-task-link" type="button" data-open-quality-task="${esc(risk.taskId)}" aria-label="${esc(localizedText(`查看质量任务：${risk.taskTitle || '未命名任务'}`, `View quality task: ${risk.taskTitle || 'Untitled task'}`))}">${esc(risk.taskTitle || localizedText('未命名任务', 'Untitled task'))}</button></span>${risk.assessmentStatus ? `<span>${localizedText('评估', 'Assessment')}: ${esc(risk.assessmentStatus)}</span>` : ''}${risk.dispositionStatus ? `<span>${localizedText('处置', 'Disposition')}: ${esc(risk.dispositionStatus)}</span>` : ''}</div>${risk.description && risk.title ? `<div class="li-sub" data-user-content>${esc(risk.description)}</div>` : ''}</article>`;
+      return `<article class="list-item quality-risk-item" data-quality-risk-id="${esc(risk.id || '')}"><div class="li-title"><span data-user-content>${esc(riskTitle)}</span> <span class="badge ${['critical', 'high'].includes(risk.severity) ? 'danger' : 'warn'}">${esc(severity || risk.severity || localizedText('未分级', 'Unrated'))}</span></div><div class="li-meta"><span>${localizedText('来源任务', 'Task')}: <button class="text-link risk-task-link" type="button" data-open-quality-task="${esc(risk.taskId)}" aria-label="${esc(localizedText(`查看质量任务：${risk.taskTitle || '未命名任务'}`, `View quality task: ${risk.taskTitle || 'Untitled task'}`))}">${esc(risk.taskTitle || localizedText('未命名任务', 'Untitled task'))}</button></span>${risk.assessmentStatus ? `<span>${localizedText('评估', 'Assessment')}: ${esc(riskAssessmentLabel(risk.assessmentStatus))}</span>` : ''}${risk.dispositionStatus ? `<span>${localizedText('处置', 'Disposition')}: ${esc(riskDispositionLabel(risk.dispositionStatus))}</span>` : ''}</div>${risk.description && risk.title ? `<div class="li-sub" data-user-content>${esc(risk.description)}</div>` : ''}</article>`;
     }).join('');
     body.innerHTML = `<div class="project-workspace-stack"><section class="project-workspace-group"><div class="project-workspace-group-head"><h3>${localizedText('缺陷记录', 'Defects')}</h3><span class="badge">${defects.length}</span></div><div class="list" id="defect-records">${defectsMarkup || projectDetailEmptyHtml(localizedText('暂无缺陷记录。', 'No defect records.'))}</div></section><section class="project-workspace-group"><div class="project-workspace-group-head"><h3>${localizedText('质量任务风险', 'Quality task risks')}</h3><span class="badge">${risks.length}</span></div><div class="list" id="quality-risk-records">${risksMarkup || projectDetailEmptyHtml(localizedText('暂无质量风险。', 'No quality risks.'))}</div></section></div>`;
     const defectGroupHead = $('.project-workspace-group-head', body);
@@ -3177,7 +3293,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
           ? emptyHtml(t('action.queueUnavailable'))
           : `<div class="action-queue-error" role="status">${esc(t('action.queueLoading'))}</div>`;
       } else {
-        list.innerHTML = state.actionQueue.length ? state.actionQueue.map(actionItemMarkup).join('') : emptyHtml(t('action.empty'));
+        list.innerHTML = state.actionQueue.length ? state.actionQueue.map((item) => actionItemMarkup(item)).join('') : emptyHtml(t('action.empty'));
       }
       $$('.action-item', list).forEach((el) => el.addEventListener('click', () => {
         const item = state.actionQueue.find((entry) => entry.id === el.dataset.actionId);
