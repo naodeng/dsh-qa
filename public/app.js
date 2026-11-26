@@ -12,6 +12,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
   const localizedText = (zh, en) => currentLang() === 'en' ? en : zh;
+  const englishCount = (count, singular, plural = `${singular}s`) => `${count} ${count === 1 ? singular : plural}`;
   const FEED_ICON = { req: '需', tc: '例', defect: '缺', milestone: '里', report: '报', knowledge: '知', minute: '纪', gate: '审', event: '程', member: '人', transition: '转', tool: 'AI', case: '项', run: '跑', chat: '问' };
   const REQ_KIND_CN = { functional: '功能需求', nonfunctional: '非功能需求', risk: '风险点', issue: '问题' };
   const TC_KIND_CN = { functional: '功能', boundary: '边界', interface: '接口', ui: '界面', performance: '性能', security: '安全', compat: '兼容', other: '其他' };
@@ -592,7 +593,8 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     const severity = actionPriorityClass(item);
     const status = actionStatusLabel(item.status);
     const showStatus = !compact || item.status === 'blocked' || item.status === 'in_progress';
-    return `<button class="attention-item action-item ${severity}${compact ? ' compact' : ''}" data-action-id="${esc(item.id)}" type="button">
+    const statusClass = compact && showStatus ? ' has-status' : '';
+    return `<button class="attention-item action-item ${severity}${compact ? ' compact' : ''}${statusClass}" data-action-id="${esc(item.id)}" type="button">
       <span class="attention-mark">${tinyIcon(item.kind.startsWith('gate_') ? 'gate' : item.kind.startsWith('milestone_') ? 'milestone' : 'workflow')}</span>
       <div class="action-copy"><div class="attention-title">${esc(actionTitle(item))}</div><div class="attention-meta">${compact ? '' : `${esc(item.projectTitle)} · `}${esc(actionReason(item))}</div></div>
       <span class="attention-action">${item.actionRequired ? esc(t('action.needsAction')) : esc(t('action.monitoring'))}</span>
@@ -1950,6 +1952,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       const card = state.cards.get(id);
       title.textContent = card?.title || t('detail.loadingProject');
       $('#project-nav-title').textContent = title.textContent;
+      $('#project-detail-crumb-title').textContent = title.textContent;
       $('#project-detail-meta').textContent = '';
       const metaItems = [
         card?.projectKey || t('detail.projectKeyUnknown'),
@@ -1965,6 +1968,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     body.setAttribute('aria-busy', 'false');
     title.textContent = t('detail.projectLoadFailed');
     $('#project-nav-title').textContent = t('detail.projectLoadFailed');
+    $('#project-detail-crumb-title').textContent = t('detail.projectLoadFailed');
     state.detailProjectGate = null;
     body.innerHTML = `<section id="detail-load-error" class="detail-load-state" role="alert"><p>${esc(error?.message || t('detail.projectLoadFailed'))}</p><div><button class="btn primary sm" id="detail-load-retry" type="button">${esc(t('detail.retry'))}</button><button class="btn sm" id="detail-load-return" type="button">${esc(t('detail.backToProjects'))}</button></div></section>`;
     $('#detail-load-retry', body).addEventListener('click', () => {
@@ -1982,6 +1986,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       updateProjectDetailBackLabel();
       $('#project-detail-project-title').textContent = p.title || t('detail.title');
       $('#project-nav-title').textContent = p.title || t('detail.title');
+      $('#project-detail-crumb-title').textContent = p.title || t('detail.title');
       $('#btn-project-detail-chat').disabled = false;
       $('#btn-project-detail-folder').disabled = false;
       $('#btn-project-detail-edit').disabled = false;
@@ -2623,14 +2628,18 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     $('#ep-add', body).addEventListener('click', () => openExecutionProfileModal(p));
   }
   function projectQualitySignal(project, projectGate = null) {
-    const signals = [
-      ...(projectGate && ['blocked', 'passed'].includes(projectGate.status)
-        ? [{ kind: 'project-gate', value: projectGate.status === 'blocked' ? 'BLOCK' : 'PASS', at: projectGate.evaluatedAt || '' }]
-        : []),
+    const storedSignals = [
       ...(project.gates || []).filter((gate) => gate.kind === 'computed' && gate.verdict).map((gate) => ({ kind: 'gate', value: gate.verdict, at: gate.updatedAt || gate.createdAt || gate.calculatedAt || '', source: gate })),
       ...(project.testruns || []).map((run) => ({ kind: 'run', value: run.status || run.summary || t('detail.valueUnknown'), at: run.updatedAt || run.createdAt || '', source: run })),
     ];
-    return signals.map((signal, index) => ({ ...signal, index })).sort((left, right) => String(left.at).localeCompare(String(right.at)) || left.index - right.index).at(-1) || null;
+    const latestStored = storedSignals.map((signal, index) => ({ ...signal, index })).sort((left, right) => String(left.at).localeCompare(String(right.at)) || left.index - right.index).at(-1) || null;
+    if (projectGate?.status === 'blocked') {
+      return { kind: 'project-gate', value: 'BLOCK', at: projectGate.evaluatedAt || new Date().toISOString() };
+    }
+    if (projectGate?.status === 'passed' && !latestStored) {
+      return { kind: 'project-gate', value: 'PASS', at: projectGate.evaluatedAt || new Date().toISOString() };
+    }
+    return latestStored;
   }
   function navigateProjectDetail(tab, { defectFilter = 'all', deliveryFocus = 'all', traceabilityFilter = 'all', scrollTarget = '' } = {}) {
     const detailView = $('#view-project-detail');
@@ -2676,13 +2685,19 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       const kind = summary.state === 'reviewed' ? 'verified' : summary.state === 'uncovered' ? 'danger' : summary.state === 'needs-check' ? 'warn' : 'doc';
       const requirementTitle = requirement.title || localizedText('未命名需求', 'Untitled requirement');
       const requirementKey = requirement.id || '';
-      return `<button class="coverage-mini" type="button" data-coverage-requirement-id="${esc(requirementKey)}" aria-label="${esc(`${localizedText('查看需求', 'View requirement')}：${requirementTitle}`)}"><strong data-user-content><span class="coverage-mini-title">${esc(requirementTitle)}</span><small class="coverage-mini-id">${esc(requirementKey || localizedText('需求', 'Requirement'))}</small></strong><span class="muted">${summary.cases.length} ${localizedText('个关联用例', 'linked cases')}${summary.counts.draft ? ` · ${summary.counts.draft} ${localizedText('待评审', 'draft')}` : ''}</span><span class="badge ${kind}">${esc(coverageStateLabel(summary.state))}</span></button>`;
+      const linkedCasesText = currentLang() === 'en'
+        ? englishCount(summary.cases.length, 'linked case')
+        : `${summary.cases.length} 个关联用例`;
+      return `<button class="coverage-mini" type="button" data-coverage-requirement-id="${esc(requirementKey)}" aria-label="${esc(`${localizedText('查看需求', 'View requirement')}：${requirementTitle}`)}"><strong data-user-content><span class="coverage-mini-title">${esc(requirementTitle)}</span><small class="coverage-mini-id">${esc(requirementKey || localizedText('需求', 'Requirement'))}</small></strong><span class="muted">${linkedCasesText}${summary.counts.draft ? ` · ${summary.counts.draft} ${localizedText('待评审', 'draft')}` : ''}</span><span class="badge ${kind}">${esc(coverageStateLabel(summary.state))}</span></button>`;
     }).join('');
     const qualityTasks = [...(p.qualityTasks || [])].sort((left, right) => String(right.updatedAt || right.createdAt || '').localeCompare(String(left.updatedAt || left.createdAt || ''))).slice(0, 3);
     const qualityTaskRows = qualityTasks.map((task, index) => {
       const openRisks = (task.risks || []).filter(isActiveQualityRisk).length;
       const run = testRuns.filter((item) => item.qualityTaskId === task.id || item.provenance?.qualityTaskId === task.id).sort((left, right) => String(right.updatedAt || right.createdAt || '').localeCompare(String(left.updatedAt || left.createdAt || '')))[0];
-      const detail = [openRisks ? `${openRisks} ${localizedText('项风险待确认', 'risks to review')}` : '', run ? `${localizedText('最近运行', 'Latest run')}: ${run.status || localizedText('状态未知', 'Unknown status')}` : ''].filter(Boolean).join(' · ') || localizedText('暂无风险与运行记录', 'No risks or runs yet');
+      const openRiskText = openRisks
+        ? (currentLang() === 'en' ? `${englishCount(openRisks, 'risk')} to review` : `${openRisks} 项风险待确认`)
+        : '';
+      const detail = [openRiskText, run ? `${localizedText('最近运行', 'Latest run')}: ${run.status || localizedText('状态未知', 'Unknown status')}` : ''].filter(Boolean).join(' · ') || localizedText('暂无风险与运行记录', 'No risks or runs yet');
       return `<button class="list-row overview-quality-task" type="button" data-overview-task="${esc(task.id)}"><span class="list-icon">${String(index + 1).padStart(2, '0')}</span><span class="list-copy"><b data-user-content>${esc(task.title || localizedText('未命名质量任务', 'Untitled quality task'))}</b><span data-user-content>${esc(detail)}</span></span><span class="badge ${openRisks ? 'warn' : ''}" data-user-content>${esc(task.stage ? qualityTaskStageLabel(task.stage) : localizedText('未设置阶段', 'No stage'))}</span></button>`;
     }).join('');
     const roleLabel = (member) => currentLang() === 'en' ? ROLE_EN_LABEL[member.role] || member.role : ROLE_CN[member.role] || member.role;

@@ -242,6 +242,39 @@ test('project action items omit repeated project context and need-action status'
   await expect(actionQueue.locator('.attention-action').first()).toContainText('需要处理');
 });
 
+test('compact action items keep blocked and running status on the first row', async ({ page, request }) => {
+  const project = await seededProject(request);
+  const items = [
+    { id: 'blocked:1', kind: 'workflow', priority: 'high', status: 'blocked', actionRequired: true, projectId: project.id, entityId: 'blocked-entity', projectTitle: project.title, titleKey: 'action.workflow_defects.title', reasonCode: 'workflow_defects', reasonArgs: { count: 1 }, target: { view: 'project-detail', tab: 'qualityTasks', entityId: 'blocked-entity' } },
+    { id: 'running:2', kind: 'run_running', priority: 'medium', status: 'in_progress', actionRequired: false, projectId: project.id, entityId: 'running-entity', projectTitle: project.title, titleKey: 'action.run_running.title', reasonCode: 'run_running', reasonArgs: {}, target: { view: 'project-detail', tab: 'qualityTasks', entityId: 'running-entity' } },
+  ];
+  await page.route('**/api/action-queue?projectId=**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ ok: true, generatedAt: new Date().toISOString(), items }),
+  }));
+  await openProjectFromBoard(page, project);
+  await expect(page.locator('#project-action-queue')).toHaveAttribute('data-load-state', 'ready');
+
+  for (const [id, expectedStatus] of [['blocked:1', '已阻断'], ['running:2', '执行中']]) {
+    const item = page.locator(`#project-action-queue [data-action-id="${id}"]`);
+    await expect(item).toHaveClass(/has-status/);
+    await expect(item.locator('.attention-time')).toHaveText(expectedStatus);
+    const layout = await item.evaluate((element) => {
+      const itemBox = element.getBoundingClientRect();
+      const statusBox = element.querySelector('.attention-time').getBoundingClientRect();
+      return {
+        columns: getComputedStyle(element).gridTemplateColumns.split(' ').length,
+        statusTop: Math.round(statusBox.top - itemBox.top),
+        statusLeft: Math.round(statusBox.left - itemBox.left),
+      };
+    });
+    expect(layout.columns).toBe(4);
+    expect(layout.statusTop).toBeLessThan(35);
+    expect(layout.statusLeft).toBeGreaterThan(0);
+  }
+});
+
 test('overview summarizes project signals and links to filtered source sections', async ({ page, request }) => {
   const project = await seededProject(request);
   const fullProject = (await (await request.get(`/api/projects/${project.id}`)).json()).project;
@@ -354,6 +387,25 @@ test('overview reflects the project-level gate verdict and quality signal', asyn
   await expect(page.locator('.delivery-overview-main')).toContainText('项目级阻断');
   await expect(page.locator('.delivery-overview-main')).toContainText('存在未关闭高风险');
   await expect(page.locator('#overview-latest-quality-signal')).toContainText('BLOCK');
+});
+
+test('keeps a stored task gate signal when the project gate passes', async ({ page, request }) => {
+  const project = await seededProject(request);
+  await patchProjectResponse(page, project.id, (p) => {
+    p.gates = [{ id: 'task-gate-block', kind: 'computed', qualityTaskId: 'task-gate', verdict: 'BLOCK', calculatedAt: '2099-01-01T00:00:00.000Z', updatedAt: '2099-01-01T00:00:00.000Z' }];
+  });
+  await page.route(`**/api/projects/${encodeURIComponent(project.id)}/quality-gate`, (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ ok: true, gate: { status: 'passed', blockers: [], evaluatedAt: '2099-02-01T00:00:00.000Z' } }),
+  }));
+  const gateResponse = page.waitForResponse((response) => response.url().includes(`/api/projects/${encodeURIComponent(project.id)}/quality-gate`) && response.status() === 200);
+  await openProjectFromBoard(page, project);
+  await gateResponse;
+
+  const signal = page.locator('#overview-latest-quality-signal');
+  await expect(signal).toContainText('BLOCK');
+  await expect(page.locator('.delivery-overview-main')).toContainText('项目级通过');
 });
 
 test('overview coverage rows open the matching requirement in the matrix', async ({ page, request }) => {
@@ -1041,6 +1093,39 @@ test('project section navigation retains keyboard focus and testcase labels trac
   await expect(toggle).toHaveAttribute('aria-label', /收起用例/);
 });
 
+test('English overview uses singular counts for one linked case and one risk', async ({ page, request }) => {
+  const project = await seededProject(request);
+  await page.addInitScript(() => localStorage.setItem('dsh-qa-lang', 'en'));
+  await page.goto('/');
+  await page.locator('.nav-item[data-view="board"]').click();
+  await page.locator('.card').filter({ hasText: project.title }).click();
+  await expect(page.locator('#view-project-detail')).toBeVisible();
+  const coverageRow = page.locator('.overview-coverage-panel .coverage-mini').filter({ hasText: '支付回调处理' });
+  await expect(coverageRow).toContainText('1 linked case');
+  await expect(coverageRow).not.toContainText('1 linked cases');
+
+  const created = await request.post('/api/projects', { data: { title: `plural-check-${Date.now()}`, createWorkspace: false } });
+  const { project: taskProject } = await created.json();
+  const taskResponse = await request.post(`/api/projects/${taskProject.id}/quality-tasks`, { data: { title: 'plural risk task' } });
+  const { task } = await taskResponse.json();
+  await request.post(`/api/projects/${taskProject.id}/quality-tasks/${task.id}/manual-analyses`, { data: {
+    expectedRevision: task.version,
+    actorLabel: 'qa',
+    sourceDigests: [],
+    acceptanceCriteria: [{ id: 'plural-acceptance', condition: 'One risk must be visible' }],
+    risks: [{ id: 'plural-risk', title: 'One open risk', severity: 'high', assessmentStatus: 'confirmed', dispositionStatus: 'open' }],
+    testScope: [{ id: 'plural-scope', title: 'Risk scope' }],
+  } });
+
+  await page.goto('/');
+  await page.locator('.nav-item[data-view="board"]').click();
+  await page.locator('.card').filter({ hasText: taskProject.title }).click();
+  await expect(page.locator('#view-project-detail')).toBeVisible();
+  const taskRow = page.locator(`[data-overview-task="${task.id}"]`);
+  await expect(taskRow).toContainText('1 risk to review');
+  await expect(taskRow).not.toContainText('1 risks to review');
+});
+
 test('mobile project actions share one menu and the breadcrumb fits at 320px', async ({ page, request }) => {
   const project = await seededProject(request);
   await openProjectFromBoard(page, project);
@@ -1076,6 +1161,9 @@ test('mobile project identity and section navigation stay visible while scrollin
   const view = page.locator('#view-project-detail');
   await view.evaluate((element) => { element.scrollTop = element.scrollHeight; });
 
+  const crumbTitle = page.locator('#project-detail-crumb-title');
+  await expect(crumbTitle).toBeVisible();
+  await expect(crumbTitle).toHaveText(project.title);
   const viewTop = await view.evaluate((element) => element.getBoundingClientRect().top);
   const topbar = await page.locator('.project-detail-topbar').boundingBox();
   const sidebar = await page.locator('#view-project-detail .project-detail-layout > .detail-sidebar').boundingBox();
