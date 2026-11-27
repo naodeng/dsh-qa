@@ -11,7 +11,7 @@ test('质量证据与回归工作台提供空状态、创建流程和双语界�
   const marker = Date.now();
   const projectTitle = `证据回归项目-${marker}`;
   await page.goto('/');
-  await page.getByRole('button', { name: '新建测试项目' }).click();
+  await page.locator('#btn-topbar-new').click();
   await page.locator('#nc-title').fill(projectTitle);
   await page.locator('#nc-workspace').uncheck();
   await page.getByRole('button', { name: '创建项目' }).click();

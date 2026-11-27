@@ -31,7 +31,7 @@ function projectSessionCreateCalls(fixture) {
 
 test('standalone mode explains that native attachments require DSH', async ({ page }) => {
   await page.goto('/');
-  await page.locator('[data-view="assistant"]').click();
+  await page.locator('[data-view="assistant"]:visible').click();
 
   await expect(page.locator('#btn-attach')).toBeDisabled();
   await expect(page.locator('#attachment-guidance')).toContainText('DSH');
@@ -375,7 +375,7 @@ test('shows recovery when a connected session disappears before sending', async 
 
   fixture.holdNextHistorySnapshot = true;
   await page.locator('[data-view="dashboard"]').click();
-  await page.locator('[data-view="assistant"]').click();
+  await page.locator('[data-view="assistant"]:visible').click();
   await expect.poll(() => typeof fixture.releaseHistorySnapshot).toBe('function');
 
   fixture.sessionListMode = 'missing';
@@ -831,7 +831,7 @@ async function waitForEmbeddedChatReady(page, frame) {
 async function openEmbeddedProject(page, title) {
   const project = page.locator('#case-list .case-item').filter({ hasText: title });
   await expect(project).toHaveCount(1);
-  await page.locator('[data-view="assistant"]').click();
+  await page.locator('[data-view="assistant"]:visible').click();
   await expect(project).toBeVisible();
   await project.click();
   await expect(page.locator('#chat-head-title')).toHaveText(title);

@@ -5,7 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 test('项目详情可以预览并执行本地测试', async ({ page }) => {
   const projectTitle = `执行工作台项目-${Date.now()}`;
   await page.goto('/');
-  await page.getByRole('button', { name: '新建测试项目' }).click();
+  await page.locator('#btn-topbar-new').click();
   await page.locator('#nc-title').fill(projectTitle);
   const projectCreated = page.waitForResponse((response) => response.url().endsWith('/api/projects') && response.request().method() === 'POST');
   await page.getByRole('button', { name: '创建项目' }).click();

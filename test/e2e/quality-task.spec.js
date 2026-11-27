@@ -3,7 +3,7 @@ import { test, expect } from '../support/e2e-test.js';
 test('项目详情可以创建质量任务并在刷新后保留', async ({ page }) => {
   const projectTitle = `质量任务浏览器项目-${Date.now()}`;
   await page.goto('/');
-  await page.getByRole('button', { name: '新建测试项目' }).click();
+  await page.locator('#btn-topbar-new').click();
   await page.locator('#nc-title').fill(projectTitle);
   await page.locator('#nc-workspace').uncheck();
   await page.getByRole('button', { name: '创建项目' }).click();
@@ -190,7 +190,8 @@ test('a delayed action-queue navigation cannot replace a project opened afterwar
   const waitForProjectA = new Promise((resolve) => { signalProjectAStarted = resolve; });
   const holdProjectA = new Promise((resolve) => { releaseProjectA = resolve; });
   await page.goto('/');
-  const action = page.locator('#dashboard-reminders .action-item').filter({ hasText: projectA.title });
+  await page.getByRole('button', { name: '打开行动台' }).click();
+  const action = page.locator('#action-desk-modal .action-item').filter({ hasText: '质量任务待确认' }).filter({ hasText: projectA.title }).first();
   await expect(action).toBeVisible();
   await page.route(`**/api/projects/${encodeURIComponent(projectA.id)}`, async (route) => {
     if (route.request().method() === 'GET') {

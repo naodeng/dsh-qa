@@ -148,7 +148,7 @@ async function createLinkedWorkbenchProject(page, id) {
 
 async function bindEmbeddedProject(page, title) {
   const frame = await openWorkbench(page);
-  await frame.locator('[data-view="assistant"]').click();
+  await frame.locator('[data-view="assistant"]:visible').click();
   await expect(frame.locator('#view-assistant')).toHaveClass(/active/);
   const project = frame.locator('#case-list .case-item').filter({ hasText: title });
   await expect(project).toHaveCount(1);

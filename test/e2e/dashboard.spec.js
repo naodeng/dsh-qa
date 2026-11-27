@@ -68,7 +68,7 @@ test.describe('首页', () => {
     expect(lightTypography.supporting.fontSize).toBe('14px');
     expect(lightTypography.supporting.fontWeight).toBe('400');
     expect(lightTypography.compact.fontSize).toBe('12px');
-    expect(lightTypography.control.fontSize).toBe('16px');
+    expect(lightTypography.control.fontSize).toBe('12px');
     expect(lightTypography.control.fontWeight).toBe('500');
     expect(lightTypography.metric.fontSize).toBe('28px');
     expect(lightTypography.metric.fontWeight).toBe('600');
@@ -83,7 +83,7 @@ test.describe('首页', () => {
     expect(await readTypography()).toEqual(lightTypography);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 
-    await page.locator('[data-view="skills"]').click();
+    await page.locator('[data-view="skills"]:visible, [data-view-jump="skills"]:visible').first().click();
     const skillHeading = page.locator('.skill-card h3').first();
     await expect(skillHeading).toBeVisible();
     await expect.poll(() => skillHeading.evaluate((element) => {
@@ -134,16 +134,19 @@ test.describe('首页', () => {
   test('首页可以创建项目和迭代', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('#metric-cards')).toBeVisible();
-    await page.getByRole('button', { name: /新建项目/ }).first().click();
+    await page.locator('#btn-topbar-new').click();
     await page.locator('#nc-title').fill('首页 E2E 项目');
     await page.locator('#nc-ok').click();
     await expect(page.locator('#dashboard-cases')).toContainText('首页 E2E 项目');
   });
 
-  test('首页可以打开新建迭代弹窗', async ({ page }) => {
+  test('首页用一个新建入口选择项目或迭代', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('button', { name: '新建迭代' }).click();
+    await page.locator('#btn-topbar-new').click();
+    await expect(page.locator('.modal')).toContainText('新建测试项目');
+    await page.locator('[data-create-kind="iteration"]').click();
     await expect(page.locator('.modal')).toContainText('新建测试迭代');
+    await expect(page.locator('#nc-ok')).toHaveText('创建迭代');
     await page.locator('#nc-cancel').click();
   });
 
@@ -189,17 +192,17 @@ test.describe('首页', () => {
     await page.locator('#st-theme-dark').click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await expect(page.locator('#st-theme-dark')).toHaveAttribute('aria-checked', 'true');
-    await expect.poll(() => page.locator('#main-content').evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(28, 32, 35)');
+    await expect.poll(() => page.locator('#main-content').evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(15, 17, 23)');
     await page.locator('#st-close').click();
-    await page.locator('[data-view-jump="board"]').click();
-    await expect.poll(() => page.locator('#view-board .card').first().evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(39, 44, 48)');
+    await page.locator('#view-dashboard .case-overview-panel [data-view-jump="board"]').click();
+    await expect.poll(() => page.locator('#view-board .card').first().evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(23, 26, 35)');
     await page.locator('[data-view="calendar"]').click();
-    await expect.poll(() => page.locator('#view-calendar .calendar-toolbar').evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(39, 44, 48)');
+    await expect.poll(() => page.locator('#view-calendar .calendar-toolbar').evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(23, 26, 35)');
     await page.locator('[data-view="dashboard"]').click();
     await page.locator('#btn-settings').click();
     await page.locator('#st-theme-light').click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-    await expect.poll(() => page.locator('#main-content').evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(244, 243, 240)');
+    await expect.poll(() => page.locator('#main-content').evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(247, 247, 245)');
     await page.locator('#st-theme-system').click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'system');
     await expect(page.locator('#settings-modal [data-layout-preset]')).toHaveCount(0);
@@ -241,7 +244,7 @@ test.describe('首页', () => {
       return { color: style.color, background: style.backgroundColor };
     });
     expect(colors.color).not.toBe('rgb(255, 255, 255)');
-    expect(colors.background).toBe('rgb(252, 252, 250)');
+    expect(colors.background).toBe('rgb(255, 255, 255)');
   });
 
   test('共享弹窗支持对话框语义、Escape 关闭和触发按钮焦点恢复', async ({ page }) => {
@@ -358,7 +361,7 @@ test.describe('首页', () => {
       await page.goto('/');
       await expect(page.locator('#metric-cards .metric-card')).toHaveCount(4);
       await expect(page.locator('#btn-settings')).toBeVisible();
-      await expect(page.locator('.nav-item[aria-label="DSH 测试对话"]')).toBeVisible();
+      await expect(page.locator('[data-view="assistant"]:visible')).toBeVisible();
       const overflow = await page.evaluate(() => ({
         document: document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
         body: document.body.scrollWidth <= document.body.clientWidth + 1,
@@ -369,7 +372,7 @@ test.describe('首页', () => {
         return { color: style.color, background: style.backgroundColor };
       });
       expect(settingsColors.color).not.toBe('rgb(255, 255, 255)');
-      expect(settingsColors.background).toBe('rgb(252, 252, 250)');
+      expect(settingsColors.background).toBe('rgb(255, 255, 255)');
     }
   });
 });

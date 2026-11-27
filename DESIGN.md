@@ -3,31 +3,31 @@ version: alpha
 name: DSH QA Quality Control Room
 description: Visual identity and interaction system for the local DSH QA workbench.
 colors:
-  primary: "#385B72"
-  ink: "#25292C"
-  muted: "#515A60"
-  muted-strong: "#454D52"
-  faint-strong: "#616A70"
-  page: "#F4F3F0"
-  panel: "#FCFCFA"
-  panel-soft: "#F0F0ED"
-  line: "#D9D9D4"
-  line-strong: "#8D9495"
-  action: "#385B72"
-  action-hover: "#2F4D61"
-  success: "#536873"
-  success-soft: "#E9EEF0"
-  warning: "#8B5D19"
-  warning-soft: "#F6EFDF"
-  danger: "#A43E42"
-  danger-soft: "#F6E9E9"
-  dark-page: "#1C2023"
-  dark-panel: "#272C30"
-  dark-panel-soft: "#22272A"
-  dark-ink: "#ECEEED"
-  dark-muted: "#C2C7C8"
-  dark-faint: "#AEB5B8"
-  dark-success: "#B2C0C6"
+  primary: "#004AC6"
+  ink: "#191B23"
+  muted: "#4B505E"
+  muted-strong: "#3D4250"
+  faint-strong: "#5D6170"
+  page: "#F7F7F5"
+  panel: "#FFFFFF"
+  panel-soft: "#F3F3F0"
+  line: "#E2E4E9"
+  line-strong: "#B9BDC8"
+  action: "#004AC6"
+  action-hover: "#0039A0"
+  success: "#15803D"
+  success-soft: "#DCFCE7"
+  warning: "#B45309"
+  warning-soft: "#FEF3C7"
+  danger: "#BA1A1A"
+  danger-soft: "#FFDAD6"
+  dark-page: "#0F1117"
+  dark-panel: "#171A23"
+  dark-panel-soft: "#1D212C"
+  dark-ink: "#F1F3F7"
+  dark-muted: "#A7AEBE"
+  dark-faint: "#8B93A7"
+  dark-success: "#4ADE80"
 typography:
   display:
     fontFamily: "var(--dsw-font-family, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif)"
@@ -54,13 +54,13 @@ typography:
     lineHeight: 1.4
 rounded:
   none: 0px
-  xs: 5px
-  sm: 7px
-  md: 9px
-  control-lg: 10px
+  xs: 4px
+  sm: 6px
+  md: 8px
+  control-lg: 8px
   lg: 12px
-  panel: 14px
-  panel-large: 16px
+  panel: 12px
+  panel-large: 12px
   pill: 999px
 spacing:
   3xs: 2px
@@ -76,7 +76,7 @@ components:
     backgroundColor: "{colors.action}"
     textColor: "#FFFFFF"
     rounded: "{rounded.md}"
-    height: 40px
+    height: 32px
   status-success:
     backgroundColor: "{colors.success-soft}"
     textColor: "{colors.success}"
@@ -111,13 +111,13 @@ components:
 
 ## Overview
 
-DSH QA is a local quality control room, not a generic project tracker. The interface should help a test lead answer what is risky, what is due, which project is active, and which decisions still require a human. Keep the existing dashboard, board, calendar, and assistant layout stable while applying the shared visual system.
+DSH QA is a local quality control room, not a generic project tracker. The interface should help a test lead answer what is risky, what is due, which project is active, and which decisions still require a human. The shell is a top bar with four primary destinations (dashboard, board, calendar, skills), a mobile navigation row, and a scrollable work area. The dashboard keeps a live DSH chat rail on the right; project detail keeps a contextual inspector on wide screens.
 
 ## Colors
 
-Use graphite text on a quiet, warm-neutral page with clean near-white work surfaces. Steel blue is the single action and selection accent. The standalone palette is explicit so a host application's unrelated theme cannot change the workbench colors. Blue-gray means healthy or passed, amber means attention is needed, and red is reserved for a real risk, failure, or overdue item. Project workflow stages stay neutral or steel blue; they do not imply a test result. Never use color alone to communicate a state: pair it with text, an icon, or a position.
+Use graphite text on a quiet, warm-neutral page with clean white work surfaces. Engineering blue (#004AC6) is the single action and selection accent. The standalone palette is explicit so a host application's unrelated theme cannot change the workbench colors. Blue-gray means healthy or passed, amber means attention is needed, and red is reserved for a real risk, failure, or overdue item. Project workflow stages stay neutral; they do not imply a test result. Never use color alone to communicate a state: pair it with text, an icon, or a position.
 
-The workbench supports light, dark, and system themes. Dark mode uses charcoal surfaces and a lighter steel-blue accent. Theme changes affect appearance only; the information architecture and QA workflow remain the same.
+The workbench supports light, dark, and system themes. Dark mode uses charcoal surfaces and a lighter engineering-blue accent. Theme changes affect appearance only; the information architecture and QA workflow remain the same.
 
 ## Typography
 
@@ -125,7 +125,7 @@ Use the DSH host font token when available, with the platform sans stack for Chi
 
 ## Layout
 
-The shell is a top bar, a collapsible primary rail, and a scrollable work area. The dashboard prioritizes attention items, then quality summary, then active projects and activity. The assistant keeps project context on the left, conversation in the center, and the live project radar on the right. At medium widths the radar may collapse; at narrow widths project context and radar become drawers.
+The shell is a top bar with four primary destinations, a mobile navigation row, and a scrollable work area. The dashboard prioritizes attention items, then quality summary, then active projects and activity, with a live DSH chat rail on the right. The board shows six stages; filters switch between all records, test projects, and test iterations. Calendar supports month, week, and day views. Project detail uses horizontal section tabs and a right-side context inspector on wide screens; the inspector collapses below 1280px. At narrow widths project lists, chat context, and radar become drawers or full-page views.
 
 Use the spacing scale for consistent rhythm. Page padding is generous enough for scanning, while risk and activity rows stay compact. Primary actions sit near their relevant heading and should not compete with more than one other primary action in the same region.
 
@@ -135,13 +135,13 @@ Panels use a thin border and a restrained neutral shadow. Depth indicates contai
 
 ## Shapes
 
-Controls use 10px radii and panels use 14–16px radii. Status labels are pills. Focus rings remain visible in every theme.
+Controls use 6–8px radii and panels use 12px radii. Status labels are pills. Focus rings remain visible in every theme.
 
 ## Components
 
 Primary buttons are reserved for the main action of a region. Secondary and subtle buttons handle navigation and supporting actions. Status badges use the semantic success, warning, danger, and neutral roles. Toasts must state what happened and what the user can do next when an action fails.
 
-The assistant distinguishes user messages, DSH analysis, DSH recommendations, and pending human confirmation. A model suggestion must never look like a final release decision. Empty states explain why the region is empty and provide one next action. Disabled controls explain why they are unavailable.
+The assistant distinguishes user messages, DSH analysis, DSH recommendations, and pending human confirmation. The dashboard chat rail supports expand, new conversation, skills/commands, attachments, stop, and project context. The command palette is the global search and jump surface (⌘K / Ctrl K), including pages, actions, and projects. A model suggestion must never look like a final release decision. Empty states explain why the region is empty and provide one next action. Disabled controls explain why they are unavailable.
 
 Use the existing inline SVG icon family with a consistent 18px size and 1.8px stroke. Buttons, inputs, tabs, and theme choices use short transitions for hover, active, and selected states; reduced-motion preferences are respected.
 
