@@ -146,7 +146,10 @@ test('create modal follows the active language', async ({ page }) => {
   await page.locator('#btn-topbar-new').click();
   await expect(page.locator('#new-project-modal')).toContainText('New test project');
   await expect(page.locator('#nc-title-label')).toHaveText('Project name *');
-  await page.locator('[data-create-kind="iteration"]').click();
+  await page.locator('[data-create-kind="project"]').focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('[data-create-kind="iteration"]')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#nc-title-label')).toHaveText('Iteration name *');
   await expect(page.locator('#new-project-modal')).toContainText('New test iteration');
   await expect(page.locator('#nc-ok')).toHaveText('Create iteration');
 });

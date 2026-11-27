@@ -3674,6 +3674,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       <div id="action-desk-list" class="action-desk-list"></div>
       <div class="modal-foot"><button class="btn primary" id="action-desk-close" type="button">${esc(t('modal.close'))}</button></div>`, true);
     modal.id = 'action-desk-modal';
+    bindTablistKeys($('.action-desk-tools .triage-filter', modal), '[data-action-desk-filter]');
     const visibleQueue = () => state.actionQueue.filter((item) => state.actionDeskFilter === 'all' || (state.actionDeskFilter === 'action' ? item.actionRequired : !item.actionRequired));
     const render = () => {
       const list = $('#action-desk-list', modal);
@@ -3823,6 +3824,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       setTabSelection(modal, '[data-create-kind]', 'createKind', kind);
     };
     applyKind();
+    bindTablistKeys($('.create-kind-switch', modal), '[data-create-kind]');
     $$('[data-create-kind]', modal).forEach((button) => button.addEventListener('click', () => { kind = button.dataset.createKind; applyKind(); }));
     $$('.mode-option', modal).forEach((button) => button.addEventListener('click', () => { mode = button.dataset.mode; $$('.mode-option', modal).forEach((el) => el.classList.toggle('active', el === button)); }));
     $('#nc-cancel', modal).addEventListener('click', closeModal);
@@ -4230,8 +4232,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       button.setAttribute('aria-selected', String(active));
     });
   }
-  function bindTablistNavigation(containerSelector, buttonSelector) {
-    const container = $(containerSelector);
+  function bindTablistKeys(container, buttonSelector) {
     if (!container) return;
     container.addEventListener('keydown', (event) => {
       if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
@@ -4243,6 +4244,9 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       next.focus();
       next.click();
     });
+  }
+  function bindTablistNavigation(containerSelector, buttonSelector) {
+    bindTablistKeys($(containerSelector), buttonSelector);
   }
   function bind() {
     bindTablistNavigation('.board-filter-bar', '[data-board-filter]');
