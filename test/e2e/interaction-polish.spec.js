@@ -123,3 +123,15 @@ test('the single create entry submits an iteration when the type is switched', a
   const payload = await (await created).json();
   expect(payload.project.kind).toBe('iteration');
 });
+
+test('calendar month controls keep week and day views on the same period', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '日历排期', exact: true }).first().click();
+  await page.locator('#cal-next').click();
+  const month = Number(await page.locator('#cal-month').inputValue());
+  await page.locator('[data-cal-view="week"]').click();
+  const selected = await page.locator('.full-day.selected').getAttribute('data-date');
+  expect(new Date(`${selected}T00:00:00`).getMonth()).toBe(month);
+  await page.locator('[data-cal-view="day"]').click();
+  await expect(page.locator('.full-day.selected')).toHaveAttribute('data-date', selected);
+});

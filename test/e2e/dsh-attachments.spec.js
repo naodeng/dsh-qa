@@ -622,6 +622,8 @@ async function createEmbeddedFixture(page, options = {}) {
     holdNextHistorySnapshot: false,
     releaseHistorySnapshot: null,
     holdNextPrompt: Boolean(options.holdPrompt),
+    holdNextTurn: Boolean(options.holdNextTurn),
+    releaseTurn: null,
     holdNextCommand: Boolean(options.holdCommand),
     commandDefinitions: options.commands || [],
     commandResult: options.commandResult,
@@ -748,8 +750,16 @@ async function createEmbeddedFixture(page, options = {}) {
       });
       const sessionId = payload.args.request.sessionId;
       appendSessionEvent(sessionId, 'user/message', { message: { source: { kind: 'user' }, content: historyContent } });
-      appendSessionEvent(sessionId, 'assistant/message', { message: { content: [{ type: 'text', text: '已收到' }] } });
-      appendSessionEvent(sessionId, 'turn/end', {});
+      if (fixture.holdNextTurn) {
+        fixture.holdNextTurn = false;
+        fixture.releaseTurn = () => {
+          appendSessionEvent(sessionId, 'assistant/message', { message: { content: [{ type: 'text', text: '已收到' }] } });
+          appendSessionEvent(sessionId, 'turn/end', {});
+        };
+      } else {
+        appendSessionEvent(sessionId, 'assistant/message', { message: { content: [{ type: 'text', text: '已收到' }] } });
+        appendSessionEvent(sessionId, 'turn/end', {});
+      }
       value = { accepted: true };
     } else if (method === 'commands/execute') {
       fixture.commands.push(payload.args);
@@ -837,3 +847,20 @@ async function openEmbeddedProject(page, title) {
   await expect(page.locator('#chat-head-title')).toHaveText(title);
   return page.locator('#view-assistant');
 }
+
+test('switching chat layouts preserves the pending answer', async ({ page }) => {
+  const fixture = await createEmbeddedFixture(page, { holdNextTurn: true });
+  const frame = fixture.frame;
+  await frame.locator('#chat-input').fill('请总结本轮测试');
+  await frame.locator('#btn-send').click();
+  await expect.poll(() => typeof fixture.releaseTurn).toBe('function');
+  await expect(frame.locator('.msg-wrap.dsh').last()).toContainText('正在读取');
+
+  await page.locator('[data-view="dashboard"]').click();
+  await expect(page.locator('#view-dashboard')).toBeVisible();
+  await page.locator('[data-view="assistant"]:visible').click();
+  fixture.releaseTurn();
+
+  await expect(frame.locator('.msg-wrap.dsh').last()).toContainText('已收到');
+  await expect(frame.locator('.msg-wrap.dsh')).toHaveCount(1);
+});

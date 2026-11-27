@@ -594,8 +594,13 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       if (isCurrent) el.setAttribute('aria-current', 'page');
       else el.removeAttribute('aria-current');
     });
-    if (view === 'assistant') initializeDshChat({ initialize: Boolean(state.activeProject) });
-    if (view === 'dashboard') initializeDshChat({ initialize: Boolean(state.activeProject) });
+    // Moving the chat pane between layouts must not reload history while a
+    // turn is pending: the pending message node is still held by the active
+    // sendDshMessage()/waitForDshTurn() call and would otherwise be detached.
+    const chatTurnActive = state.dsh.busy || sendingMessage;
+    if (!chatTurnActive && (view === 'assistant' || view === 'dashboard')) {
+      initializeDshChat({ initialize: Boolean(state.activeProject) });
+    }
     if (view === 'dashboard') renderDashboard();
     if (view === 'board') {
       renderBoard();
@@ -1006,8 +1011,16 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     $('#empty-add-schedule', $('#calendar-selected'))?.addEventListener('click', () => openScheduleModal(state.selectedDate));
   }
   function renderCalendars() { renderMiniCalendar(); renderFullCalendar(); }
+  function setCalendarPeriod(year, month) {
+    const current = new Date(state.selectedDate + 'T00:00:00');
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const day = Math.min(current.getDate(), daysInMonth);
+    state.calendarCursor = new Date(year, month, 1);
+    state.selectedDate = localDate(new Date(year, month, day));
+  }
   function moveMonth(delta) {
-    state.calendarCursor = new Date(state.calendarCursor.getFullYear(), state.calendarCursor.getMonth() + delta, 1);
+    const next = new Date(state.calendarCursor.getFullYear(), state.calendarCursor.getMonth() + delta, 1);
+    setCalendarPeriod(next.getFullYear(), next.getMonth());
     renderCalendars();
   }
   function moveCalendar(delta) {
@@ -4381,8 +4394,8 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       $$('[data-cal-view]').forEach((item) => { const active = item.dataset.calView === state.calendarView; item.classList.toggle('active', active); item.setAttribute('aria-selected', String(active)); });
       renderCalendars();
     }));
-    $('#cal-year').addEventListener('change', () => { state.calendarCursor = new Date(Number($('#cal-year').value), state.calendarCursor.getMonth(), 1); renderCalendars(); });
-    $('#cal-month').addEventListener('change', () => { state.calendarCursor = new Date(state.calendarCursor.getFullYear(), Number($('#cal-month').value), 1); renderCalendars(); });
+    $('#cal-year').addEventListener('change', () => { setCalendarPeriod(Number($('#cal-year').value), state.calendarCursor.getMonth()); renderCalendars(); });
+    $('#cal-month').addEventListener('change', () => { setCalendarPeriod(state.calendarCursor.getFullYear(), Number($('#cal-month').value)); renderCalendars(); });
     $('#cal-date-jump').addEventListener('change', () => { if ($('#cal-date-jump').value) selectCalendarDate($('#cal-date-jump').value); });
     $('#btn-add-schedule').addEventListener('click', () => openScheduleModal(state.selectedDate));
     $('#btn-add-selected').addEventListener('click', () => openScheduleModal(state.selectedDate));
