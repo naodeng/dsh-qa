@@ -3,14 +3,14 @@ import { test, expect } from '../support/e2e-test.js';
 test.describe('QA Skill 安装页', () => {
   async function openSkills(page) {
     await page.goto('/');
-    await page.getByRole('button', { name: 'QA Skill安装' }).click();
+    await page.getByRole('button', { name: 'QA Skills' }).click();
     await expect(page.locator('#view-skills')).toBeVisible();
     await expect(page.locator('.skill-card').first()).toBeVisible();
   }
 
   test('Skill Tab 可以访问并显示官网目录分类', async ({ page }) => {
     await openSkills(page);
-    await expect(page.locator('#view-skills h1')).toHaveText('QA skills 安装页面');
+    await expect(page.locator('#view-skills h1')).toHaveText('QA Skills 目录');
     await expect(page.locator('.skill-category').first()).toContainText('测试类型');
     await expect(page.locator('.skill-card h3').first()).toHaveText('需求分析');
     await expect(page.locator('.skill-card p').first()).toHaveText('输入需求文档，整理信息缺口、风险和测试范围。');
@@ -31,7 +31,7 @@ test.describe('QA Skill 安装页', () => {
     await expect.poll(() => page.locator('.skill-card').count()).toBe(initialCount);
     await page.locator('#btn-settings').click();
     await page.locator('[data-settings-lang="en"]').click();
-    await expect(page.locator('#view-skills h1')).toHaveText('QA skills installer');
+    await expect(page.locator('#view-skills h1')).toHaveText('QA Skills');
     await expect(page.locator('.skill-category').first()).toContainText('Testing types');
   });
 

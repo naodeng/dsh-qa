@@ -5,7 +5,7 @@ test.describe('DSH 测试对话页', () => {
     await page.goto('/');
     await page.getByRole('button', { name: 'DSH 测试对话' }).click();
 
-    for (const selector of ['#btn-collapse-rail', '#btn-collapse-cases', '#btn-collapse-context']) {
+    for (const selector of ['#btn-collapse-cases', '#btn-collapse-context']) {
       await expect(page.locator(`${selector} svg`)).toBeVisible();
     }
 
@@ -38,7 +38,7 @@ test.describe('DSH 测试对话页', () => {
     try {
       await page.goto('/');
       await page.getByRole('button', { name: 'DSH 测试对话' }).click();
-      const navLabel = page.locator('#rail .nav-item[data-view="assistant"] span');
+      const navLabel = page.locator('#btn-topbar-chat span');
       const navHeight = await navLabel.evaluate((element) => element.getBoundingClientRect().height);
       const navLineHeight = await navLabel.evaluate((element) => parseFloat(getComputedStyle(element).lineHeight));
       expect(navHeight).toBeLessThanOrEqual(navLineHeight + 1);
@@ -77,7 +77,7 @@ test.describe('DSH 测试对话页', () => {
     await page.reload();
 
     await expect(page.locator('#rail')).toHaveCSS('width', '208px');
-    const navLabel = page.locator('#rail .nav-item[data-view="assistant"] span');
+    const navLabel = page.locator('#btn-topbar-chat span');
     const navHeight = await navLabel.evaluate((element) => element.getBoundingClientRect().height);
     const navLineHeight = await navLabel.evaluate((element) => parseFloat(getComputedStyle(element).lineHeight));
     expect(navHeight).toBeLessThanOrEqual(navLineHeight + 1);
@@ -94,8 +94,8 @@ test.describe('DSH 测试对话页', () => {
   test('手机宽度仍可从窄导航进入 DSH 对话主面板', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
-    await expect(page.locator('.nav-item[aria-label="DSH 测试对话"]')).toBeVisible();
-    await page.locator('.nav-item[aria-label="DSH 测试对话"]').click();
+    await expect(page.locator('#mobile-nav [data-view="assistant"]:visible')).toBeVisible();
+    await page.locator('#mobile-nav [data-view="assistant"]:visible').click();
     await expect(page.locator('#view-assistant')).toBeVisible();
     await expect(page.locator('#chat-pane')).toBeVisible();
   });
@@ -103,7 +103,7 @@ test.describe('DSH 测试对话页', () => {
   test('平板与手机布局保留聊天宽度、侧栏入口和项目操作', async ({ page }) => {
     await page.setViewportSize({ width: 1216, height: 900 });
     await page.goto('/');
-    await page.locator('[data-view="assistant"]').click();
+    await page.locator('[data-view="assistant"]:visible').first().click();
     await expect(page.locator('#btn-mobile-cases')).toBeVisible();
     await expect(page.locator('#btn-mobile-context')).toBeVisible();
     await expect(page.locator('#case-resizer')).toBeHidden();
@@ -121,14 +121,7 @@ test.describe('DSH 测试对话页', () => {
 
     await page.locator('#btn-mobile-cases').click();
     await expect(page.locator('#btn-mobile-cases')).toHaveAttribute('aria-expanded', 'true');
-    await page.waitForFunction(() => {
-      const drawer = document.querySelector('#case-sidebar').getBoundingClientRect();
-      const rail = document.querySelector('#rail').getBoundingClientRect();
-      return Math.abs(drawer.x - rail.right) < 1;
-    });
-    const drawer = await page.locator('#case-sidebar').boundingBox();
-    const rail = await page.locator('#rail').boundingBox();
-    expect(Math.abs(drawer.x - rail.x - rail.width)).toBeLessThanOrEqual(1);
+    await expect(page.locator('#case-sidebar')).toBeVisible();
     await page.locator('#case-list .case-item').first().click();
     await expect(page.locator('#btn-mobile-cases')).toHaveAttribute('aria-expanded', 'false');
     await page.waitForFunction(() => document.querySelector('#case-sidebar').getBoundingClientRect().right <= 1);
@@ -157,7 +150,7 @@ test.describe('DSH 测试对话页', () => {
       await route.fulfill({ response, body: JSON.stringify({ ...board, projects: [] }) });
     });
     await page.goto('/');
-    await page.locator('[data-view="assistant"]').click();
+    await page.locator('[data-view="assistant"]:visible').first().click();
 
     await expect(page.locator('.chat-empty-no-project')).toContainText('先选择一个项目');
     await expect(page.locator('[data-empty-select-project]')).toBeVisible();
@@ -172,7 +165,7 @@ test.describe('DSH 测试对话页', () => {
 
   test('独立模式不再显示连接中或允许提交 DSH 对话', async ({ page }) => {
     await page.goto('/');
-    await page.locator('[data-view="assistant"]').click();
+    await page.locator('[data-view="assistant"]:visible').first().click();
 
     await expect(page.locator('.chat-empty-standalone')).toContainText('请从 DSH 侧边栏打开工作台');
     await expect(page.locator('.dsh-prompt')).toHaveCount(0);

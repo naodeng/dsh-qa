@@ -13,6 +13,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
   const localizedText = (zh, en) => currentLang() === 'en' ? en : zh;
   const englishCount = (count, singular, plural = `${singular}s`) => `${count} ${count === 1 ? singular : plural}`;
+  const SKILL_ICON = '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"/></svg>';
   const FEED_ICON = { req: '需', tc: '例', defect: '缺', milestone: '里', report: '报', knowledge: '知', minute: '纪', gate: '审', event: '程', member: '人', transition: '转', tool: 'AI', case: '项', run: '跑', chat: '问' };
   const REQ_KIND_CN = { functional: '功能需求', nonfunctional: '非功能需求', risk: '风险点', issue: '问题' };
   const TC_KIND_CN = { functional: '功能', boundary: '边界', interface: '接口', ui: '界面', performance: '性能', security: '安全', compat: '兼容', other: '其他' };
@@ -80,13 +81,13 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     detailDefectStatusFilter: 'all', detailDeliveryFocus: 'all',
     traceabilitySearch: '', traceabilityFilter: 'all', traceabilityExpandedRequirements: new Set(), traceabilityExpandedTestcases: new Set(),
     qualitySelectedTaskId: null, qualityTaskSelectionPinned: false,
-    streams: new Map(), evidenceRevisions: new Map(), busy: new Set(), justDragged: false, search: '', caseFilter: 'all',
+    streams: new Map(), evidenceRevisions: new Map(), busy: new Set(), justDragged: false, search: '', caseFilter: 'all', skillFilter: 'all', skillPage: 1, boardFilter: 'all', mobileBoardStage: 'all', actionFilter: 'all', settingsFull: false,
     dshEmbedded: location.pathname.startsWith('/api/dsh-qa/workbench'),
     layout: { ...DEFAULT_LAYOUT },
     appInfo: { ...DEFAULT_APP_INFO }, appInfoStatus: 'idle', appInfoRequest: null, releasePage: 1,
     dsh: { projectId: null, sessionId: '', historySessionIds: [], skills: [], commands: [], models: null, qaPreset: null, busy: false, turnToken: 0, attachments: [], attachmentProjectId: '' },
     skillCatalog: { lang: '', categories: [], skills: [], catalogUnavailable: false }, skillSearch: '', installingSkill: '', uninstallingSkill: '',
-    calendarCursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), selectedDate: localDate(new Date()),
+    calendarCursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), selectedDate: localDate(new Date()), calendarView: 'month',
     refreshTimer: null, actionQueueRefreshTimer: null, sseReconnectTimer: null,
   };
   const dshRpc = createDshRpc(globalThis.fetch.bind(globalThis), { embedded: state.dshEmbedded });
@@ -428,30 +429,80 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     const skills = state.skillCatalog.skills || [];
     $('#skills-count').textContent = skills.length;
     const query = state.skillSearch.trim().toLowerCase();
-    const filtered = skills.filter((skill) => !query || `${skill.name} ${skill.title} ${skill.description}`.toLowerCase().includes(query));
+    const source = state.skillFilter || 'all';
+    const filterCounts = {
+      all: skills.length,
+      type: skills.filter((skill) => skill.categoryId === 'type').length,
+      workflow: skills.filter((skill) => skill.categoryId === 'workflow').length,
+      plus: skills.filter((skill) => skill.categoryId === 'plus').length,
+      installed: skills.filter((skill) => skill.installed).length,
+    };
+    $$('[data-skill-filter]').forEach((button) => {
+      const key = `skills.filter${button.dataset.skillFilter.charAt(0).toUpperCase()}${button.dataset.skillFilter.slice(1)}`;
+      button.textContent = `${t(key)} ${filterCounts[button.dataset.skillFilter] ?? 0}`;
+    });
+    setTabSelection('.skills-filters', '[data-skill-filter]', 'skillFilter', source);
+    const filtered = skills.filter((skill) => {
+      if (source === 'installed' && !skill.installed) return false;
+      if (source !== 'all' && source !== 'installed' && skill.categoryId !== source) return false;
+      return !query || `${skill.name} ${skill.title} ${skill.description}`.toLowerCase().includes(query);
+    });
     const renderCard = (skill) => {
       const action = skill.installed
         ? `<button class="btn subtle sm skill-uninstall" type="button" data-uninstall-skill="${esc(skill.name)}" ${state.uninstallingSkill === skill.name ? 'disabled' : ''}>${state.uninstallingSkill === skill.name ? esc(t('skills.uninstalling')) : esc(t('skills.uninstall'))}</button>`
         : skill.availableInRepository !== true
           ? `<button class="btn primary sm skill-install" type="button" disabled>${esc(t('skills.unavailableInstall'))}</button>`
           : `<button class="btn primary sm skill-install" type="button" data-skill-name="${esc(skill.name)}" ${state.installingSkill === skill.name ? 'disabled' : ''}>${state.installingSkill === skill.name ? esc(t('skills.installing')) : esc(t('skills.install'))}</button>`;
-      return `<article class="skill-card"><div class="skill-card-head"><span class="skill-mark">⌘</span><div><h3>${esc(skill.title)}</h3><code>${esc(skill.name)}</code></div></div><p>${esc(skill.description)}</p><div class="skill-card-foot"><span>${esc(skill.category)}</span><a class="skill-detail" href="${esc(skill.siteUrl)}" target="_blank" rel="noreferrer">${esc(t('skills.details'))} →</a>${action}</div></article>`;
+      return `<article class="skill-card"><div class="skill-card-head"><span class="skill-mark">${SKILL_ICON}</span><div><h3>${esc(skill.title)}</h3><code>${esc(skill.name)}</code></div></div><p>${esc(skill.description)}</p><div class="skill-card-foot"><span>${esc(skill.category)}</span><a class="skill-detail" href="${esc(skill.siteUrl)}" target="_blank" rel="noreferrer">${esc(t('skills.details'))} →</a>${action}</div></article>`;
     };
-    const catalog = filtered.length ? state.skillCatalog.categories.map((category) => {
-      const rows = filtered.filter((skill) => skill.categoryId === category.id);
+    const pageSize = 9;
+    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    state.skillPage = Math.min(Math.max(1, state.skillPage || 1), totalPages);
+    const pageStart = (state.skillPage - 1) * pageSize;
+    const pageSkills = filtered.slice(pageStart, pageStart + pageSize);
+    const hasFilter = Boolean(query) || source !== 'all';
+    const unavailable = Boolean(state.skillCatalog.catalogUnavailable);
+    const emptyTitle = unavailable ? t('skills.catalogUnavailable') : hasFilter ? t('skills.empty') : t('skills.catalogEmpty');
+    const emptyBody = unavailable ? t('skills.catalogUnavailableEmpty') : hasFilter ? t('skills.filterHint') : t('skills.catalogEmptyTip');
+    const emptyAction = unavailable || !hasFilter ? 'refresh' : 'clear';
+    const emptyMarkup = `<div class="skills-empty"><span class="skills-empty-mark">${SKILL_ICON}</span><h2>${esc(emptyTitle)}</h2><p>${esc(emptyBody)}</p><button class="btn primary sm" type="button" data-skills-empty-action="${emptyAction}">${esc(emptyAction === 'refresh' ? t('skills.refresh') : t('skills.clearFilters'))}</button></div>`;
+    const catalog = pageSkills.length ? state.skillCatalog.categories.map((category) => {
+      const rows = pageSkills.filter((skill) => skill.categoryId === category.id);
       if (!rows.length) return '';
       return `<section class="skill-category"><div class="skill-category-head"><h2>${esc(category[currentLang()] || category.en)}</h2><span>${rows.length}</span></div><div class="skill-grid">${rows.map(renderCard).join('')}</div></section>`;
-    }).join('') : emptyHtml(state.skillCatalog.catalogUnavailable && !skills.length ? t('skills.catalogUnavailableEmpty') : t('skills.empty'));
-    const warning = state.skillCatalog.catalogUnavailable ? emptyHtml(t('skills.catalogUnavailable')) : '';
+    }).join('') : emptyMarkup;
+    const warning = unavailable && pageSkills.length ? emptyHtml(t('skills.catalogUnavailable')) : '';
     list.innerHTML = `${warning}${catalog}`;
+    $('[data-skills-empty-action]', list)?.addEventListener('click', (event) => {
+      const action = event.currentTarget.dataset.skillsEmptyAction;
+      if (action === 'clear') {
+        state.skillSearch = '';
+        state.skillFilter = 'all';
+        state.skillPage = 1;
+        const input = $('#skills-search');
+        if (input) input.value = '';
+        renderSkills();
+      } else $('#btn-skills-refresh')?.click();
+    });
+    const pager = $('#skills-pagination');
+    if (pager) {
+      pager.innerHTML = filtered.length ? `<span>${currentLang() === 'en' ? `Page ${state.skillPage} / ${totalPages} · ${filtered.length} skills` : `第 ${state.skillPage} / ${totalPages} 页 · 共 ${filtered.length} 项`}</span><div><button class="btn sm" type="button" data-skill-page="prev" ${state.skillPage <= 1 ? 'disabled' : ''}>${currentLang() === 'en' ? 'Previous' : '上一页'}</button><button class="btn sm" type="button" data-skill-page="next" ${state.skillPage >= totalPages ? 'disabled' : ''}>${currentLang() === 'en' ? 'Next' : '下一页'}</button></div>` : '';
+      $$('[data-skill-page]', pager).forEach((button) => button.addEventListener('click', () => {
+        const direction = button.dataset.skillPage;
+        state.skillPage += direction === 'next' ? 1 : -1;
+        renderSkills();
+        $(`[data-skill-page="${direction}"]`, $('#skills-pagination'))?.focus();
+      }));
+    }
   }
   async function loadSkillCatalog() {
     const lang = currentLang();
     try {
       state.skillCatalog = await api(`api/skills?lang=${lang}`);
       renderSkills();
-    } catch (error) {
-      $('#skills-list').innerHTML = emptyHtml(error.message);
+    } catch {
+      state.skillCatalog = { ...state.skillCatalog, catalogUnavailable: true };
+      renderSkills();
     }
   }
   async function installSkill(name) {
@@ -492,6 +543,41 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       if (scrollTop !== undefined) $('.col-cards', column).scrollTop = scrollTop;
     });
   }
+  function mountChatPane(view) {
+    const pane = $('#chat-pane');
+    if (!pane) return;
+    const dashboardSlot = $('#dashboard-chat-slot');
+    const assistantView = $('#view-assistant');
+    if (view === 'dashboard' && dashboardSlot) {
+      if (pane.parentElement !== dashboardSlot) dashboardSlot.appendChild(pane);
+      pane.classList.add('chat-pane-rail');
+      pane.classList.remove('chat-pane-full');
+    } else if (view === 'assistant' && assistantView) {
+      const contextResizer = $('#context-resizer');
+      if (contextResizer && pane.nextElementSibling !== contextResizer) assistantView.insertBefore(pane, contextResizer);
+      pane.classList.remove('chat-pane-rail');
+      pane.classList.add('chat-pane-full');
+    }
+  }
+  function syncMobileNav(view) {
+    const active = view === 'project-detail' ? state.detailReturnView : view;
+    $$('.mobile-nav-item').forEach((el) => {
+      const current = el.dataset.mobileView === active || (el.dataset.view === 'assistant' && active === 'assistant');
+      el.classList.toggle('active', current);
+      if (current) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
+    });
+  }
+  function renderDashboardContext() {
+    const label = $('#dashboard-context-label');
+    if (!label) return;
+    const project = state.activeProject;
+    label.textContent = project ? `${project.projectKey || ''} ${project.title || ''}`.trim() : '未选择项目';
+    renderDashboardRadar(project);
+  }
+  function setDashboardChatContext(id) {
+    if (!id) return;
+    loadChat(id, false).then(() => { const input = $('#chat-input'); if (input?.offsetParent) input.focus(); }).catch((error) => toast(error.message, 'err'));
+  }
   function switchView(view) {
     if (!['dashboard', 'assistant', 'board', 'calendar', 'skills', 'project-detail'].includes(view)) return;
     const previousView = state.view;
@@ -506,7 +592,13 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       if (isCurrent) el.setAttribute('aria-current', 'page');
       else el.removeAttribute('aria-current');
     });
-    if (view === 'assistant' && !state.activeProject) initializeDshChat({ initialize: false });
+    // Moving the chat pane between layouts must not reload history while a
+    // turn is pending: the pending message node is still held by the active
+    // sendDshMessage()/waitForDshTurn() call and would otherwise be detached.
+    const chatTurnActive = state.dsh.busy || sendingMessage;
+    if (!chatTurnActive && (view === 'assistant' || view === 'dashboard')) {
+      initializeDshChat({ initialize: Boolean(state.activeProject) });
+    }
     if (view === 'dashboard') renderDashboard();
     if (view === 'board') {
       renderBoard();
@@ -515,6 +607,9 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     if (view === 'calendar') renderCalendars();
     if (view === 'skills' && !state.skillCatalog.skills.length) loadSkillCatalog();
     if (view === 'skills') renderSkills();
+    mountChatPane(view);
+    syncMobileNav(view);
+    if (view === 'dashboard') renderDashboardContext();
   }
   async function openProject(id) {
     switchView('assistant');
@@ -560,7 +655,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       [t('metric.activeProjects'), s.activeProjects ?? 0, t('metric.total', { n: s.totalProjects ?? 0 }), 'blue', '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h6l2 2h8v10H4z"/><path d="M4 7V5h6l2 2"/></svg>'],
       [t('metric.dueSoon'), s.dueSoonMilestones ?? 0, t('metric.dueSoonTip'), 'amber', '<svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 3h6"/></svg>'],
       [t('metric.overdue'), s.overdueMilestones ?? 0, s.overdueMilestones ? t('metric.overdueTip') : t('metric.overdueClean'), 'red', '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5M12 17h.01"/></svg>'],
-      [t('metric.openDefects'), s.openDefects ?? 0, t('metric.openDefectsTip'), 'teal', '<svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7"/></svg>'],
+      [t('metric.openDefects'), s.openDefects ?? 0, (s.openDefects ?? 0) ? t('metric.openDefectsTip') : t('metric.openDefectsClean'), (s.openDefects ?? 0) ? 'amber' : 'teal', '<svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7"/></svg>'],
     ];
     $('#metric-cards').innerHTML = metrics.map(([label, value, note, color, icon]) => `
       <div class="metric-card"><div class="metric-copy"><small>${label}</small><strong>${value}</strong><em>${note}</em></div><span class="metric-icon ${color}">${icon}</span></div>`).join('');
@@ -592,7 +687,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
   function actionItemMarkup(item, { compact = false } = {}) {
     const severity = actionPriorityClass(item);
     const status = actionStatusLabel(item.status);
-    const showStatus = !compact || item.status === 'blocked' || item.status === 'in_progress';
+    const showStatus = item.status === 'blocked' || item.status === 'in_progress' || !item.actionRequired;
     const statusClass = compact && showStatus ? ' has-status' : '';
     return `<button class="attention-item action-item ${severity}${compact ? ' compact' : ''}${statusClass}" data-action-id="${esc(item.id)}" type="button">
       <span class="attention-mark">${tinyIcon(item.kind.startsWith('gate_') ? 'gate' : item.kind.startsWith('milestone_') ? 'milestone' : 'workflow')}</span>
@@ -688,7 +783,8 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       $('#nav-alert-count').classList.add('hidden');
       return;
     }
-    const items = state.actionQueue.slice(0, 5);
+    const queue = state.actionFilter === 'overdue' ? state.actionQueue.filter((item) => actionPriorityClass(item) === 'danger') : state.actionQueue;
+    const items = queue.slice(0, 5);
     const errorNotice = state.actionQueueError
       ? `<div class="action-queue-error" role="alert">${esc(t('action.queueStale'))}</div>`
       : '';
@@ -717,10 +813,17 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
         <div class="case-main"><b>${esc(card.title)}</b><span>${esc(card.projectKey || card.typeLabel || t('case.table.project'))}</span></div>
         <span class="stage-pill">${esc(column?.title || card.status)}</span>
         <span class="risk-badges">${risk}<span class="risk-badge">${t('case.table.risk').split(' / ')[1] || 'Cases'} ${card.counts.testcases}</span></span>
-        <span class="last-active">${fmtTime(card.lastActivityAt)}<button class="row-detail-link" data-project-preview type="button">${currentLang() === 'en' ? 'Quick preview' : '快速预览'}</button></span>
+        <span class="last-active">${fmtTime(card.lastActivityAt)}<button class="row-detail-link" data-project-context type="button">${currentLang() === 'en' ? 'Chat context' : '设为对话上下文'}</button><button class="row-detail-link" data-project-preview type="button">${currentLang() === 'en' ? 'Quick preview' : '快速预览'}</button></span>
       </div>`;
     }).join('') : emptyHtml(t('caseList.empty'));
-    $$('.case-overview-row', $('#dashboard-cases')).forEach((el) => el.addEventListener('click', () => openProjectDetail(el.dataset.projectId, 'dashboard')));
+    $$('.case-overview-row', $('#dashboard-cases')).forEach((el) => {
+      el.tabIndex = 0;
+      el.setAttribute('role', 'group');
+      el.setAttribute('aria-label', `${currentLang() === 'en' ? 'Open project' : '打开项目'}：${el.querySelector('.case-main b')?.textContent || ''}`);
+      el.addEventListener('click', () => openProjectDetail(el.dataset.projectId, 'dashboard'));
+      el.addEventListener('keydown', (event) => { if (event.target === el && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); el.click(); } });
+    });
+    $$('[data-project-context]', $('#dashboard-cases')).forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); setDashboardChatContext(button.closest('[data-project-id]').dataset.projectId); }));
     $$('[data-project-preview]', $('#dashboard-cases')).forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); openDrawer(button.closest('[data-project-id]').dataset.projectId); }));
   }
   function renderAiSummary() {
@@ -813,23 +916,64 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     $('#cal-year').innerHTML = Array.from({ length: 21 }, (_, i) => currentYear - 10 + i).map((year) => `<option value="${year}" ${year === currentYear ? 'selected' : ''}>${year}</option>`).join('');
     $('#cal-month').innerHTML = Array.from({ length: 12 }, (_, i) => `<option value="${i}" ${i === cursor.getMonth() ? 'selected' : ''}>${i + 1}</option>`).join('');
     $('#cal-date-jump').value = state.selectedDate;
-    $('#full-calendar').innerHTML = weekdays.map((day) => `<div class="weekday">${day}</div>`).join('') + cells.map((date) => {
+    const renderCalendarCell = (date, limit = 3) => {
       const iso = localDate(date);
       const classes = ['full-day'];
       if (date.getMonth() !== cursor.getMonth()) classes.push('out');
       if (iso === localDate(new Date())) classes.push('today');
       if (iso === state.selectedDate) classes.push('selected');
-      const events = itemsOn(iso).slice(0, 3).map((item) => {
+      const dayItems = itemsOn(iso);
+      const events = dayItems.slice(0, limit).map((item) => {
         const danger = item.type === 'milestone' && item.state?.overdue && !item.done;
         return `<button class="day-event ${item.type === 'milestone' ? 'deadline' : ''} ${danger ? 'danger' : ''}" data-project-id="${item.projectId}" type="button" title="${esc(item.projectTitle)} · ${esc(item.title)}">${esc(item.title)}</button>`;
       }).join('');
-      const more = itemsOn(iso).length > 3 ? `<span class="day-more">${currentLang() === 'en' ? `${itemsOn(iso).length - 3} more` : `另有 ${itemsOn(iso).length - 3} 项`}</span>` : '';
-      return `<div class="${classes.join(' ')}" data-date="${iso}"><div class="day-top"><span class="day-number">${date.getDate()}</span><button class="day-add" type="button" title="在 ${iso} 新增日程" aria-label="在 ${iso} 新增日程">＋</button></div><div class="day-events">${events}${more}</div></div>`;
-    }).join('');
-    $$('.full-day', $('#full-calendar')).forEach((el) => el.addEventListener('click', () => selectCalendarDate(el.dataset.date)));
+      const more = dayItems.length > limit ? `<span class="day-more">${currentLang() === 'en' ? `${dayItems.length - limit} more` : `另有 ${dayItems.length - limit} 项`}</span>` : '';
+      const focusable = iso === state.selectedDate ? ' tabindex="0"' : ' tabindex="-1"';
+      return `<div class="${classes.join(' ')}" data-date="${iso}" role="group" aria-label="${iso}"${focusable}><div class="day-top"><span class="day-number">${date.getDate()}</span><button class="day-add" type="button" title="在 ${iso} 新增日程" aria-label="在 ${iso} 新增日程">＋</button></div><div class="day-events">${events}${more}</div></div>`;
+    };
+    const view = state.calendarView || 'month';
+    $('#full-calendar').classList.toggle('week-mode', view === 'week');
+    $('#full-calendar').classList.toggle('day-mode', view === 'day');
+    if (view === 'week' || view === 'day') {
+      const base = new Date(state.selectedDate + 'T00:00:00');
+      const start = view === 'week' ? new Date(base.getFullYear(), base.getMonth(), base.getDate() - ((base.getDay() + 6) % 7)) : base;
+      const count = view === 'week' ? 7 : 1;
+      const dayCells = Array.from({ length: count }, (_, index) => {
+        const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + index);
+        return renderCalendarCell(date, view === 'week' ? 5 : 20);
+      }).join('');
+      $('#full-calendar').innerHTML = (view === 'week' ? weekdays.map((day) => `<div class="weekday">${day}</div>`).join('') : '') + dayCells;
+    } else {
+      $('#full-calendar').innerHTML = weekdays.map((day) => `<div class="weekday">${day}</div>`).join('') + cells.map((date) => renderCalendarCell(date, 3)).join('');
+    }
+    $$('.full-day', $('#full-calendar')).forEach((el) => {
+      el.addEventListener('click', () => selectCalendarDate(el.dataset.date));
+      el.addEventListener('keydown', (event) => {
+        if (event.target !== el) return;
+        let delta = 0;
+        if (event.key === 'ArrowLeft') delta = -1;
+        else if (event.key === 'ArrowRight') delta = 1;
+        else if (event.key === 'ArrowUp') delta = -7;
+        else if (event.key === 'ArrowDown') delta = 7;
+        else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectCalendarDate(el.dataset.date); return; }
+        if (!delta) return;
+        event.preventDefault();
+        const nextDate = new Date(el.dataset.date + 'T00:00:00');
+        nextDate.setDate(nextDate.getDate() + delta);
+        const iso = localDate(nextDate);
+        selectCalendarDate(iso);
+        requestAnimationFrame(() => $(`.full-day[data-date="${iso}"]`, $('#full-calendar'))?.focus());
+      });
+    });
     $$('.day-add', $('#full-calendar')).forEach((el) => el.addEventListener('click', (event) => { event.stopPropagation(); openScheduleModal(el.closest('.full-day').dataset.date); }));
     $$('.day-event', $('#full-calendar')).forEach((el) => el.addEventListener('click', (event) => { event.stopPropagation(); openProject(el.dataset.projectId); }));
     renderSelectedAgenda();
+    const monthPrefix = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`;
+    const monthItems = state.schedule.filter((item) => String(item.date || '').startsWith(monthPrefix));
+    const monthEvents = monthItems.filter((item) => item.type !== 'milestone').length;
+    const monthMilestones = monthItems.filter((item) => item.type === 'milestone').length;
+    const monthOverdue = monthItems.filter((item) => item.state?.overdue && !item.done).length;
+    $('#calendar-month-summary').innerHTML = `<h2>${localizedText('本月概览', 'This month')}</h2><div class="calendar-month-stats"><div><b>${monthEvents}</b><span>${localizedText('日程', 'Events')}</span></div><div><b>${monthMilestones}</b><span>${localizedText('里程碑', 'Milestones')}</span></div><div><b>${monthOverdue}</b><span>${localizedText('逾期', 'Overdue')}</span></div></div>`;
     const today = localDate(new Date());
     const until = new Date(); until.setDate(until.getDate() + 30);
     const upcoming = state.schedule.filter((item) => item.date >= today && item.date <= localDate(until) && !item.done).slice(0, 10);
@@ -865,8 +1009,24 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     $('#empty-add-schedule', $('#calendar-selected'))?.addEventListener('click', () => openScheduleModal(state.selectedDate));
   }
   function renderCalendars() { renderMiniCalendar(); renderFullCalendar(); }
+  function setCalendarPeriod(year, month) {
+    const current = new Date(state.selectedDate + 'T00:00:00');
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const day = Math.min(current.getDate(), daysInMonth);
+    state.calendarCursor = new Date(year, month, 1);
+    state.selectedDate = localDate(new Date(year, month, day));
+  }
   function moveMonth(delta) {
-    state.calendarCursor = new Date(state.calendarCursor.getFullYear(), state.calendarCursor.getMonth() + delta, 1);
+    const next = new Date(state.calendarCursor.getFullYear(), state.calendarCursor.getMonth() + delta, 1);
+    setCalendarPeriod(next.getFullYear(), next.getMonth());
+    renderCalendars();
+  }
+  function moveCalendar(delta) {
+    if ((state.calendarView || 'month') === 'month') return moveMonth(delta);
+    const date = new Date(state.selectedDate + 'T00:00:00');
+    date.setDate(date.getDate() + (state.calendarView === 'week' ? 7 : 1) * delta);
+    state.selectedDate = localDate(date);
+    state.calendarCursor = new Date(date.getFullYear(), date.getMonth(), 1);
     renderCalendars();
   }
   function goToday() {
@@ -905,12 +1065,51 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
   }
 
   // ---------- kanban ----------
+  function renderBoardFilters() {
+    const filter = state.boardFilter || 'all';
+    $$('[data-board-filter]').forEach((button) => {
+      const buttonFilter = button.dataset.boardFilter;
+      const count = buttonFilter === 'all' ? state.cards.size : [...state.cards.values()].filter((card) => card.kind === buttonFilter).length;
+      const label = buttonFilter === 'all' ? t('board.filterAll') : buttonFilter === 'project' ? t('board.filterProject') : t('board.filterIteration');
+      button.textContent = `${label} (${count})`;
+    });
+    setTabSelection('.board-filter-bar', '[data-board-filter]', 'boardFilter', filter);
+  }
+  function renderMobileBoardStages() {
+    const el = $('#mobile-board-stages');
+    if (!el) return;
+    const filter = state.boardFilter || 'all';
+    if (state.mobileBoardStage !== 'all' && !state.columns.some((column) => column.id === state.mobileBoardStage)) state.mobileBoardStage = 'all';
+    const allCount = [...state.cards.values()].filter((card) => filter === 'all' || card.kind === filter).length;
+    const allButton = `<button class="${state.mobileBoardStage === 'all' ? 'active' : ''}" data-mobile-stage="all" type="button" role="tab" aria-selected="${state.mobileBoardStage === 'all'}">${esc(t('board.filterAll'))} (${allCount})</button>`;
+    el.innerHTML = allButton + state.columns.map((column) => {
+      const count = [...state.cards.values()].filter((card) => card.status === column.id && (filter === 'all' || card.kind === filter)).length;
+      return `<button data-mobile-stage="${column.id}" type="button" role="tab">${esc(currentLang() === 'en' ? column.titleEn || column.title : column.title)} (${count})</button>`;
+    }).join('');
+    setTabSelection(el, '[data-mobile-stage]', 'mobileStage', state.mobileBoardStage);
+    $$('[data-mobile-stage]', el).forEach((button) => button.addEventListener('click', () => {
+      state.mobileBoardStage = button.dataset.mobileStage;
+      renderMobileBoardStages();
+      syncMobileBoardStage();
+      $(`[data-mobile-stage="${state.mobileBoardStage}"]`, el)?.focus();
+    }));
+    syncMobileBoardStage();
+  }
+  function syncMobileBoardStage() {
+    const filtered = state.mobileBoardStage !== 'all';
+    $('#board')?.classList.toggle('mobile-stage-filtered', filtered);
+    $$('#board .col[data-col]').forEach((column) => column.classList.toggle('mobile-active', filtered && column.dataset.col === state.mobileBoardStage));
+  }
   function renderBoard() {
     const board = $('#board');
+    const scrollLeft = board.scrollLeft;
     board.innerHTML = state.columns.map((column) => `
       <section class="col" data-col="${column.id}"><div class="col-head"><i class="col-dot"></i><div class="col-head-copy">${esc(currentLang() === 'en' ? column.titleEn || column.title : column.title)}<small>${esc(currentLang() === 'en' ? column.hint || '' : column.hint || '')}</small></div><span class="col-count">0</span></div><div class="col-cards"></div></section>`).join('');
-    state.cards.forEach((card) => appendCardEl(card));
+    state.cards.forEach((card) => { if ((state.boardFilter || 'all') === 'all' || card.kind === state.boardFilter) appendCardEl(card); });
     updateColCounts();
+    renderBoardFilters();
+    renderMobileBoardStages();
+    board.scrollLeft = scrollLeft;
     bindDnD();
   }
   function cardHtml(card) {
@@ -918,18 +1117,22 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     const mats = (card.latestMaterials || []).slice(0, 2).map((m) => `<div class="card-mat">${FEED_ICON[m.type] || '记'} · ${esc(m.label)}</div>`).join('');
     return `<div class="card-top"><div class="card-title">${esc(card.title)}</div>${card.aiActive ? '<span class="ai-chip">AI</span>' : ''}</div>
       <div class="card-meta">${esc(card.projectKey || t('case.table.project'))} · ${esc(KIND_CN[card.kind] || card.typeLabel)}</div>
-      <div class="card-badges"><span class="badge">${currentLang() === 'en' ? 'Req' : '需'} ${counts.requirements}</span><span class="badge ${counts.milestoneOverdue ? 'danger' : counts.milestoneSoon ? 'warn' : ''}">${currentLang() === 'en' ? 'MS' : '里'} ${counts.milestones}</span><span class="badge">${currentLang() === 'en' ? 'TC' : '例'} ${counts.testcases}</span><span class="badge ${counts.defectsOpen ? 'danger' : ''}">${currentLang() === 'en' ? 'Bug' : '缺'} ${counts.defects}</span><span class="badge doc">${currentLang() === 'en' ? 'Rpt' : '报'} ${counts.reports}</span>${counts.pendingGates ? `<span class="badge gate">${currentLang() === 'en' ? 'G' : '审'} ${counts.pendingGates}</span>` : ''}</div>${mats ? `<div class="card-mats">${mats}</div>` : ''}<div class="card-foot">${fmtTime(card.lastActivityAt)}<button class="card-detail-link" type="button" data-card-preview>${currentLang() === 'en' ? 'Quick preview' : '快速预览'}</button></div>`;
+      <div class="card-badges"><span class="badge">${currentLang() === 'en' ? 'Requirements' : '需求'} ${counts.requirements}</span><span class="badge ${counts.milestoneOverdue ? 'danger' : counts.milestoneSoon ? 'warn' : ''}">${currentLang() === 'en' ? 'Milestones' : '里程碑'} ${counts.milestones}</span><span class="badge">${currentLang() === 'en' ? 'Cases' : '用例'} ${counts.testcases}</span><span class="badge ${counts.defectsOpen ? 'danger' : ''}">${currentLang() === 'en' ? 'Defects' : '缺陷'} ${counts.defects}</span><span class="badge doc">${currentLang() === 'en' ? 'Reports' : '报告'} ${counts.reports}</span>${counts.pendingGates ? `<span class="badge gate">${currentLang() === 'en' ? 'Gates' : '待审批'} ${counts.pendingGates}</span>` : ''}</div>${mats ? `<div class="card-mats">${mats}</div>` : ''}<div class="card-foot">${fmtTime(card.lastActivityAt)}<button class="card-detail-link" type="button" data-card-preview>${currentLang() === 'en' ? 'Quick preview' : '快速预览'}</button></div>`;
   }
   function makeCardEl(card) {
     const el = document.createElement('article');
     el.className = 'card';
     el.dataset.id = card.id;
     el.draggable = true;
+    el.tabIndex = 0;
+    el.setAttribute('role', 'group');
+    el.setAttribute('aria-label', `${currentLang() === 'en' ? 'Open project' : '打开项目'}：${card.title}`);
     el.innerHTML = cardHtml(card);
     el.addEventListener('dragstart', (event) => { state.justDragged = true; el.classList.add('dragging'); event.dataTransfer.setData('text/projectid', card.id); setTimeout(() => { state.justDragged = false; }, 300); });
     el.addEventListener('dragend', () => el.classList.remove('dragging'));
     $('[data-card-preview]', el).addEventListener('click', (event) => { event.stopPropagation(); openDrawer(card.id); });
     el.addEventListener('click', () => { if (!state.justDragged) openProjectDetail(card.id, 'board'); });
+    el.addEventListener('keydown', (event) => { if (event.target === el && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openProjectDetail(card.id, 'board'); } });
     return el;
   }
   function appendCardEl(card) {
@@ -944,10 +1147,10 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
   function updateColCounts() {
     state.columns.forEach((column) => {
       const container = $(`.col[data-col="${column.id}"] .col-cards`);
-      const count = [...state.cards.values()].filter((card) => card.status === column.id).length;
+      const count = [...state.cards.values()].filter((card) => card.status === column.id && ((state.boardFilter || 'all') === 'all' || card.kind === state.boardFilter)).length;
       const label = $(`.col[data-col="${column.id}"] .col-count`);
       if (label) label.textContent = count;
-      if (container && !count) container.innerHTML = `<div class="empty-col">${t('board.empty')}</div>`;
+      if (container && !count) container.innerHTML = `<div class="empty-col"><span>${t('board.empty')}</span><small>${t('board.emptyHint')}</small></div>`;
     });
   }
   function bindDnD() {
@@ -991,7 +1194,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       updateChatHead(data.project);
       renderProjectRadar(data.project);
       renderFeed();
-      await initializeDshChat({ initialize: state.view === 'assistant' });
+      await initializeDshChat({ initialize: true });
     } catch (error) { toast(error.message, 'err'); }
   }
   function updateChatHead(p) {
@@ -999,6 +1202,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     $('#chat-head-meta').innerHTML = p ? `<span>${esc(p.projectKey || '未编号')}</span><span class="status-pill">${esc(columnOf(p)?.title || p.status)}</span>${p.product ? `<span>${esc(p.product)}</span>` : ''}` : '';
     const policy = p?.assistant || { enabled: true, mode: 'full' };
     $('#assistant-mode-label').textContent = policy.enabled === false ? t('chat.mode.off') : langModeCN(policy.mode);
+    renderDashboardContext();
   }
   function dshModelValue(provider, model) { return `${encodeURIComponent(provider)}::${encodeURIComponent(model)}`; }
   function parseDshModelValue(value) {
@@ -1025,6 +1229,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     $('#btn-back-dsh').classList.toggle('hidden', !state.dshEmbedded);
     $('#capability-count').textContent = state.dsh.sessionId ? `${state.dsh.skills.length} / ${state.dsh.commands.length}` : '';
     $('#service-status').classList.toggle('offline', !state.dshEmbedded);
+    $('#service-status').classList.toggle('standalone', !state.dshEmbedded);
     document.body.classList.toggle('dsh-standalone', !state.dshEmbedded);
     document.body.classList.toggle('dsh-connected', Boolean(state.dsh.sessionId));
     $('#service-status span').textContent = state.dshEmbedded ? `DSH · ${presetName}` : t('service.standalone');
@@ -1766,11 +1971,23 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       return error instanceof DshSessionRecoveryError ? error : new DshSessionRecoveryError('unavailable', error.message || 'DSH 会话列表暂不可读');
     }
   }
-  function renderProjectRadar(p) {
+  function projectRadarSummary(p) {
     const card = state.cards.get(p.id) || p;
     const counts = card.counts || { requirements: p.requirements?.length || 0, testcases: p.testcases?.length || 0, milestones: p.milestones?.length || 0, reports: p.reports?.length || 0, defects: p.defects?.length || 0 };
     const columnIndex = Math.max(0, state.columns.findIndex((column) => column.id === p.status));
     const policy = p.assistant || { enabled: true, mode: 'full', reminders: 'all' };
+    return { counts, columnIndex, policy };
+  }
+  function renderDashboardRadar(p) {
+    const el = $('#dashboard-radar');
+    if (!el) return;
+    if (!p) { el.innerHTML = '<span class="dr-empty">选择项目后查看项目雷达</span>'; return; }
+    const { counts, policy } = projectRadarSummary(p);
+    el.innerHTML = `<span class="dr-stage">${esc(columnOf(p)?.title || p.status || '')}</span><span>${t('radar.req')} ${counts.requirements}</span><span>${t('radar.tc')} ${counts.testcases}</span><span>${t('radar.defect')} ${counts.defects}</span><span>${t('radar.ms')} ${counts.milestones}</span><button class="dr-policy" type="button" data-dashboard-policy>策略：${policy.enabled === false ? '关闭' : langModeCN(policy.mode)}</button>`;
+    $('[data-dashboard-policy]', el)?.addEventListener('click', () => openAssistantPolicy(p));
+  }
+  function renderProjectRadar(p) {
+    const { counts, columnIndex, policy } = projectRadarSummary(p);
     $('#case-radar').innerHTML = `<div class="radar-stage"><small>${t('radar.stage')}</small><b>${esc(columnOf(p)?.title || p.status)}</b><div class="stage-track">${state.columns.map((column, index) => `<i class="${index <= columnIndex ? 'done' : ''}"></i>`).join('')}</div></div>
       <div class="radar-grid"><div class="radar-stat"><b>${counts.requirements}</b><span>${t('radar.req')}</span></div><div class="radar-stat"><b>${counts.testcases}</b><span>${t('radar.tc')}</span></div><div class="radar-stat"><b>${counts.defects}</b><span>${t('radar.defect')}</span></div><div class="radar-stat"><b>${counts.milestones}</b><span>${t('radar.ms')}</span></div></div>
       <div class="assistant-policy-card"><b>${policy.enabled === false ? t('chat.mode.off') : langModeCN(policy.mode)}</b>${policy.enabled === false ? t('chat.mode.offTip') : langModeDesc(policy.mode)}<br/>${t('radar.reminder')}：${policy.reminders === 'off' ? t('radar.reminderOff') : policy.reminders === 'milestones' ? t('radar.reminderMs') : t('radar.reminderAll')}</div>`;
@@ -2007,6 +2224,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       renderProjectDetailHeaderLinks(p);
       renderProjectDetailTabs();
       renderProjectDetailTab(state.detailTab);
+      renderProjectInspector(p);
       refreshProjectGate(id, requestToken).catch(() => {});
       await refreshProjectActionQueue(id, requestToken);
     } catch (error) {
@@ -2080,6 +2298,98 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     if (valueNode) valueNode.textContent = value;
     if (noteNode) noteNode.textContent = note;
   }
+  function renderProjectInspector(p) {
+    const el = $('#project-inspector');
+    if (!el) return;
+    if (!p) { el.innerHTML = ''; return; }
+    const counts = {
+      requirements: p.requirements?.length || 0,
+      testcases: p.testcases?.length || 0,
+      defects: p.defects?.length || 0,
+      milestones: p.milestones?.length || 0,
+    };
+    const { value: gateValue, note: gateNote } = projectGateMetric(p);
+    const en = currentLang() === 'en';
+    const empty = en ? 'Not set' : '未填写';
+    el.innerHTML = `<div class="pi-head"><span>${en ? 'Project context' : '项目上下文'}</span><b>${esc(p.title || '')}</b><code>${esc(p.projectKey || '')}</code></div>
+      <div class="pi-metrics"><div><b>${counts.requirements}</b><span>${en ? 'Requirements' : '需求'}</span></div><div><b>${counts.testcases}</b><span>${en ? 'Cases' : '用例'}</span></div><div><b>${counts.defects}</b><span>${en ? 'Defects' : '缺陷'}</span></div><div><b>${counts.milestones}</b><span>${en ? 'Milestones' : '里程碑'}</span></div></div>
+      <div class="pi-row"><span>${en ? 'Delivery gate' : '交付门禁'}</span><b>${esc(gateValue)}</b><small>${esc(gateNote)}</small></div>
+      <div class="pi-row"><span>${en ? 'Test stage' : '测试阶段'}</span><b>${esc(projectStageLabel(p.status))}</b></div>
+      <div class="pi-row"><span>${en ? 'Owner / product' : '负责人 / 产品'}</span><b>${esc(p.owner || empty)} · ${esc(p.product || empty)}</b></div>
+      <div class="pi-actions"><button class="btn sm" type="button" data-pi-chat>${en ? 'Open DSH chat' : '打开 DSH 对话'}</button><button class="btn sm" type="button" data-pi-policy>${en ? 'Adjust assistance' : '调整辅助策略'}</button></div>`;
+    $('[data-pi-chat]', el)?.addEventListener('click', () => openProject(p.id));
+    $('[data-pi-policy]', el)?.addEventListener('click', () => openAssistantPolicy(p));
+  }
+  function inspectorBack(p) {
+    return `<button class="btn sm" type="button" data-inspector-back>← ${esc(localizedText('项目上下文', 'Project context'))}</button>`;
+  }
+  function renderInspectorRequirement(p, id) {
+    const el = $('#project-inspector'); const r = (p.requirements || []).find((item) => item.id === id); if (!el || !r) return;
+    const summary = summarizeRequirementCoverage(r, p.testcases || []);
+    const en = currentLang() === 'en';
+    el.innerHTML = `${inspectorBack(p)}<div class="pi-head"><span>${en ? 'Requirement' : '需求实体'}</span><b>${esc(r.title || '')}</b><code>${esc(r.id)}</code></div>
+      <div class="pi-row"><span>${en ? 'Kind' : '类型'}</span><b>${esc((en ? REQ_KIND_EN : REQ_KIND_CN)[r.kind] || r.kind || '')}</b></div>
+      <div class="pi-row"><span>${en ? 'Acceptance' : '验收标准'}</span><b>${esc(r.acceptance || (en ? 'Not set' : '未填写'))}</b></div>
+      <div class="pi-row"><span>${en ? 'Coverage' : '覆盖状态'}</span><b>${esc(coverageStateLabel(summary.state))} · ${summary.counts.valid} ${en ? 'cases' : '条用例'}</b><small>${summary.counts.draft} ${en ? 'draft' : '草稿'} · ${summary.counts.reviewed} ${en ? 'reviewed' : '已评审'} · ${summary.counts.executed} ${en ? 'executed' : '已执行'}</small></div>
+      <div class="pi-metrics"><div><b>${summary.counts.valid}</b><span>${en ? 'Cases' : '用例'}</span></div><div><b>${summary.counts.draft}</b><span>${en ? 'Draft' : '草稿'}</span></div><div><b>${summary.counts.reviewed}</b><span>${en ? 'Reviewed' : '已评审'}</span></div><div><b>${summary.counts.executed}</b><span>${en ? 'Executed' : '已执行'}</span></div></div>
+      <div class="pi-actions"><button class="btn sm" type="button" data-inspector-go="traceability">${en ? 'Open traceability' : '打开追溯表'}</button></div>`;
+    bindInspectorBack(p);
+    $('[data-inspector-go]', el)?.addEventListener('click', () => navigateProjectDetail('traceability', { scrollTarget: `[data-requirement-id="${r.id}"]` }));
+  }
+  function renderInspectorDefect(p, id) {
+    const el = $('#project-inspector'); const d = (p.defects || []).find((item) => item.id === id); if (!el || !d) return;
+    const en = currentLang() === 'en';
+    const evidence = (d.evidenceRefs || []).join(' · ') || (en ? 'None' : '无');
+    el.innerHTML = `${inspectorBack(p)}<div class="pi-head"><span>${en ? 'Defect' : '缺陷实体'}</span><b>${esc(d.title || '')}</b><code>${esc(d.id)}</code></div>
+      <div class="pi-row"><span>${en ? 'Severity / status' : '严重级别 / 状态'}</span><b>${esc((en ? SEVERITY_EN : SEVERITY_CN)[d.severity] || d.severity || '')} · ${esc(d.status || '')}</b></div>
+      <div class="pi-row"><span>${en ? 'Environment / module' : '环境 / 模块'}</span><b>${esc(d.environment || '—')} · ${esc(d.module || '—')}</b></div>
+      <div class="pi-row"><span>${en ? 'Frequency / impact' : '频率 / 影响'}</span><b>${esc(d.frequency || '—')} · ${esc(d.impact || '—')}</b></div>
+      <div class="pi-row"><span>${en ? 'Reproduction' : '复现步骤'}</span><b>${esc(d.steps || '—')}</b></div>
+      <div class="pi-row"><span>${en ? 'Expected / actual' : '预期 / 实际'}</span><b>${esc(d.expected || '—')} / ${esc(d.actual || '—')}</b></div>
+      <div class="pi-row"><span>${en ? 'Evidence' : '证据引用'}</span><b>${esc(evidence)}</b></div>`;
+    bindInspectorBack(p);
+  }
+  function renderInspectorTask(p, id) {
+    const el = $('#project-inspector'); const task = (p.qualityTasks || []).find((item) => item.id === id); if (!el || !task) return;
+    const en = currentLang() === 'en';
+    const risks = (task.risks || []);
+    el.innerHTML = `${inspectorBack(p)}<div class="pi-head"><span>${en ? 'Quality task' : '质量任务'}</span><b>${esc(task.title || '')}</b><code>${esc(task.id)}</code></div>
+      <div class="pi-row"><span>${en ? 'Stage / version' : '阶段 / 版本'}</span><b>${esc(qualityTaskStageLabel(task.stage))} · v${esc(task.version || 1)}</b></div>
+      <div class="pi-row"><span>${en ? 'Acceptance' : '验收标准'}</span><b>${(task.acceptanceCriteria || []).map((item) => esc(typeof item === 'string' ? item : item.condition || item.title || '')).join('；') || (en ? 'Not set' : '未填写')}</b></div>
+      <div class="pi-row"><span>${en ? 'Risks' : '风险'}</span><b>${risks.length} · ${risks.filter((risk) => ['high', 'critical'].includes(risk.severity)).length} ${en ? 'high' : '高风险'}</b></div>
+      <div class="pi-actions"><button class="btn sm" type="button" data-inspector-go="qualityTasks">${en ? 'Open task' : '打开质量任务'}</button></div>`;
+    bindInspectorBack(p);
+    $('[data-inspector-go]', el)?.addEventListener('click', () => { state.qualitySelectedTaskId = id; navigateProjectDetail('qualityTasks'); });
+  }
+  function renderInspectorRisk(p, id) {
+    const el = $('#project-inspector'); if (!el) return;
+    const task = (p.qualityTasks || []).find((item) => (item.risks || []).some((risk) => risk.id === id));
+    const risk = task?.risks?.find((item) => item.id === id); if (!risk) return;
+    const en = currentLang() === 'en';
+    el.innerHTML = `${inspectorBack(p)}<div class="pi-head"><span>${en ? 'Quality risk' : '质量风险'}</span><b>${esc(risk.title || risk.description || '')}</b><code>${esc(risk.id || '')}</code></div>
+      <div class="pi-row"><span>${en ? 'Severity' : '严重级别'}</span><b>${esc((en ? SEVERITY_EN : SEVERITY_CN)[risk.severity] || risk.severity || '')}</b></div>
+      <div class="pi-row"><span>${en ? 'Assessment' : '评估'}</span><b>${esc(riskAssessmentLabel(risk.assessmentStatus))}</b></div>
+      <div class="pi-row"><span>${en ? 'Disposition' : '处置'}</span><b>${esc(riskDispositionLabel(risk.dispositionStatus))}</b></div>
+      <div class="pi-row"><span>${en ? 'Source task' : '来源任务'}</span><b>${esc(task?.title || '')}</b></div>
+      <div class="pi-actions"><button class="btn sm" type="button" data-inspector-go="defects">${en ? 'Open defects & risks' : '打开缺陷与风险'}</button></div>`;
+    bindInspectorBack(p);
+    $('[data-inspector-go]', el)?.addEventListener('click', () => navigateProjectDetail('defects'));
+  }
+  function renderInspectorEvidence(p, id) {
+    const el = $('#project-inspector'); const b = (p.evidenceBundles || []).find((item) => item.id === id); if (!el || !b) return;
+    const en = currentLang() === 'en';
+    el.innerHTML = `${inspectorBack(p)}<div class="pi-head"><span>${en ? 'Evidence bundle' : '证据包'}</span><b>${esc(b.id)}</b><code>${esc(b.testRunId || '')}</code></div>
+      <div class="pi-row"><span>${en ? 'State / integrity' : '状态 / 完整性'}</span><b>${esc(b.state || '')} · ${esc(b.integrity || '')}</b></div>
+      <div class="pi-row"><span>SHA256</span><b class="font-mono">${esc(b.manifestSha256 || b.manifestHash || '—')}</b></div>
+      <div class="pi-row"><span>${en ? 'Items' : '文件'}</span><b>${(b.items || []).length}</b></div>
+      ${(b.items || []).slice(0, 5).map((item) => `<div class="pi-row"><span>${esc(item.type || 'file')}</span><b>${esc(item.relativePath || item.id)}</b></div>`).join('')}
+      <div class="pi-actions"><button class="btn sm" type="button" data-inspector-go="delivery">${en ? 'Open delivery' : '打开交付分区'}</button></div>`;
+    bindInspectorBack(p);
+    $('[data-inspector-go]', el)?.addEventListener('click', () => navigateProjectDetail('delivery'));
+  }
+  function bindInspectorBack(p) {
+    $('[data-inspector-back]', $('#project-inspector'))?.addEventListener('click', () => renderProjectInspector(p));
+  }
   function renderProjectDetailTabs() {
     const p = state.detailProject;
     const tabs = $('#project-detail-tabs');
@@ -2114,6 +2424,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       if (state.detailTab === 'delivery') state.detailDeliveryFocus = 'all';
       renderProjectDetailTabs();
       renderProjectDetailTab(state.detailTab);
+      renderProjectInspector(state.detailProject);
       if (restoreFocus) $$('[data-detail-tab]', $('#project-detail-tabs')).find((item) => item.dataset.detailTab === state.detailTab)?.focus({ preventScroll: true });
     }));
   }
@@ -2653,6 +2964,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     }
     renderProjectDetailTabs();
     renderProjectDetailTab(tab);
+    renderProjectInspector(state.detailProject);
     if (scrollTarget) requestAnimationFrame(() => $(scrollTarget, $('#project-detail-body'))?.scrollIntoView({ block: 'start' }));
   }
   function renderOverview(body, p) {
@@ -3295,20 +3607,88 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     }, 0);
     return modal;
   }
+  function openCommandPalette() {
+    const modal = modalShell(localizedText('搜索与跳转', 'Search & jump'), localizedText('搜索项目、页面或动作', 'Search projects, pages, or actions'), `
+      <div class="cmd-palette-search"><input id="cmd-input" type="search" placeholder="${esc(localizedText('输入项目名、页面或动作…', 'Type a project, page, or action…'))}"/></div>
+      <div id="cmd-results" class="cmd-results"></div>`);
+    modal.id = 'cmd-palette';
+    const input = $('#cmd-input', modal);
+    const results = $('#cmd-results', modal);
+    const pages = [
+      ['dashboard', localizedText('测试首页', 'Home'), localizedText('今日待办与项目概览', 'Today and overview')],
+      ['board', localizedText('项目看板', 'Board'), localizedText('拖拽调整阶段', 'Move projects between stages')],
+      ['calendar', localizedText('日历排期', 'Calendar'), localizedText('日程与里程碑', 'Schedules and milestones')],
+      ['skills', 'QA Skills', localizedText('技能目录与安装', 'Skill catalog and install')],
+    ];
+    const actions = [
+      ['new', localizedText('新建', 'New')],
+      ['settings', localizedText('设置与语言', 'Settings and language')],
+    ];
+    const allProjects = [...state.cards.values()].sort((a, b) => String(b.lastActivityAt || '').localeCompare(String(a.lastActivityAt || '')));
+    const paint = () => {
+      const q = (input.value || '').trim().toLowerCase();
+      const pageRows = pages.filter(([, title]) => !q || title.toLowerCase().includes(q)).map(([view, title, sub]) => `<button class="cmd-row" type="button" data-cmd-view="${view}"><span>${esc(title)}</span><small>${esc(sub)}</small></button>`);
+      const actionRows = actions.filter(([, title]) => !q || title.toLowerCase().includes(q)).map(([action, title]) => `<button class="cmd-row" type="button" data-cmd-action="${action}"><span>${esc(title)}</span><small>${esc(localizedText('动作', 'Action'))}</small></button>`);
+      const projectRows = allProjects.filter((p) => !q || `${p.title} ${p.projectKey}`.toLowerCase().includes(q)).slice(0, 8).map((p) => `<button class="cmd-row" type="button" data-cmd-project="${esc(p.id)}"><span>${esc(p.title)}</span><small>${esc(p.projectKey || '')} · ${esc(columnOf(p)?.title || p.status)}</small></button>`);
+      const sections = [];
+      if (pageRows.length) sections.push(`<div class="cmd-group"><b>${esc(localizedText('页面', 'Pages'))}</b>${pageRows.join('')}</div>`);
+      if (actionRows.length) sections.push(`<div class="cmd-group"><b>${esc(localizedText('动作', 'Actions'))}</b>${actionRows.join('')}</div>`);
+      if (projectRows.length) sections.push(`<div class="cmd-group"><b>${esc(localizedText('项目', 'Projects'))}</b>${projectRows.join('')}</div>`);
+      results.innerHTML = sections.join('') || `<div class="cmd-empty">${esc(localizedText('没有匹配结果', 'No matches'))}</div>`;
+      $$('[data-cmd-view]', results).forEach((button) => button.addEventListener('click', () => { closeModal(); switchView(button.dataset.cmdView); }));
+      $$('[data-cmd-action]', results).forEach((button) => button.addEventListener('click', () => {
+        const action = button.dataset.cmdAction; closeModal();
+        if (action === 'new') openNewProject('project');
+        else openSettings();
+      }));
+      $$('[data-cmd-project]', results).forEach((button) => button.addEventListener('click', () => { closeModal(); openProjectDetail(button.dataset.cmdProject, state.view); }));
+    };
+    let activeIndex = 0;
+    const rows = () => $$('.cmd-row', results);
+    const highlight = () => {
+      const items = rows();
+      items.forEach((row, index) => row.classList.toggle('cmd-active', index === activeIndex));
+      items[activeIndex]?.scrollIntoView({ block: 'nearest' });
+    };
+    input.addEventListener('input', () => { activeIndex = 0; paint(); highlight(); });
+    input.addEventListener('keydown', (event) => {
+      const items = rows();
+      if (!items.length) return;
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        activeIndex = (activeIndex + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+        highlight();
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        (items[activeIndex] || items[0]).click();
+      }
+    });
+    paint();
+    highlight();
+    setTimeout(() => input.focus(), 30);
+  }
   async function openActionDesk() {
+    state.actionDeskFilter = 'all';
     const modal = modalShell(t('action.deskTitle'), t('action.deskSub'), `
+      <div class="action-desk-tools"><div class="triage-filter" role="tablist" aria-label="行动台筛选"><button class="active" data-action-desk-filter="all" type="button" role="tab" aria-selected="true">${esc(t('action.deskFilterAll'))}</button><button data-action-desk-filter="action" type="button" role="tab" aria-selected="false">${esc(t('action.deskFilterAction'))}</button><button data-action-desk-filter="monitor" type="button" role="tab" aria-selected="false">${esc(t('action.deskFilterMonitor'))}</button></div><span id="action-desk-count" class="action-desk-count"></span></div>
       <div id="action-desk-list" class="action-desk-list"></div>
       <div class="modal-foot"><button class="btn primary" id="action-desk-close" type="button">${esc(t('modal.close'))}</button></div>`, true);
     modal.id = 'action-desk-modal';
+    bindTablistKeys($('.action-desk-tools .triage-filter', modal), '[data-action-desk-filter]');
+    const visibleQueue = () => state.actionQueue.filter((item) => state.actionDeskFilter === 'all' || (state.actionDeskFilter === 'action' ? item.actionRequired : !item.actionRequired));
     const render = () => {
       const list = $('#action-desk-list', modal);
       if (!list) return;
+      setTabSelection(modal, '[data-action-desk-filter]', 'actionDeskFilter', state.actionDeskFilter);
+      const queue = visibleQueue();
+      const count = $('#action-desk-count', modal); if (count) count.textContent = `${queue.length} ${localizedText('项', 'items')}`;
       if (!state.actionQueueLoaded) {
         list.innerHTML = state.actionQueueError
           ? emptyHtml(t('action.queueUnavailable'))
           : `<div class="action-queue-error" role="status">${esc(t('action.queueLoading'))}</div>`;
       } else {
-        list.innerHTML = state.actionQueue.length ? state.actionQueue.map((item) => actionItemMarkup(item)).join('') : emptyHtml(t('action.empty'));
+        const emptyKey = state.actionDeskFilter === 'action' ? 'action.deskEmptyAction' : state.actionDeskFilter === 'monitor' ? 'action.deskEmptyMonitor' : 'action.empty';
+        list.innerHTML = queue.length ? queue.map((item) => actionItemMarkup(item)).join('') : emptyHtml(t(emptyKey));
       }
       $$('.action-item', list).forEach((el) => el.addEventListener('click', () => {
         const item = state.actionQueue.find((entry) => entry.id === el.dataset.actionId);
@@ -3316,6 +3696,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
         openActionItem(item);
       }));
     };
+    $$('[data-action-desk-filter]', modal).forEach((button) => button.addEventListener('click', () => { state.actionDeskFilter = button.dataset.actionDeskFilter; render(); }));
     $('#action-desk-close', modal).addEventListener('click', closeModal);
     render();
     if (!state.actionQueueLoaded) {
@@ -3397,27 +3778,63 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     });
     setTimeout(() => $('#sc-title', modal).focus(), 30);
   }
-  function openNewProject(isIteration = false) {
-    const modal = modalShell(isIteration ? '新建测试迭代' : '新建测试项目', isIteration ? '迭代挂靠在测试项目下，共享产品与负责人信息。' : '创建独立项目空间，并按需启用 DSH 全流程辅助。', `
-      <div class="modal-grid"><div class="field span-2"><label>${isIteration ? '迭代名称 *' : '项目名称 *'}</label><input id="nc-title" placeholder="${isIteration ? '如：订单域 3 月迭代（v1.2.0）' : '如：电商中台订单服务测试项目'}"/></div>
-      <div class="field"><label>对象类型</label><select id="nc-type"><option value="project">测试项目</option><option value="iteration">迭代</option></select></div><div class="field"><label>项目编号</label><input id="nc-number" placeholder="如 PRJ-2026-001"/></div>
-      <div class="field"><label>被测产品</label><input id="nc-product" placeholder="如 电商中台 · 订单域"/></div><div class="field"><label>测试负责人</label><input id="nc-owner" placeholder="如 张测试"/></div>
-      <div class="field span-2"><label>成员（每行：姓名:角色）</label><textarea id="nc-members" rows="2" placeholder="张测试:负责人&#10;李开发:开发&#10;王产品:产品"></textarea></div><div class="field span-2"><label>项目摘要 / 测试范围</label><textarea id="nc-summary" rows="3" placeholder="测试范围、重点链路、风险…"></textarea></div></div>
-      <div class="field"><label>DSH 辅助模式</label><div class="mode-options"><button class="mode-option active" data-mode="full" type="button"><b>全流程辅助</b><span>主动提取、登记并提醒</span></button><button class="mode-option" data-mode="manual" type="button"><b>按需协作</b><span>明确要求时才执行</span></button></div></div>
-      <label class="switch-row"><span class="switch-copy"><b>自动提取测试要素</b><span>从对话识别需求、用例、缺陷、里程碑与日程</span></span><input id="nc-extract" type="checkbox" checked/></label>
-      <label class="switch-row"><span class="switch-copy"><b>全流程提醒</b><span>在首页提示临期、逾期与待审批事项</span></span><input id="nc-reminders" type="checkbox" checked/></label>
-      <label class="switch-row"><span class="switch-copy"><b>创建本地项目文件夹</b><span>自动生成需求、计划、用例、数据、执行、缺陷、报告和归档目录</span></span><input id="nc-workspace" type="checkbox" checked/></label>
-      <div class="modal-foot"><button class="btn" id="nc-cancel" type="button">取消</button><button class="btn primary" id="nc-ok" type="button">${isIteration ? '创建迭代' : '创建项目'}</button></div>`, true);
+  function openNewProject(initialKind = 'project') {
+    const L = localizedText;
+    const startKind = initialKind === true || initialKind === 'iteration' ? 'iteration' : 'project';
+    const modal = modalShell(
+      startKind === 'iteration' ? L('新建测试迭代', 'New test iteration') : L('新建测试项目', 'New test project'),
+      L('创建独立项目空间或挂靠迭代，并按需启用 DSH 全流程辅助。', 'Create a standalone project or an iteration, with optional DSH assistance.'),
+      `
+      <div class="form-modal-body">
+        <div class="create-kind-switch" role="tablist" aria-label="${L('创建类型', 'Create type')}">
+          <button class="${startKind === 'project' ? 'active' : ''}" data-create-kind="project" type="button" role="tab" aria-selected="${startKind === 'project'}">${L('测试项目', 'Test project')}</button>
+          <button class="${startKind === 'iteration' ? 'active' : ''}" data-create-kind="iteration" type="button" role="tab" aria-selected="${startKind === 'iteration'}">${L('测试迭代', 'Test iteration')}</button>
+        </div>
+        <div class="modal-grid"><div class="field span-2"><label id="nc-title-label">${L('项目名称 *', 'Project name *')}</label><input id="nc-title" placeholder="${L('如：电商中台订单服务测试项目', 'e.g. Order service test project')}"/></div>
+        <div class="field"><label id="nc-number-label">${L('项目编号', 'Project key')}</label><input id="nc-number" placeholder="PRJ-2026-001"/></div>
+        <div class="field"><label>${L('被测产品', 'Product under test')}</label><input id="nc-product" placeholder="${L('如 电商中台 · 订单域', 'e.g. Commerce platform · Orders')}"/></div>
+        <div class="field span-2"><label>${L('测试负责人', 'Test owner')}</label><input id="nc-owner" placeholder="${L('如 张测试', 'e.g. Alex Tester')}"/></div>
+        <div class="field span-2"><label>${L('成员（每行：姓名:角色）', 'Members (name:role per line)')}</label><textarea id="nc-members" rows="2" placeholder="${L('张测试:负责人&#10;李开发:开发&#10;王产品:产品', 'Alex:owner&#10;Sam:dev&#10;Riley:product')}"></textarea></div><div class="field span-2"><label>${L('项目摘要 / 测试范围', 'Project summary / test scope')}</label><textarea id="nc-summary" rows="3" placeholder="${L('测试范围、重点链路、风险…', 'Scope, critical paths, risks…')}"></textarea></div></div>
+        <div class="field"><label>${L('DSH 辅助模式', 'DSH assistance mode')}</label><div class="mode-options"><button class="mode-option active" data-mode="full" type="button"><b>${L('全流程辅助', 'Full assistance')}</b><span>${L('主动提取、登记并提醒', 'Extract, record and remind')}</span></button><button class="mode-option" data-mode="manual" type="button"><b>${L('按需协作', 'On demand')}</b><span>${L('明确要求时才执行', 'Act only when asked')}</span></button></div></div>
+        <label class="switch-row"><span class="switch-copy"><b>${L('自动提取测试要素', 'Auto-extract test facts')}</b><span>${L('从对话识别需求、用例、缺陷、里程碑与日程', 'Find requirements, cases, defects, milestones and schedule items in chat')}</span></span><input id="nc-extract" type="checkbox" checked/></label>
+        <label class="switch-row"><span class="switch-copy"><b>${L('全流程提醒', 'Workflow reminders')}</b><span>${L('在首页提示临期、逾期与待审批事项', 'Show due, overdue and pending approvals on the home page')}</span></span><input id="nc-reminders" type="checkbox" checked/></label>
+        <label class="switch-row"><span class="switch-copy"><b>${L('创建本地项目文件夹', 'Create local project folder')}</b><span>${L('自动生成需求、计划、用例、数据、执行、缺陷、报告和归档目录', 'Create folders for requirements, plans, cases, data, runs, defects, reports and archive')}</span></span><input id="nc-workspace" type="checkbox" checked/></label>
+      </div><div class="form-scroll-hint">${L('向下滚动查看提醒与文件夹设置', 'Scroll for reminders and workspace options')}</div><div class="modal-foot"><button class="btn" id="nc-cancel" type="button">${L('取消', 'Cancel')}</button><button class="btn primary" id="nc-ok" type="button">${L('创建项目', 'Create project')}</button></div>`, true);
+    modal.id = 'new-project-modal';
+    modal.classList.add('form-modal');
+    const formBody = $('.form-modal-body', modal);
+    const scrollHint = $('.form-scroll-hint', modal);
+    const syncScrollHint = () => {
+      if (!formBody || !scrollHint) return;
+      const remaining = formBody.scrollHeight - formBody.clientHeight;
+      scrollHint.classList.toggle('hidden', remaining <= 4 || formBody.scrollTop >= remaining - 4);
+    };
+    formBody?.addEventListener('scroll', syncScrollHint, { passive: true });
+    requestAnimationFrame(syncScrollHint);
     let mode = 'full';
+    let kind = startKind;
+    const applyKind = () => {
+      const iteration = kind === 'iteration';
+      $('h3', modal).textContent = iteration ? L('新建测试迭代', 'New test iteration') : L('新建测试项目', 'New test project');
+      $('#nc-title-label', modal).textContent = iteration ? L('迭代名称 *', 'Iteration name *') : L('项目名称 *', 'Project name *');
+      $('#nc-number-label', modal).textContent = iteration ? L('迭代编号', 'Iteration key') : L('项目编号', 'Project key');
+      $('#nc-title', modal).placeholder = iteration ? L('如：订单域 3 月迭代（v1.2.0）', 'e.g. Orders March iteration (v1.2.0)') : L('如：电商中台订单服务测试项目', 'e.g. Order service test project');
+      $('#nc-number', modal).placeholder = iteration ? 'ITER-2026-03' : 'PRJ-2026-001';
+      $('#nc-ok', modal).textContent = iteration ? L('创建迭代', 'Create iteration') : L('创建项目', 'Create project');
+      setTabSelection(modal, '[data-create-kind]', 'createKind', kind);
+    };
+    applyKind();
+    bindTablistKeys($('.create-kind-switch', modal), '[data-create-kind]');
+    $$('[data-create-kind]', modal).forEach((button) => button.addEventListener('click', () => { kind = button.dataset.createKind; applyKind(); }));
     $$('.mode-option', modal).forEach((button) => button.addEventListener('click', () => { mode = button.dataset.mode; $$('.mode-option', modal).forEach((el) => el.classList.toggle('active', el === button)); }));
     $('#nc-cancel', modal).addEventListener('click', closeModal);
     $('#nc-ok', modal).addEventListener('click', async () => {
       const title = $('#nc-title', modal).value.trim();
-      if (!title) return toast('请填写名称', 'err');
+      if (!title) return toast(L('请填写名称', 'Enter a name'), 'err');
       const members = $('#nc-members', modal).value.split('\n').map((line) => line.trim()).filter(Boolean).map((line) => { const [name, role] = line.split(/[:：]/).map((value) => value.trim()); return { name: name || line, role: ROLE_EN[role] || 'other' }; });
       try {
-        const result = await api('api/projects', { method: 'POST', body: { title, kind: isIteration ? 'iteration' : $('#nc-type', modal).value, projectKey: $('#nc-number', modal).value.trim(), product: $('#nc-product', modal).value.trim(), owner: $('#nc-owner', modal).value.trim(), summary: $('#nc-summary', modal).value.trim(), members, assistant: { enabled: true, mode, autoExtract: $('#nc-extract', modal).checked, reminders: $('#nc-reminders', modal).checked ? 'all' : 'off' }, createWorkspace: $('#nc-workspace', modal).checked } });
-        closeModal(); toast('项目与文件夹已创建', 'ok'); await openProject(result.project.id);
+        const result = await api('api/projects', { method: 'POST', body: { title, kind, projectKey: $('#nc-number', modal).value.trim(), product: $('#nc-product', modal).value.trim(), owner: $('#nc-owner', modal).value.trim(), summary: $('#nc-summary', modal).value.trim(), members, assistant: { enabled: true, mode, autoExtract: $('#nc-extract', modal).checked, reminders: $('#nc-reminders', modal).checked ? 'all' : 'off' }, createWorkspace: $('#nc-workspace', modal).checked } });
+        closeModal(); toast(kind === 'iteration' ? L('迭代已创建', 'Iteration created') : L('项目与文件夹已创建', 'Project and folder created'), 'ok'); await openProject(result.project.id);
       } catch (error) { toast(error.message, 'err'); }
     });
     setTimeout(() => $('#nc-title', modal).focus(), 30);
@@ -3499,8 +3916,9 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
           <div class="about-item about-item-wide"><dt>${esc(t('settings.website'))}</dt><dd><a href="${esc(websiteUrl)}" target="_blank" rel="noreferrer">${esc(websiteUrl)}</a></dd></div>
         </dl>
       </section>
-      <div class="modal-foot"><button class="btn primary" id="st-close" type="button">${esc(t('settings.done'))}</button></div>`, true);
+      <div class="modal-foot"><button class="btn" id="st-full" type="button">${esc(t('settings.full'))}</button><button class="btn primary" id="st-close" type="button">${esc(t('settings.done'))}</button></div>`, true);
     modal.id = 'settings-modal';
+    if (state.settingsFull) { modal.classList.add('settings-full'); $('#st-full', modal).textContent = t('settings.window'); modal.scrollTop = 0; }
     $$('[data-settings-lang]', modal).forEach((button) => button.addEventListener('click', () => {
       const next = button.dataset.settingsLang;
       if (next === currentLang()) return;
@@ -3517,6 +3935,12 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       });
     }));
     $('#st-close', modal).addEventListener('click', closeModal);
+    $('#st-full', modal).addEventListener('click', () => {
+      const full = modal.classList.toggle('settings-full');
+      state.settingsFull = full;
+      $('#st-full', modal).textContent = full ? t('settings.window') : t('settings.full');
+      modal.scrollTop = 0;
+    });
   }
   function renderReleasePage(modal = $('#release-modal')) {
     if (!modal) return;
@@ -3684,7 +4108,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       '.context-section-title': ['材料动态', 'Materials'],
       '#view-board .page-head h1': ['项目看板', 'Project kanban'],
       '#view-board .page-head p:last-of-type': ['拖动项目卡片调整阶段；门禁与最终发布仍由负责人确认。', 'Drag cards to change stages; gates and final release stay with the test owner.'],
-      '#full-calendar-title': ['工作日历', 'Work calendar'],
+      '#full-calendar-title': ['日历排期', 'Calendar'],
       '#view-calendar .page-head p:last-of-type': ['选中日期即可新增会议、发布、评审或里程碑截止日。', 'Select a date to add meetings, releases, reviews or milestone due dates.'],
     };
     for (const [selector, values] of Object.entries(text)) { const el = $(selector); if (el) el.textContent = currentLang() === 'en' ? values[1] : values[0]; }
@@ -3747,11 +4171,13 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     }
     const ariaCopy = currentLang() === 'en'
       ? { prev: 'Previous month', today: 'Go to today', next: 'Next month', add: 'Add to selected date', close: 'Close project details', newProject: 'Create test project' }
-      : { prev: '上个月', today: '回到今天', next: '下个月', add: '在所选日期新增', close: '关闭项目详情', newProject: '新建测试项目' };
+      : { prev: '上个月', today: '回到今天', next: '下个月', add: '在所选日期新增', close: '关闭项目详情', newProject: '新建' };
     const navLabels = currentLang() === 'en'
-      ? { dashboard: 'Dashboard', assistant: 'DSH Test Chat', board: 'Kanban', calendar: 'Calendar', skills: 'QA Skill Installer' }
-      : { dashboard: '测试首页', assistant: 'DSH 测试对话', board: '项目看板', calendar: '日历排期', skills: 'QA Skill安装' };
+      ? { dashboard: 'Dashboard', assistant: 'DSH Test Chat', board: 'Kanban', calendar: 'Calendar', skills: 'QA Skills' }
+      : { dashboard: '测试首页', assistant: 'DSH 测试对话', board: '项目看板', calendar: '日历排期', skills: 'QA Skills' };
     $$('.nav-item').forEach((button) => { const text = navLabels[button.dataset.view]; if (text) { button.setAttribute('aria-label', text); button.setAttribute('title', text); } });
+    const topbarChat = $('#btn-topbar-chat'); if (topbarChat) { topbarChat.setAttribute('aria-label', t('nav.chat')); topbarChat.title = t('nav.chat'); }
+    const mobileChat = $('.mobile-nav-chat'); if (mobileChat) { mobileChat.setAttribute('aria-label', t('nav.chat')); }
     const mobileLabels = { cases: t('mobile.cases'), context: t('mobile.context') };
     [['#btn-mobile-cases', 'cases'], ['#btn-mobile-context', 'context']].forEach(([selector, key]) => { const button = $(selector); if (button) { button.setAttribute('aria-label', mobileLabels[key]); button.setAttribute('title', mobileLabels[key]); } });
     ['#cal-prev-mini', '#cal-prev'].forEach((selector) => { if ($(selector)) $(selector).setAttribute('aria-label', ariaCopy.prev); });
@@ -3759,7 +4185,8 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     ['#cal-next-mini', '#cal-next'].forEach((selector) => { if ($(selector)) $(selector).setAttribute('aria-label', ariaCopy.next); });
     if ($('#btn-add-selected')) $('#btn-add-selected').setAttribute('aria-label', ariaCopy.add);
     if ($('#btn-close-drawer')) $('#btn-close-drawer').setAttribute('aria-label', ariaCopy.close);
-    if ($('#btn-new-case-side')) $('#btn-new-case-side').setAttribute('aria-label', ariaCopy.newProject);
+    if ($('#btn-new-case-side')) { $('#btn-new-case-side').setAttribute('aria-label', ariaCopy.newProject); $('#btn-new-case-side').title = ariaCopy.newProject; }
+    if ($('#btn-topbar-new')) { $('#btn-topbar-new').setAttribute('aria-label', t('top.new')); $('#btn-topbar-new').title = t('top.new'); }
     if ($('#project-detail-more summary')) $('#project-detail-more summary').setAttribute('aria-label', t('detail.actionsMore'));
     if ($('#project-detail-tabs')) $('#project-detail-tabs').setAttribute('aria-label', t('detail.nav.aria'));
     document.title = currentLang() === 'en' ? 'QA · DSH QA Workbench' : '质量 · DSH QA 工作台';
@@ -3789,19 +4216,67 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     const skillSearch = $('#skills-search');
     if (skillSearch) skillSearch.placeholder = t('skills.search');
     if (state.view === 'skills') loadSkillCatalog();
+    $('#btn-mobile-search')?.setAttribute('aria-label', t('top.search'));
+    const railCapabilities = $('#btn-rail-capabilities');
+    if (railCapabilities) { railCapabilities.title = t('chat.capabilities'); railCapabilities.setAttribute('aria-label', t('chat.capabilities')); }
     applyStaticCopy();
+    renderBoardFilters();
   }
 
+  function setTabSelection(container, selector, key, value) {
+    const root = typeof container === 'string' ? $(container) : container;
+    if (!root) return;
+    $$(selector, root).forEach((button) => {
+      const active = button.dataset[key] === value;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-selected', String(active));
+    });
+  }
+  function bindTablistKeys(container, buttonSelector) {
+    if (!container) return;
+    container.addEventListener('keydown', (event) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      const buttons = $$(buttonSelector, container).filter((button) => !button.disabled);
+      const index = buttons.indexOf(document.activeElement);
+      if (index < 0) return;
+      event.preventDefault();
+      const next = buttons[(index + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length];
+      next.focus();
+      next.click();
+    });
+  }
+  function bindTablistNavigation(containerSelector, buttonSelector) {
+    bindTablistKeys($(containerSelector), buttonSelector);
+  }
   function bind() {
-    $$('.nav-item').forEach((button) => button.addEventListener('click', () => { switchView(button.dataset.view); applyStaticCopy(); if (button.dataset.view === 'assistant' && state.activeProject) initializeDshChat({ initialize: true }).then(() => applyStaticCopy()).catch((error) => toast(error.message, 'err')); }));
+    bindTablistNavigation('.board-filter-bar', '[data-board-filter]');
+    bindTablistNavigation('#mobile-board-stages', '[data-mobile-stage]');
+    bindTablistNavigation('.triage-filter', '[data-action-filter]');
+    bindTablistNavigation('.skills-filters', '[data-skill-filter]');
+    bindTablistNavigation('.calendar-view-switch', '[data-cal-view]');
+    $$('.nav-item').forEach((button) => button.addEventListener('click', () => { switchView(button.dataset.view); applyStaticCopy(); }));
     $('#btn-clear-sample-data').addEventListener('click', clearSampleData);
-    $('#skills-search').addEventListener('input', (event) => { state.skillSearch = event.target.value; renderSkills(); });
+    $('#skills-search').addEventListener('input', (event) => { state.skillSearch = event.target.value; state.skillPage = 1; renderSkills(); });
+    $('#btn-skills-refresh')?.addEventListener('click', async () => {
+      const button = $('#btn-skills-refresh');
+      button.disabled = true;
+      await loadSkillCatalog();
+      button.disabled = false;
+      if (state.skillCatalog.catalogUnavailable) toast(localizedText('目录刷新失败，请检查网络后重试', 'Catalog refresh failed; check the network and retry'), 'err');
+      else toast(localizedText('QA Skills 目录已刷新', 'QA Skills catalog refreshed'), 'ok');
+    });
+    $$('[data-skill-filter]').forEach((button) => button.addEventListener('click', () => { state.skillFilter = button.dataset.skillFilter; state.skillPage = 1; renderSkills(); }));
     $('#skills-list').addEventListener('click', (event) => { const installButton = event.target.closest('[data-skill-name]'); if (installButton) installSkill(installButton.dataset.skillName); const uninstallButton = event.target.closest('[data-uninstall-skill]'); if (uninstallButton) uninstallSkill(uninstallButton.dataset.uninstallSkill); });
     $$('[data-view-jump]').forEach((button) => button.addEventListener('click', () => switchView(button.dataset.viewJump)));
     $('[data-action-desk-open]').addEventListener('click', openActionDesk);
-    ['#btn-new-case', '#btn-new-case-mini', '#btn-new-case-side', '#btn-new-case-board'].forEach((selector) => $(selector).addEventListener('click', () => openNewProject(false)));
-    $('#btn-new-iteration').addEventListener('click', () => openNewProject(true));
-    $('#btn-open-ai').addEventListener('click', () => { switchView('assistant'); if (state.activeProject) initializeDshChat({ initialize: true }).catch((error) => toast(error.message, 'err')); });
+    $$('[data-action-filter]').forEach((button) => button.addEventListener('click', () => {
+      state.actionFilter = button.dataset.actionFilter;
+      setTabSelection('.triage-filter', '[data-action-filter]', 'actionFilter', state.actionFilter);
+      renderActionQueue();
+    }));
+    ['#btn-new-case-side', '#btn-new-case-board'].forEach((selector) => $(selector).addEventListener('click', () => openNewProject('project')));
+    $$('[data-board-filter]').forEach((button) => button.addEventListener('click', () => { state.boardFilter = button.dataset.boardFilter; renderBoard(); }));
+    $('#btn-open-ai').addEventListener('click', () => switchView('assistant'));
     $('#btn-settings').addEventListener('click', openSettings);
     $('#app-version').addEventListener('click', openReleaseHistory);
     $('#btn-back-dsh').addEventListener('click', () => {
@@ -3827,16 +4302,49 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     bindSplitter('#rail-resizer', 'rail', 1);
     bindSplitter('#case-resizer', 'cases', 1);
     bindSplitter('#context-resizer', 'context', -1);
-    $('#global-search').addEventListener('click', () => { switchView('assistant'); $('#search').focus(); });
+    $('#btn-topbar-new')?.addEventListener('click', () => openNewProject('project'));
+    $('#btn-dashboard-chat-full')?.addEventListener('click', () => { switchView('assistant'); requestAnimationFrame(() => $('#chat-input')?.focus()); });
+    $('#btn-dashboard-chat-new')?.addEventListener('click', async () => {
+      const project = state.activeProject;
+      if (!project) { switchView('assistant'); return; }
+      if (!state.dshEmbedded) { toast(t('service.standalone'), 'err'); return; }
+      if (!await confirmAction(localizedText('将为当前项目新建一个独立的 DSH 测试模式对话。原对话不会删除，仍可在 DSH 历史中查看。要继续吗？', 'Create a separate DSH test-mode chat for this project? The existing chat will remain available in DSH history.'), { title: localizedText('新建 DSH 对话', 'New DSH chat'), confirmLabel: localizedText('新建对话', 'Create chat') })) return;
+      const button = $('#btn-dashboard-chat-new');
+      if (button) button.disabled = true;
+      try {
+        await createFreshDshSession(project);
+        await initializeDshChat({ initialize: true });
+        toast(localizedText('已新建并绑定 DSH 测试模式对话', 'Created and linked a new DSH test-mode chat'), 'ok');
+        $('#chat-input')?.focus();
+      } catch (error) { toast(error.message, 'err'); }
+      finally { if (button) button.disabled = false; }
+    });
+    $('#global-search').addEventListener('click', openCommandPalette);
+    $('#btn-mobile-search')?.addEventListener('click', openCommandPalette);
     $('#btn-case-detail').addEventListener('click', () => { if (state.activeProjectId) openDrawer(state.activeProjectId); });
     $('#btn-case-workspace').addEventListener('click', () => { if (state.activeProjectId) openWorkspace(state.activeProjectId); });
     $('#btn-assistant-policy').addEventListener('click', () => openAssistantPolicy());
     $('#btn-dsh-capabilities').addEventListener('click', openDshCapabilities);
+    $('#btn-rail-capabilities')?.addEventListener('click', openDshCapabilities);
     $('#btn-close-drawer').addEventListener('click', closeDrawer); $('#drawer-backdrop').addEventListener('click', closeDrawer);
     $('#btn-drawer-full').addEventListener('click', () => { if (!state.drawerProject) return; const id = state.drawerProject.id; closeDrawer(); openProjectDetail(id, state.view); });
     $('#btn-drawer-chat').addEventListener('click', () => { if (!state.drawerProject) return; const id = state.drawerProject.id; closeDrawer(); openProject(id); });
     $('#btn-drawer-folder').addEventListener('click', () => { if (state.drawerProject) openWorkspace(state.drawerProject.id); });
     $('#btn-project-detail-back').addEventListener('click', () => switchView(state.detailReturnView));
+    $('#project-detail-body')?.addEventListener('click', (event) => {
+      const p = state.detailProject;
+      if (!p || event.target.closest('select, input, textarea, a, summary')) return;
+      const requirement = event.target.closest('.requirement-row[data-requirement-id]');
+      if (requirement) return renderInspectorRequirement(p, requirement.dataset.requirementId);
+      const risk = event.target.closest('[data-quality-risk-id]');
+      if (risk) return renderInspectorRisk(p, risk.dataset.qualityRiskId);
+      const task = event.target.closest('[data-quality-task-id]');
+      if (task) return renderInspectorTask(p, task.dataset.qualityTaskId);
+      const defect = event.target.closest('[data-defect-id]');
+      if (defect) return renderInspectorDefect(p, defect.dataset.defectId);
+      const evidence = event.target.closest('[data-evidence-bundle-id]');
+      if (evidence) return renderInspectorEvidence(p, evidence.dataset.evidenceBundleId);
+    });
     $('#btn-project-detail-chat').addEventListener('click', () => { closeCompactProjectActions(); if (state.detailProject) openProject(state.detailProject.id); });
     $('#btn-project-detail-folder').addEventListener('click', () => { closeCompactProjectActions(); if (state.detailProject) openWorkspace(state.detailProject.id); });
     $('#btn-project-detail-settings').addEventListener('click', () => {
@@ -3897,9 +4405,14 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
       renderCaseList();
     }));
     $('#cal-prev-mini').addEventListener('click', () => moveMonth(-1)); $('#cal-next-mini').addEventListener('click', () => moveMonth(1)); $('#cal-today-mini').addEventListener('click', goToday);
-    $('#cal-prev').addEventListener('click', () => moveMonth(-1)); $('#cal-next').addEventListener('click', () => moveMonth(1)); $('#cal-today').addEventListener('click', goToday);
-    $('#cal-year').addEventListener('change', () => { state.calendarCursor = new Date(Number($('#cal-year').value), state.calendarCursor.getMonth(), 1); renderCalendars(); });
-    $('#cal-month').addEventListener('change', () => { state.calendarCursor = new Date(state.calendarCursor.getFullYear(), Number($('#cal-month').value), 1); renderCalendars(); });
+    $('#cal-prev').addEventListener('click', () => moveCalendar(-1)); $('#cal-next').addEventListener('click', () => moveCalendar(1)); $('#cal-today').addEventListener('click', goToday);
+    $$('[data-cal-view]').forEach((button) => button.addEventListener('click', () => {
+      state.calendarView = button.dataset.calView;
+      setTabSelection('.calendar-view-switch', '[data-cal-view]', 'calView', state.calendarView);
+      renderCalendars();
+    }));
+    $('#cal-year').addEventListener('change', () => { setCalendarPeriod(Number($('#cal-year').value), state.calendarCursor.getMonth()); renderCalendars(); });
+    $('#cal-month').addEventListener('change', () => { setCalendarPeriod(state.calendarCursor.getFullYear(), Number($('#cal-month').value)); renderCalendars(); });
     $('#cal-date-jump').addEventListener('change', () => { if ($('#cal-date-jump').value) selectCalendarDate($('#cal-date-jump').value); });
     $('#btn-add-schedule').addEventListener('click', () => openScheduleModal(state.selectedDate));
     $('#btn-add-selected').addEventListener('click', () => openScheduleModal(state.selectedDate));
@@ -3914,7 +4427,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     window.addEventListener('resize', syncAssistantPanelAccessibility);
     window.addEventListener('resize', syncProjectDetailActions);
     document.addEventListener('keydown', (event) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); switchView('assistant'); $('#search').focus(); }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); openCommandPalette(); }
       if (event.key === 'Escape') {
         if (document.body.classList.contains('mobile-cases-open') || document.body.classList.contains('mobile-context-open')) {
           event.preventDefault();

@@ -31,7 +31,7 @@ function projectSessionCreateCalls(fixture) {
 
 test('standalone mode explains that native attachments require DSH', async ({ page }) => {
   await page.goto('/');
-  await page.locator('[data-view="assistant"]').click();
+  await page.locator('[data-view="assistant"]:visible').click();
 
   await expect(page.locator('#btn-attach')).toBeDisabled();
   await expect(page.locator('#attachment-guidance')).toContainText('DSH');
@@ -375,7 +375,7 @@ test('shows recovery when a connected session disappears before sending', async 
 
   fixture.holdNextHistorySnapshot = true;
   await page.locator('[data-view="dashboard"]').click();
-  await page.locator('[data-view="assistant"]').click();
+  await page.locator('[data-view="assistant"]:visible').click();
   await expect.poll(() => typeof fixture.releaseHistorySnapshot).toBe('function');
 
   fixture.sessionListMode = 'missing';
@@ -622,6 +622,8 @@ async function createEmbeddedFixture(page, options = {}) {
     holdNextHistorySnapshot: false,
     releaseHistorySnapshot: null,
     holdNextPrompt: Boolean(options.holdPrompt),
+    holdNextTurn: Boolean(options.holdNextTurn),
+    releaseTurn: null,
     holdNextCommand: Boolean(options.holdCommand),
     commandDefinitions: options.commands || [],
     commandResult: options.commandResult,
@@ -748,8 +750,16 @@ async function createEmbeddedFixture(page, options = {}) {
       });
       const sessionId = payload.args.request.sessionId;
       appendSessionEvent(sessionId, 'user/message', { message: { source: { kind: 'user' }, content: historyContent } });
-      appendSessionEvent(sessionId, 'assistant/message', { message: { content: [{ type: 'text', text: '已收到' }] } });
-      appendSessionEvent(sessionId, 'turn/end', {});
+      if (fixture.holdNextTurn) {
+        fixture.holdNextTurn = false;
+        fixture.releaseTurn = () => {
+          appendSessionEvent(sessionId, 'assistant/message', { message: { content: [{ type: 'text', text: '已收到' }] } });
+          appendSessionEvent(sessionId, 'turn/end', {});
+        };
+      } else {
+        appendSessionEvent(sessionId, 'assistant/message', { message: { content: [{ type: 'text', text: '已收到' }] } });
+        appendSessionEvent(sessionId, 'turn/end', {});
+      }
       value = { accepted: true };
     } else if (method === 'commands/execute') {
       fixture.commands.push(payload.args);
@@ -831,9 +841,26 @@ async function waitForEmbeddedChatReady(page, frame) {
 async function openEmbeddedProject(page, title) {
   const project = page.locator('#case-list .case-item').filter({ hasText: title });
   await expect(project).toHaveCount(1);
-  await page.locator('[data-view="assistant"]').click();
+  await page.locator('[data-view="assistant"]:visible').click();
   await expect(project).toBeVisible();
   await project.click();
   await expect(page.locator('#chat-head-title')).toHaveText(title);
   return page.locator('#view-assistant');
 }
+
+test('switching chat layouts preserves the pending answer', async ({ page }) => {
+  const fixture = await createEmbeddedFixture(page, { holdNextTurn: true });
+  const frame = fixture.frame;
+  await frame.locator('#chat-input').fill('请总结本轮测试');
+  await frame.locator('#btn-send').click();
+  await expect.poll(() => typeof fixture.releaseTurn).toBe('function');
+  await expect(frame.locator('.msg-wrap.dsh').last()).toContainText('正在读取');
+
+  await page.locator('[data-view="dashboard"]').click();
+  await expect(page.locator('#view-dashboard')).toBeVisible();
+  await page.locator('#btn-open-ai').click();
+  fixture.releaseTurn();
+
+  await expect(frame.locator('.msg-wrap.dsh').last()).toContainText('已收到');
+  await expect(frame.locator('.msg-wrap.dsh')).toHaveCount(1);
+});
