@@ -299,14 +299,12 @@ test.describe('首页', () => {
     await page.locator('[data-settings-lang="en"]').click();
     await page.locator('#st-close').click();
     await expect(page.locator('#service-status span')).toHaveText('Open from DSH');
-    await expect(page.locator('#btn-new-iteration')).toContainText('New iteration');
-    await expect(page.locator('#btn-new-case')).toContainText('New project');
+    await expect(page.locator('#btn-topbar-new')).toContainText('New');
 
     await page.locator('#btn-settings').click();
     await page.locator('[data-settings-lang="zh"]').click();
     await expect(page.locator('#service-status span')).toHaveText('请从 DSH 打开');
-    await expect(page.locator('#btn-new-iteration')).toContainText('新建迭代');
-    await expect(page.locator('#btn-new-case')).toContainText('新建项目');
+    await expect(page.locator('#btn-topbar-new')).toContainText('新建');
   });
 
   test('版本摘要只展示当前语言，不跨语言回退', async ({ page }) => {

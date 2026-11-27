@@ -9,7 +9,9 @@ test('command palette filters and activates with the keyboard', async ({ page })
   await expect(page.locator('[data-view="calendar"]:visible').first()).toHaveAttribute('aria-current', 'page');
 });
 
-test('board type filters update counts and only render matching records', async ({ page }) => {
+test('board type filters update counts and only render matching records', async ({ page, request }) => {
+  const projects = (await (await request.get('/api/projects')).json()).projects;
+  const iterations = projects.filter((project) => project.kind === 'iteration').length;
   await page.goto('/');
   await page.getByRole('button', { name: '项目看板', exact: true }).first().click();
   const all = page.locator('[data-board-filter="all"]');
@@ -17,7 +19,7 @@ test('board type filters update counts and only render matching records', async 
   await expect(all).toContainText('全部 (');
   await iteration.click();
   await expect(iteration).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('#board .card')).toHaveCount(1);
+  await expect(page.locator('#board .card')).toHaveCount(iterations);
   await expect(page.locator('#board .card')).toContainText('迭代');
 });
 
@@ -134,4 +136,17 @@ test('calendar month controls keep week and day views on the same period', async
   expect(new Date(`${selected}T00:00:00`).getMonth()).toBe(month);
   await page.locator('[data-cal-view="day"]').click();
   await expect(page.locator('.full-day.selected')).toHaveAttribute('data-date', selected);
+});
+
+test('create modal follows the active language', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#btn-settings').click();
+  await page.locator('[data-settings-lang="en"]').click();
+  await page.locator('#st-close').click();
+  await page.locator('#btn-topbar-new').click();
+  await expect(page.locator('#new-project-modal')).toContainText('New test project');
+  await expect(page.locator('#nc-title-label')).toHaveText('Project name *');
+  await page.locator('[data-create-kind="iteration"]').click();
+  await expect(page.locator('#new-project-modal')).toContainText('New test iteration');
+  await expect(page.locator('#nc-ok')).toHaveText('Create iteration');
 });

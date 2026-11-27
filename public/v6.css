@@ -153,7 +153,6 @@ a { color: var(--v6-blue); }
 .welcome-row h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.03em; }
 .welcome-row p { color: var(--v6-muted); font-size: 13px; }
 .today-date { color: var(--v6-muted); font: 500 12px/1.4 var(--font-code); }
-.welcome-actions .btn { min-height: 32px; }
 .sample-data-notice { margin: 0 0 14px; padding: 10px 14px; border: 1px solid var(--v6-line); border-radius: 10px; background: var(--v6-blue-soft); color: var(--v6-ink); font-size: 13px; }
 .sample-data-notice b { color: var(--v6-blue); }
 .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
@@ -313,9 +312,6 @@ a { color: var(--v6-blue); }
 .skill-card-foot { font-size: 10px; }
 
 /* ---------- chat full view ---------- */
-#view-assistant .case-sidebar, #view-assistant .context-panel { background: var(--v6-panel); }
-#view-assistant #chat-pane { background: var(--v6-page); }
-#view-assistant .chat-head { border-bottom: 1px solid var(--v6-line); background: var(--v6-panel); }
 #view-assistant .composer-wrap { background: var(--v6-panel); border-top: 1px solid var(--v6-line); }
 
 /* ---------- dark refinements ---------- */
@@ -444,7 +440,6 @@ body.project-detail-open #app-shell { height: calc(100% - 60px); }
 #service-status { padding: 8px 8px; min-height: 28px; line-height: 1.2; }
 .welcome-row h1 { font-size: 28px; font-weight: 600; letter-spacing: normal; }
 .risk-badge, .stage-pill { color: var(--color-muted); background: var(--color-paper-3); }
-.welcome-actions { display: none !important; }
 .ai-control-panel { padding: 12px 16px; }
 .ai-control-panel .control-row { padding: 3px 0; font-size: 10px; }
 .ai-control-panel .btn.wide { min-height: 28px; font-size: 11px; }
@@ -620,7 +615,6 @@ body.project-detail-open #app-shell { height: calc(100% - 60px); }
 /* mobile board stage tabs */
 .mobile-board-stages { display: none; gap: 4px; overflow-x: auto; margin: 0 0 10px; padding-bottom: 2px; }
 .mobile-board-stages button { flex: none; height: 28px; padding: 0 9px; border: 1px solid var(--v6-line); border-radius: 6px; background: var(--v6-panel); color: var(--v6-muted); font: 500 11px/1 var(--font-body); white-space: nowrap; }
-.mobile-board-stages button b { color: var(--v6-faint); font-weight: 500; }
 .mobile-board-stages button.active { background: var(--v6-blue-soft); border-color: transparent; color: var(--v6-blue); }
 .mobile-board-stages button.active b { color: var(--v6-blue); }
 @media (max-width: 960px) {
@@ -733,16 +727,6 @@ body.dsh-standalone #dashboard-copilot { display: none; }
 /* keep the full month visible at 1024x768; taller screens still stretch */
 #full-calendar:not(.week-mode):not(.day-mode) { grid-template-rows: 32px repeat(6, minmax(72px, 1fr)); }
 /* form scroll affordance */
-#new-project-modal .form-modal-body::after {
-  content: '';
-  position: sticky;
-  bottom: 0;
-  display: block;
-  height: 20px;
-  margin-top: -20px;
-  background: linear-gradient(180deg, transparent, var(--v6-panel));
-  pointer-events: none;
-}
 /* skill mark as an icon, not a keyboard glyph */
 .skill-mark svg, .skills-empty-mark svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .skills-empty-mark svg { width: 18px; height: 18px; }
@@ -807,5 +791,5 @@ body.dsh-standalone #view-assistant .model-reminder { color: var(--v6-muted); ba
 .create-kind-switch button { height: 28px; padding: 0 12px; border: 0; border-radius: 5px; background: transparent; color: var(--v6-muted); font: 500 12px/1 var(--font-body); }
 .create-kind-switch button.active { background: var(--v6-panel); color: var(--v6-blue); box-shadow: 0 1px 2px var(--color-shadow-soft); }
 @media (max-width: 1220px) {
-  #view-assistant .model-switch { height: 40px; }
+  #view-assistant .model-switch { height: 44px; }
 }
