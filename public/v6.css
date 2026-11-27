@@ -539,7 +539,6 @@ body.project-detail-open #app-shell { height: calc(100% - 60px); }
   background: var(--v6-page);
 }
 #settings-modal.settings-full h3 { font-size: 22px; }
-#settings-modal.settings-full .modal-sub { max-width: 760px; }
 #settings-modal.settings-full .settings-section {
   max-width: 1040px;
   margin: 0 auto 18px;
@@ -675,7 +674,6 @@ body.dsh-standalone #dashboard-copilot { display: none; }
 /* settings full page: align the header with the card column */
 #settings-modal.settings-full h3,
 #settings-modal.settings-full .modal-sub { width: 100%; max-width: 1040px; margin-left: auto; margin-right: auto; }
-#settings-modal.settings-full .modal-sub { max-width: 1040px; }
 
 /* board card readability + drag affordance */
 #board .card { cursor: grab; padding: 11px 12px; }
