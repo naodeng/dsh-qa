@@ -858,7 +858,7 @@ test('switching chat layouts preserves the pending answer', async ({ page }) => 
 
   await page.locator('[data-view="dashboard"]').click();
   await expect(page.locator('#view-dashboard')).toBeVisible();
-  await page.locator('[data-view="assistant"]:visible').click();
+  await page.locator('#btn-open-ai').click();
   fixture.releaseTurn();
 
   await expect(frame.locator('.msg-wrap.dsh').last()).toContainText('已收到');

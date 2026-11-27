@@ -4236,7 +4236,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     bindTablistNavigation('.triage-filter', '[data-action-filter]');
     bindTablistNavigation('.skills-filters', '[data-skill-filter]');
     bindTablistNavigation('.calendar-view-switch', '[data-cal-view]');
-    $$('.nav-item').forEach((button) => button.addEventListener('click', () => { switchView(button.dataset.view); applyStaticCopy(); if (button.dataset.view === 'assistant' && state.activeProject) initializeDshChat({ initialize: true }).then(() => applyStaticCopy()).catch((error) => toast(error.message, 'err')); }));
+    $$('.nav-item').forEach((button) => button.addEventListener('click', () => { switchView(button.dataset.view); applyStaticCopy(); }));
     $('#btn-clear-sample-data').addEventListener('click', clearSampleData);
     $('#skills-search').addEventListener('input', (event) => { state.skillSearch = event.target.value; state.skillPage = 1; renderSkills(); });
     $('#btn-skills-refresh')?.addEventListener('click', async () => {
@@ -4259,7 +4259,7 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     ['#btn-new-case', '#btn-new-case-mini', '#btn-new-case-side', '#btn-new-case-board'].forEach((selector) => $(selector).addEventListener('click', () => openNewProject(false)));
     $$('[data-board-filter]').forEach((button) => button.addEventListener('click', () => { state.boardFilter = button.dataset.boardFilter; renderBoard(); }));
     $('#btn-new-iteration').addEventListener('click', () => openNewProject(true));
-    $('#btn-open-ai').addEventListener('click', () => { switchView('assistant'); if (state.activeProject) initializeDshChat({ initialize: true }).catch((error) => toast(error.message, 'err')); });
+    $('#btn-open-ai').addEventListener('click', () => switchView('assistant'));
     $('#btn-settings').addEventListener('click', openSettings);
     $('#app-version').addEventListener('click', openReleaseHistory);
     $('#btn-back-dsh').addEventListener('click', () => {
