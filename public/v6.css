@@ -1,6 +1,7 @@
 /* dsh-qa v6 visual layer
  * Loaded after style.css. Keeps the existing DOM/IDs for app.js and tests,
- * but replaces the shell, surfaces and type rhythm with the v6 workbench. */
+ * but replaces the shell, surfaces and type rhythm with the v6 workbench.
+ * Critical layout/style contracts are pinned in test/e2e/visual-contract.spec.js. */
 
 :root {
   --v6-page: var(--color-paper);

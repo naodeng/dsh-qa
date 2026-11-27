@@ -157,3 +157,7 @@ The theme picker provides light, dark, and system options and states that themes
 - Don't present DSH suggestions as approved test conclusions.
 - Don't change navigation or workflow semantics when switching themes.
 - Don't use large decorative gradients, oversized icons, or dense unexplained metric grids.
+
+## Implementation Layer
+
+`public/style.css` remains the legacy component stylesheet. `public/v6.css` is loaded after it and is the v6 visual layer; the cascade order is intentional. Keep critical shell, dashboard, board, calendar, assistant and form contracts covered by `test/e2e/visual-contract.spec.js` when changing this layer. Pixel snapshots are not committed because sample data, dates and host fonts differ between local and CI runs; the contract assertions pin computed type, layout, visibility and overflow behavior instead.
