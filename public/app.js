@@ -4183,7 +4183,8 @@ import { summarizeRequirementCoverage } from './project-detail-model.js';
     ['#cal-next-mini', '#cal-next'].forEach((selector) => { if ($(selector)) $(selector).setAttribute('aria-label', ariaCopy.next); });
     if ($('#btn-add-selected')) $('#btn-add-selected').setAttribute('aria-label', ariaCopy.add);
     if ($('#btn-close-drawer')) $('#btn-close-drawer').setAttribute('aria-label', ariaCopy.close);
-    if ($('#btn-new-case-side')) $('#btn-new-case-side').setAttribute('aria-label', ariaCopy.newProject);
+    if ($('#btn-new-case-side')) { $('#btn-new-case-side').setAttribute('aria-label', ariaCopy.newProject); $('#btn-new-case-side').title = ariaCopy.newProject; }
+    if ($('#btn-topbar-new')) { $('#btn-topbar-new').setAttribute('aria-label', t('top.new')); $('#btn-topbar-new').title = t('top.new'); }
     if ($('#project-detail-more summary')) $('#project-detail-more summary').setAttribute('aria-label', t('detail.actionsMore'));
     if ($('#project-detail-tabs')) $('#project-detail-tabs').setAttribute('aria-label', t('detail.nav.aria'));
     document.title = currentLang() === 'en' ? 'QA · DSH QA Workbench' : '质量 · DSH QA 工作台';
